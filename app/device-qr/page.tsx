@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 
 export default function DeviceQrPage() {
   const [token, setToken] = useState('');
@@ -43,14 +42,20 @@ export default function DeviceQrPage() {
   useEffect(() => {
     if (!token) return;
 
-    void QRCode.toDataURL(token, {
-      margin: 1,
-      width: 512,
-      color: {
-        dark: '#0D0D12',
-        light: '#FFFFFF',
-      },
-    }).then(setQrDataUrl);
+    const createQr = async () => {
+      const QRCode = await import('qrcode');
+      const dataUrl = await QRCode.toDataURL(token, {
+        margin: 1,
+        width: 512,
+        color: {
+          dark: '#0D0D12',
+          light: '#FFFFFF',
+        },
+      });
+      setQrDataUrl(dataUrl);
+    };
+
+    void createQr();
   }, [token]);
 
   return (

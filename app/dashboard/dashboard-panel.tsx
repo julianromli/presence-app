@@ -19,7 +19,7 @@ function todayDateKey() {
 }
 
 export function DashboardPanel() {
-  const [dateKey, setDateKey] = useState(todayDateKey());
+  const [dateKey, setDateKey] = useState(() => todayDateKey());
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState('Koreksi admin');
