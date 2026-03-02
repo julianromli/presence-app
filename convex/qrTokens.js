@@ -1,0 +1,108 @@
+import { ConvexError, v } from 'convex/values';
+
+import { mutation } from './_generated/server';
+import { requireRole } from './helpers';
+
+async function sha256Hex(input) {
+  const bytes = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export const issue = mutation({
+  args: {},
+  returns: v.object({
+    token: v.string(),
+    expiresAt: v.number(),
+    issuedAt: v.number(),
+  }),
+  handler: async (ctx) => {
+    const deviceUser = await requireRole(ctx, ['device-qr']);
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + 5000;
+    const nonce = crypto.randomUUID();
+    const rawToken = `${deviceUser._id}:${issuedAt}:${expiresAt}:${nonce}`;
+    const tokenHash = await sha256Hex(rawToken);
+
+    await ctx.db.insert('qr_tokens', {
+      tokenHash,
+      deviceUserId: deviceUser._id,
+      issuedAt,
+      expiresAt,
+      usedAt: undefined,
+      nonce,
+    });
+
+    return {
+      token: rawToken,
+      issuedAt,
+      expiresAt,
+    };
+  },
+});
+
+export const validateAndConsume = mutation({
+  args: {
+    token: v.string(),
+  },
+  returns: v.object({
+    valid: v.boolean(),
+    reason: v.optional(v.string()),
+    deviceUserId: v.optional(v.id('users')),
+  }),
+  handler: async (ctx, args) => {
+    const tokenHash = await sha256Hex(args.token);
+    const tokenRow = await ctx.db
+      .query('qr_tokens')
+      .withIndex('by_token_hash', (q) => q.eq('tokenHash', tokenHash))
+      .unique();
+
+    if (!tokenRow) {
+      return { valid: false, reason: 'TOKEN_UNKNOWN' };
+    }
+
+    const now = Date.now();
+
+    if (tokenRow.expiresAt < now) {
+      return { valid: false, reason: 'TOKEN_EXPIRED' };
+    }
+
+    if (tokenRow.usedAt) {
+      return { valid: false, reason: 'TOKEN_REPLAY' };
+    }
+
+    await ctx.db.patch(tokenRow._id, { usedAt: now });
+
+    return {
+      valid: true,
+      deviceUserId: tokenRow.deviceUserId,
+    };
+  },
+});
+
+export const cleanupExpired = mutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const rows = await ctx.db
+      .query('qr_tokens')
+      .filter((q) => q.lt(q.field('expiresAt'), now))
+      .take(500);
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+
+    return rows.length;
+  },
+});
+
+export const verifyTokenFormat = (token) => {
+  const parts = token.split(':');
+  if (parts.length < 4) {
+    throw new ConvexError({ code: 'INVALID_TOKEN_FORMAT', message: 'Malformed token' });
+  }
+};

@@ -7,6 +7,8 @@ import { Inter } from 'next/font/google';
 import Banner from '@/components/layout/banner';
 import { Footer } from '@/components/layout/footer';
 import Navbar from '@/components/layout/navbar';
+import { ConvexClientProvider } from '@/components/providers/convex-client-provider';
+import { UserSyncBootstrap } from '@/components/providers/user-sync-bootstrap';
 import { ThemeProvider } from '@/components/theme-provider';
 
 const inter = Inter({
@@ -32,17 +34,20 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="id" suppressHydrationWarning>
         <body className={`min-h-screen ${inter.variable} antialiased`}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <Banner />
-            <Navbar />
-            <main>{children}</main>
-            <Footer />
-          </ThemeProvider>
+          <ConvexClientProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="light"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <UserSyncBootstrap />
+              <Banner />
+              <Navbar />
+              <main>{children}</main>
+              <Footer />
+            </ThemeProvider>
+          </ConvexClientProvider>
         </body>
       </html>
     </ClerkProvider>
