@@ -255,3 +255,88 @@ export const editAttendance = mutation({
     return null;
   },
 });
+
+export const listByDateByClerk = mutation({
+  args: {
+    clerkUserId: v.string(),
+    dateKey: v.string(),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique();
+
+    if (!actor || (actor.role !== 'admin' && actor.role !== 'superadmin')) {
+      throw new ConvexError({ code: 'FORBIDDEN', message: 'Admin role required' });
+    }
+
+    const rows = await ctx.db
+      .query('attendance')
+      .withIndex('by_date_and_user', (q) => q.eq('dateKey', args.dateKey))
+      .collect();
+
+    const enriched = [];
+    for (const row of rows) {
+      const user = await ctx.db.get(row.userId);
+      enriched.push({
+        ...row,
+        employeeName: user?.name ?? 'Unknown',
+      });
+    }
+
+    return enriched;
+  },
+});
+
+export const editAttendanceByClerk = mutation({
+  args: {
+    clerkUserId: v.string(),
+    attendanceId: v.id('attendance'),
+    checkInAt: v.optional(v.number()),
+    checkOutAt: v.optional(v.number()),
+    reason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const actor = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique();
+
+    if (!actor || (actor.role !== 'admin' && actor.role !== 'superadmin')) {
+      throw new ConvexError({ code: 'FORBIDDEN', message: 'Admin role required' });
+    }
+
+    const row = await ctx.db.get(args.attendanceId);
+    if (!row) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Data absensi tidak ditemukan' });
+    }
+
+    await ctx.db.patch(args.attendanceId, {
+      checkInAt: args.checkInAt ?? row.checkInAt,
+      checkOutAt: args.checkOutAt ?? row.checkOutAt,
+      edited: true,
+      editedBy: actor._id,
+      editedAt: Date.now(),
+      editReason: args.reason,
+      updatedAt: Date.now(),
+    });
+
+    await ctx.db.insert('audit_logs', {
+      actorUserId: actor._id,
+      action: 'attendance.edited',
+      targetType: 'attendance',
+      targetId: String(args.attendanceId),
+      payload: {
+        checkInAt: args.checkInAt,
+        checkOutAt: args.checkOutAt,
+        reason: args.reason,
+      },
+      createdAt: Date.now(),
+    });
+
+    return null;
+  },
+});
