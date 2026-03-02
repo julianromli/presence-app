@@ -42,6 +42,93 @@ async function validateAndConsumeToken(ctx, token) {
   return tokenRow.deviceUserId;
 }
 
+async function processScan(ctx, actor, args) {
+  if (actor.role !== 'karyawan') {
+    throw new ConvexError({ code: 'FORBIDDEN', message: 'Only karyawan can scan' });
+  }
+
+  const now = Date.now();
+  const settings = await getGlobalSettings(ctx);
+  const sourceDeviceId = await validateAndConsumeToken(ctx, args.token);
+
+  if (settings.whitelistEnabled && !ipAllowed(args.ipAddress, settings.whitelistIps)) {
+    throw new ConvexError({ code: 'IP_NOT_ALLOWED', message: 'IP address tidak diizinkan' });
+  }
+
+  if (
+    settings.geofenceEnabled &&
+    settings.geofenceLat !== undefined &&
+    settings.geofenceLng !== undefined
+  ) {
+    if (args.latitude === undefined || args.longitude === undefined) {
+      throw new ConvexError({ code: 'GEOFENCE_COORD_REQUIRED', message: 'Lokasi wajib diisi' });
+    }
+
+    const meters = distanceMeters(
+      settings.geofenceLat,
+      settings.geofenceLng,
+      args.latitude,
+      args.longitude,
+    );
+
+    if (meters > settings.geofenceRadiusMeters) {
+      throw new ConvexError({
+        code: 'GEOFENCE_OUTSIDE_RADIUS',
+        message: 'Lokasi di luar radius kantor',
+      });
+    }
+  }
+
+  const dateKey = buildDateKey(now, settings.timezone);
+  const existing = await ctx.db
+    .query('attendance')
+    .withIndex('by_user_and_date', (q) => q.eq('userId', actor._id).eq('dateKey', dateKey))
+    .unique();
+
+  if (existing?.lastScanAt && now - existing.lastScanAt < 30_000) {
+    throw new ConvexError({
+      code: 'SPAM_DETECTED',
+      message: 'Scan terlalu cepat, coba lagi beberapa detik',
+    });
+  }
+
+  if (!existing) {
+    await ctx.db.insert('attendance', {
+      userId: actor._id,
+      dateKey,
+      checkInAt: now,
+      checkOutAt: undefined,
+      sourceDeviceId,
+      edited: false,
+      editedBy: undefined,
+      editedAt: undefined,
+      editReason: undefined,
+      lastScanAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      status: 'check-in',
+      dateKey,
+      message: 'Check-in berhasil',
+    };
+  }
+
+  await ctx.db.patch(existing._id, {
+    checkOutAt: now,
+    sourceDeviceId,
+    lastScanAt: now,
+    updatedAt: now,
+  });
+
+  return {
+    status: 'check-out',
+    dateKey,
+    message: 'Check-out berhasil',
+  };
+}
+
 export const listByDate = query({
   args: { dateKey: v.string() },
   returns: v.array(v.any()),
@@ -63,7 +150,9 @@ export const listByDateRangeUnsafe = internalQuery({
   handler: async (ctx, args) => {
     const attendance = await ctx.db
       .query('attendance')
-      .withIndex('by_date_and_user', (q) => q.gte('dateKey', args.startDateKey).lte('dateKey', args.endDateKey))
+      .withIndex('by_date_and_user', (q) =>
+        q.gte('dateKey', args.startDateKey).lte('dateKey', args.endDateKey),
+      )
       .collect();
 
     const result = [];
@@ -93,91 +182,34 @@ export const recordScan = mutation({
   }),
   handler: async (ctx, args) => {
     const actor = await getCurrentDbUser(ctx);
+    return await processScan(ctx, actor, args);
+  },
+});
 
-    if (actor.role !== 'karyawan') {
-      throw new ConvexError({ code: 'FORBIDDEN', message: 'Only karyawan can scan' });
-    }
-
-    const now = Date.now();
-    const settings = await getGlobalSettings(ctx);
-    const sourceDeviceId = await validateAndConsumeToken(ctx, args.token);
-
-    if (settings.whitelistEnabled && !ipAllowed(args.ipAddress, settings.whitelistIps)) {
-      throw new ConvexError({ code: 'IP_NOT_ALLOWED', message: 'IP address tidak diizinkan' });
-    }
-
-    if (
-      settings.geofenceEnabled &&
-      settings.geofenceLat !== undefined &&
-      settings.geofenceLng !== undefined
-    ) {
-      if (args.latitude === undefined || args.longitude === undefined) {
-        throw new ConvexError({ code: 'GEOFENCE_COORD_REQUIRED', message: 'Lokasi wajib diisi' });
-      }
-
-      const meters = distanceMeters(
-        settings.geofenceLat,
-        settings.geofenceLng,
-        args.latitude,
-        args.longitude,
-      );
-
-      if (meters > settings.geofenceRadiusMeters) {
-        throw new ConvexError({
-          code: 'GEOFENCE_OUTSIDE_RADIUS',
-          message: 'Lokasi di luar radius kantor',
-        });
-      }
-    }
-
-    const dateKey = buildDateKey(now, settings.timezone);
-    const existing = await ctx.db
-      .query('attendance')
-      .withIndex('by_user_and_date', (q) => q.eq('userId', actor._id).eq('dateKey', dateKey))
+export const recordScanByClerk = mutation({
+  args: {
+    clerkUserId: v.string(),
+    token: v.string(),
+    ipAddress: v.optional(v.string()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+  },
+  returns: v.object({
+    status: v.union(v.literal('check-in'), v.literal('check-out')),
+    dateKey: v.string(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const actor = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
       .unique();
 
-    if (existing?.lastScanAt && now - existing.lastScanAt < 30_000) {
-      throw new ConvexError({
-        code: 'SPAM_DETECTED',
-        message: 'Scan terlalu cepat, coba lagi beberapa detik',
-      });
+    if (!actor) {
+      throw new ConvexError({ code: 'USER_NOT_FOUND', message: 'User belum tersinkron' });
     }
 
-    if (!existing) {
-      await ctx.db.insert('attendance', {
-        userId: actor._id,
-        dateKey,
-        checkInAt: now,
-        checkOutAt: undefined,
-        sourceDeviceId,
-        edited: false,
-        editedBy: undefined,
-        editedAt: undefined,
-        editReason: undefined,
-        lastScanAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      return {
-        status: 'check-in',
-        dateKey,
-        message: 'Check-in berhasil',
-      };
-    }
-
-    await ctx.db.patch(existing._id, {
-      checkOutAt: now,
-      sourceDeviceId,
-      lastScanAt: now,
-      updatedAt: now,
-    });
-
-    return {
-      status: 'check-out',
-      dateKey,
-      message: 'Check-out berhasil',
-    };
+    return await processScan(ctx, actor, args);
   },
 });
 

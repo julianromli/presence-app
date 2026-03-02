@@ -11,6 +11,29 @@ async function sha256Hex(input) {
     .join('');
 }
 
+async function issueToken(ctx, deviceUserId) {
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + 5000;
+  const nonce = crypto.randomUUID();
+  const rawToken = `${deviceUserId}:${issuedAt}:${expiresAt}:${nonce}`;
+  const tokenHash = await sha256Hex(rawToken);
+
+  await ctx.db.insert('qr_tokens', {
+    tokenHash,
+    deviceUserId,
+    issuedAt,
+    expiresAt,
+    usedAt: undefined,
+    nonce,
+  });
+
+  return {
+    token: rawToken,
+    issuedAt,
+    expiresAt,
+  };
+}
+
 export const issue = mutation({
   args: {},
   returns: v.object({
@@ -20,26 +43,30 @@ export const issue = mutation({
   }),
   handler: async (ctx) => {
     const deviceUser = await requireRole(ctx, ['device-qr']);
-    const issuedAt = Date.now();
-    const expiresAt = issuedAt + 5000;
-    const nonce = crypto.randomUUID();
-    const rawToken = `${deviceUser._id}:${issuedAt}:${expiresAt}:${nonce}`;
-    const tokenHash = await sha256Hex(rawToken);
+    return await issueToken(ctx, deviceUser._id);
+  },
+});
 
-    await ctx.db.insert('qr_tokens', {
-      tokenHash,
-      deviceUserId: deviceUser._id,
-      issuedAt,
-      expiresAt,
-      usedAt: undefined,
-      nonce,
-    });
+export const issueForDevice = mutation({
+  args: {
+    clerkUserId: v.string(),
+  },
+  returns: v.object({
+    token: v.string(),
+    expiresAt: v.number(),
+    issuedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const deviceUser = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .unique();
 
-    return {
-      token: rawToken,
-      issuedAt,
-      expiresAt,
-    };
+    if (!deviceUser || deviceUser.role !== 'device-qr') {
+      throw new ConvexError({ code: 'FORBIDDEN', message: 'Device role required' });
+    }
+
+    return await issueToken(ctx, deviceUser._id);
   },
 });
 
