@@ -146,7 +146,8 @@ export function ScanPanel() {
 
       const video = videoRef.current;
       if (!video) {
-        setScannerState('blocked');
+        setScannerState('unsupported');
+        setCameraError('video-element-missing');
         return;
       }
 
@@ -190,6 +191,7 @@ export function ScanPanel() {
           }, 600);
           return;
         } catch {
+          setScannerState('blocked');
           setCameraError('native:getUserMedia-or-detector-failed');
           // fallback to ZXing below
         }
@@ -231,9 +233,9 @@ export function ScanPanel() {
         setScannerEngine('zxing');
         setCameraError('none');
       } catch {
-        setScannerState('unsupported');
+        setScannerState('blocked');
         setScannerEngine('none');
-        setCameraError('zxing-init-failed');
+        setCameraError('zxing-init-failed-or-camera-blocked');
       }
     };
 
@@ -312,17 +314,26 @@ export function ScanPanel() {
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border p-4">
           <p className="mb-2 text-sm font-medium">Kamera Scanner</p>
-          {scannerState === 'ready' ? (
-            <video ref={videoRef} className="aspect-square w-full rounded-lg bg-black object-cover" />
-          ) : (
-            <div className="grid aspect-square place-items-center rounded-lg border border-dashed text-sm text-zinc-500">
-              {scannerState === 'unsupported'
-                ? 'Scanner kamera tidak didukung browser ini.'
-                : scannerState === 'blocked'
-                  ? 'Izin kamera ditolak atau kamera tidak tersedia.'
-                  : 'Menyiapkan kamera...'}
-            </div>
-          )}
+          <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-dashed bg-black">
+            <video
+              ref={videoRef}
+              className={`h-full w-full object-cover transition-opacity ${
+                scannerState === 'ready' ? 'opacity-100' : 'opacity-20'
+              }`}
+              muted
+              playsInline
+              autoPlay
+            />
+            {scannerState !== 'ready' ? (
+              <div className="absolute inset-0 grid place-items-center text-center text-sm text-zinc-500">
+                {scannerState === 'unsupported'
+                  ? 'Scanner kamera tidak didukung browser ini.'
+                  : scannerState === 'blocked'
+                    ? 'Izin kamera ditolak atau kamera tidak tersedia.'
+                    : 'Menyiapkan kamera...'}
+              </div>
+            ) : null}
+          </div>
           <div className="mt-3 rounded-md border bg-zinc-50 p-3 text-xs text-zinc-600">
             <p className="font-semibold text-zinc-700">Diagnostik Scanner</p>
             <div className="mt-1 space-y-1">
