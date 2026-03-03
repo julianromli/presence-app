@@ -7,23 +7,24 @@ type QA = { question: string; answer: string };
 
 const FAQS: QA[] = [
   {
-    question: 'How can I send one-time or recurring invoices to customers?',
+    question: 'Bagaimana alur check-in dan check-out di Presence?',
     answer:
-      'Metafi Billing lets you create both one-time and recurring invoices. You can generate payment links or embed checkout forms directly on your site, making it easy for customers to pay securely without extra setup.',
+      'Karyawan memindai QR dari perangkat scanner. Sistem memvalidasi token, user, dan status sesi untuk menandai check-in atau check-out secara otomatis.',
   },
   {
-    question: 'How do I create and send an invoice using Metafi Billing?',
-    answer: `To create an invoice:\n1. Log in to your Metafi Billing dashboard.\n2. Open the “Invoices” section and select **Create New Invoice**.\n3. Add client details, invoice date, and line items.\n4. Review everything, then click **Send** to email the invoice directly to your customer.`,
+    question: 'Apa manfaat QR dinamis?',
+    answer:
+      'QR dinamis mengurangi risiko replay karena token berubah berkala. Kode lama akan tidak valid sehingga proses absensi lebih aman.',
   },
   {
-    question: 'How do I mark an invoice as paid outside of Metafi?',
+    question: 'Apakah akses dashboard bisa dibatasi per role?',
     answer:
-      'If you receive payment through another channel—such as a bank transfer or cash—you can mark the invoice as paid manually. Open the invoice, choose **Mark as Paid**, select “Out of band,” and record any payment reference or note for accurate reconciliation.',
+      'Bisa. Presence mendukung role superadmin, admin, karyawan, dan device-qr. Setiap role hanya bisa mengakses area yang relevan.',
   },
   {
-    question: 'How can I calculate my trial conversion rate in Billing?',
+    question: 'Apakah laporan absensi bisa diekspor?',
     answer:
-      'In your Billing dashboard, open **Analytics**, then select the **Funnels** tab and choose **Trials**. The report shows how many customers started a trial and how many converted to paid plans. You can filter results by date range and export them for further analysis.',
+      'Bisa. Rekap mingguan dan data operasional dapat diunduh untuk keperluan audit, pelaporan internal, atau sinkronisasi ke workflow lain.',
   },
 ];
 
@@ -139,19 +140,19 @@ export default function MetafiFaq() {
     setValue((curr) => (curr === id ? undefined : id));
 
   return (
-    <section id="metafi-faq" className="bg-background px-6 lg:px-0">
+    <section id="faq" className="bg-background px-6 lg:px-0">
       <div className="container px-0 py-16 sm:py-20 md:px-6 lg:py-28">
         <p className="text-tagline mb-4 text-center text-sm leading-tight font-normal sm:text-base">
           FAQ
         </p>
 
         <h2 className="text-foreground mx-auto mb-4 max-w-3xl text-center text-3xl leading-tight font-medium tracking-tight sm:text-4xl md:text-5xl">
-          Frequently Asked Questions
+          Pertanyaan yang sering ditanyakan
         </h2>
 
         <p className="text-muted-foreground mx-auto max-w-2xl text-center text-base font-normal sm:text-lg">
-          Hendrerit fames metus leo ut orci pretium. Sit vitae montes egestas
-          montes mauris. Auctor vitae neque urna nam nunc pellentesque.
+          Ringkasan singkat untuk membantu tim Anda memahami cara kerja Presence
+          sebelum mulai implementasi.
         </p>
 
         <div className="mx-auto mt-10 flex max-w-3xl flex-col gap-4 sm:mt-14">

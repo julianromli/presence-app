@@ -8,7 +8,7 @@ import { GridBackground } from '../ui/grid-background';
 const MetafiHero = () => {
   return (
     <section
-      id="metafi-hero"
+      id="hero"
       className="bg-background border-b-border relative overflow-hidden border-b px-6 lg:px-0"
     >
       <div className="pointer-events-none absolute inset-0">
@@ -28,35 +28,35 @@ const MetafiHero = () => {
       <div className="relative container px-0 md:px-6">
         <div className="mx-auto grid max-w-4xl gap-6 py-14 text-center sm:py-16 md:gap-8 md:pt-24 md:pb-20">
           <h1 className="text-foreground text-4xl leading-tight font-medium tracking-tight text-balance sm:text-5xl md:text-[68px]">
-            Simplifying Payments for Growing Business
+            Absensi QR yang cepat untuk tim yang terus bergerak
           </h1>
           <p className="text-muted-foreground md:text-md mx-auto max-w-2xl text-base sm:text-lg">
-            Streamlining transactions for expanding enterprises. Our solutions
-            simplify payment processes, empowering businesses to focus on growth
-            and innovation.
+            Presence membantu kantor mencatat check-in dan check-out real-time,
+            menjaga keamanan akses berbasis role, dan menyiapkan laporan mingguan
+            tanpa proses manual.
           </p>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
             <Button
               asChild
               className="w-full sm:w-auto"
-              aria-label="Get started"
+              aria-label="Coba scan sekarang"
             >
-              <Link href="/pricing">Get Started</Link>
+              <Link href="/scan">Coba scan sekarang</Link>
             </Button>
             <Button
               asChild
               variant="outline"
               className="w-full sm:w-auto"
-              aria-label="Contact us"
+              aria-label="Buka dashboard"
             >
-              <Link href="/contact">Contact Us</Link>
+              <Link href="/dashboard">Buka dashboard</Link>
             </Button>
           </div>
         </div>
         <div className="mx-auto flex w-full max-w-[994px] items-center justify-center rounded-t-[16px] bg-white/20 shadow-[0_15px_80px_-1px_rgba(8,9,10,0.04)] backdrop-blur-[20px]">
           <Image
             src="/images/homepage/hero/Dashboard.webp"
-            alt="Metafi dashboard preview"
+            alt="Pratinjau dashboard Presence"
             width={994}
             height={707}
             priority

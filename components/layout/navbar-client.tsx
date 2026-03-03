@@ -24,11 +24,18 @@ export type NavbarClientProps = {
 
 const ITEMS: NavItem[] = [
   { label: 'Beranda', href: '/' },
+  { label: 'Fitur', href: '/#fitur' },
+  { label: 'Integrasi', href: '/#integrasi' },
+  { label: 'FAQ', href: '/#faq' },
   { label: 'Dashboard', href: '/dashboard', roles: ['admin', 'superadmin'] },
   { label: 'QR Device', href: '/device-qr', roles: ['device-qr'] },
 ];
 
 function isActivePath(pathname: string, href: string) {
+  if (href.startsWith('/#')) {
+    return pathname === '/';
+  }
+
   if (href === '/') {
     return pathname === '/';
   }

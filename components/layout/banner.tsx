@@ -18,10 +18,10 @@ const Banner = () => {
       <div className="container flex items-center justify-between gap-4 py-3 pr-12">
         <div className="flex flex-1 items-center justify-center gap-3 sm:gap-4">
           <span className="text-primary-foreground text-center text-sm font-medium">
-            Presence MVP siap dipakai untuk absensi QR dinamis
+            Presence siap dipakai untuk absensi QR dinamis real-time
           </span>
           <Button size="sm" variant="secondary" asChild>
-            <a href="/dashboard">Buka Dashboard</a>
+            <a href="/scan">Coba Scan</a>
           </Button>
         </div>
         <button

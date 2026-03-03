@@ -7,51 +7,44 @@ type Integration = {
   name: string;
   description: string;
   icon: string; // e.g. /images/homepage/integrations/shopify.svg
-  href?: string;
 };
 
 const INTEGRATIONS: Integration[] = [
   {
-    name: 'Shopify integration',
+    name: 'Sinkronisasi identitas',
     description:
-      'Scale your entire business with the best ranked commerce platform',
+      'Hubungkan akun karyawan dari sistem internal agar onboarding lebih cepat.',
     icon: '/images/homepage/integrations/shopify.svg',
-    href: '#',
   },
   {
-    name: 'Slack integration',
+    name: 'Notifikasi tim',
     description:
-      'With Metafi’s integration for Slack, your team can seamlessly send messages to a Metafi database',
+      'Kirim ringkasan kehadiran dan pengingat langsung ke channel komunikasi tim.',
     icon: '/images/homepage/integrations/slack.svg',
-    href: '#',
   },
   {
-    name: 'Zapier integration',
+    name: 'Otomasi alur kerja',
     description:
-      'Connect Apps and Automate Workflows with Zapier — No Coding Required.',
+      'Teruskan data scan ke tool lain untuk approval, payroll, dan reporting.',
     icon: '/images/homepage/integrations/zapier.svg',
-    href: '#',
   },
   {
-    name: 'Google integration',
+    name: 'Ekspor laporan',
     description:
-      'Comprehensive tools to connect applications (Google Cloud and others).',
+      'Unduh rekap absensi berkala untuk kebutuhan audit dan evaluasi performa.',
     icon: '/images/homepage/integrations/google.svg',
-    href: '#',
   },
   {
-    name: 'Okta integration',
+    name: 'Kontrol akses role',
     description:
-      'Scale & flexibility with the broadest & deepest set of integrations',
+      'Batasi akses berdasarkan peran agar area admin tetap aman.',
     icon: '/images/homepage/integrations/okta.svg',
-    href: '#',
   },
   {
-    name: 'Stripe integration',
+    name: 'API operasional',
     description:
-      'Work faster and smarter by integrating directly with Notion, right in the app.',
+      'Akses endpoint internal untuk dashboard, attendance summary, dan scan events.',
     icon: '/images/homepage/integrations/stripe.svg',
-    href: '#',
   },
 ];
 
@@ -83,15 +76,15 @@ function IntegrationCard({ item }: { item: Integration }) {
 
 const MetafiIntegrations = () => {
   return (
-    <section id="metafi-integrations" className="bg-background px-6 lg:px-0">
+    <section id="integrasi" className="bg-background px-6 lg:px-0">
       <div className="container px-0 py-16 text-center sm:py-20 md:px-6 md:py-28">
         <p className="text-tagline mb-4 text-sm leading-tight sm:text-base">
-          Integrations
+          Integrasi
         </p>
 
         <h2 className="text-foreground mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-          Make Payments Easier <br className="hidden sm:block" />
-          with 50+ Integrations
+          Presence siap terhubung
+          <br className="hidden sm:block" /> ke alur kerja tim Anda
         </h2>
 
         <ul className="mt-10 grid gap-12 sm:grid-cols-2 sm:gap-6 md:mt-20 md:gap-8 lg:grid-cols-3 [@media(min-width:1024px)]:[&>li:nth-child(n+4)]:mt-8">
@@ -101,14 +94,13 @@ const MetafiIntegrations = () => {
         </ul>
 
         <p className="text-muted-foreground text-md text-md mx-auto mt-10 max-w-3xl font-normal md:mt-20">
-          Streamline your business operations with seamless integrations.
-          Connect with Xero, WooCommerce, Zapier, Stripe, Shopify, QuickBooks,
-          and many other platforms.
+          Integrasi ini membantu tim HR dan operasional menjaga data tetap
+          konsisten dari proses scan sampai laporan akhir.
         </p>
 
         <div className="mt-6 flex justify-center">
           <Button className="w-full sm:w-auto" asChild>
-            <Link href="/integrations">See All Integrations</Link>
+            <Link href="/dashboard">Lihat ringkasan operasional</Link>
           </Button>
         </div>
       </div>

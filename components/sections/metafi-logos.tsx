@@ -15,12 +15,12 @@ const ITEMS = [
 const MetafiLogos = () => {
   return (
     <section
-      id="metafi-logos"
+      id="mitra"
       className="bg-background overflow-hidden px-6 lg:px-0"
     >
       <div className="container px-0 py-10 text-center sm:py-12 md:px-6 md:py-20">
         <p className="text-muted-foreground text-sm sm:text-base">
-          Trusted by beloved partner and customer
+          Dipercaya tim operasional dari berbagai industri
         </p>
 
         <div className="mt-12 flex flex-col items-center gap-10 sm:gap-12 md:gap-20">

@@ -14,36 +14,36 @@ type Feature = {
 
 const FEATURES: Feature[] = [
   {
-    title: 'Checkout',
+    title: 'QR dinamis anti-replay',
     description:
-      'Embed checkout into your website or direct customers to a Metafi-hosted page to easily and securely accept one-time payments or subscriptions.',
+      'Token QR terus berputar dalam interval singkat sehingga kode lama tidak bisa dipakai ulang saat proses absensi.',
     image: '/images/homepage/features/animation1.svg',
   },
   {
-    title: 'Recurring Billing',
+    title: 'Mode device khusus scanner',
     description:
-      'Collect and retain more revenue, automate revenue management workflows, and accept payments.',
+      'Layar scanner khusus role device-qr menjaga alur check-in/check-out tetap cepat tanpa membuka area admin.',
     image: '/images/homepage/features/recurring-billing.webp',
   },
   {
-    title: 'Invoicing',
+    title: 'Dashboard operasional real-time',
     description:
-      'Create an invoice and send it to your customers in minutes—no-code required—to easily collect payments.',
+      'Admin bisa memantau aktivitas kehadiran, sinkronisasi user, dan ringkasan data harian dari satu dashboard.',
     image: '/images/homepage/features/invoicing.webp',
   },
   {
-    title: 'Payment Link',
+    title: 'Rekap mingguan siap ekspor',
     description:
-      'Sell online without a website. Create a full payment page in a few clicks and share the link with customers—no code required.',
+      'Laporan absensi disiapkan untuk kebutuhan audit dengan jejak perubahan yang jelas dan format siap dibagikan.',
     image: '/images/homepage/features/payment-link.webp',
   },
 ];
 
 function FeatureCard({ feature }: { feature: Feature }) {
-  const isCheckout = feature.title === 'Checkout';
-  const isRecurring = feature.title === 'Recurring Billing';
-  const isInvoicing = feature.title === 'Invoicing';
-  const isPayment = feature.title === 'Payment Link';
+  const isCheckout = feature.image.includes('animation1');
+  const isRecurring = feature.image.includes('recurring-billing');
+  const isInvoicing = feature.image.includes('invoicing');
+  const isPayment = feature.image.includes('payment-link');
 
   return (
     <div className="bg-card border-border-light relative flex flex-col rounded-[16px] border p-6 text-left shadow-[0_2px_8px_-1px_rgba(13,13,18,0.04)]">
@@ -84,21 +84,19 @@ const MetafiFeatures = () => {
   const [f1, f2, f3, f4] = FEATURES;
 
   return (
-    <section id="metafi-features" className="bg-background px-6 lg:px-0">
+    <section id="fitur" className="bg-background px-6 lg:px-0">
       <div className="container px-0 py-16 sm:py-20 md:px-6 md:py-28">
         <p className="text-tagline mb-4 text-center text-sm sm:text-base">
-          Features
+          Fitur utama
         </p>
 
         <h2 className="text-foreground mx-auto max-w-3xl text-center text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-          Everything You Need to Run & <br className="hidden sm:block" />
-          Grow Your Business
+          Semua alat penting untuk operasional absensi harian
         </h2>
 
         <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-base sm:text-lg">
-          All the tools and resources necessary for managing and expanding your
-          business, conveniently accessible in one place. Take control of your
-          journey to success with our comprehensive solutions.
+          Mulai dari scan QR, pengelolaan role, sampai pelaporan rutin. Satu
+          sistem yang ringkas untuk tim HR dan operasional.
         </p>
 
         <div className="mt-12 flex flex-col gap-6 md:mt-14 md:gap-8 lg:flex-row">

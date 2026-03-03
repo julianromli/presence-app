@@ -5,16 +5,18 @@ const columns = [
   {
     title: 'Produk',
     links: [
-      { name: 'Dashboard', href: '/dashboard' },
-      { name: 'QR Device', href: '/device-qr' },
-      { name: 'Pengaturan', href: '/settings' },
+      { name: 'Beranda', href: '/' },
+      { name: 'Fitur', href: '/#fitur' },
+      { name: 'Integrasi', href: '/#integrasi' },
+      { name: 'Demo scan', href: '/scan' },
     ],
   },
   {
-    title: 'Perusahaan',
+    title: 'Operasional',
     links: [
-      { name: 'Tentang', href: '/' },
-      { name: 'Kontak', href: '/' },
+      { name: 'Dashboard', href: '/dashboard' },
+      { name: 'QR Device', href: '/device-qr' },
+      { name: 'FAQ', href: '/#faq' },
     ],
   },
   {
@@ -22,6 +24,7 @@ const columns = [
     links: [
       { name: 'Daftar', href: '/sign-up' },
       { name: 'Masuk', href: '/sign-in' },
+      { name: 'Kontak', href: 'mailto:hello@presence.app' },
     ],
   },
 ];
