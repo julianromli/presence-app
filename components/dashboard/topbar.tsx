@@ -1,10 +1,11 @@
 'use client';
 
 import { UserButton } from '@clerk/nextjs';
-import { Bell, Search } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import { ChevronDown, Download, Grid2X2, RefreshCw } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { parseApiErrorResponse } from '@/lib/client-error';
 
 const titleByPathname: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -25,56 +26,219 @@ function getPageTitle(pathname: string) {
   return 'Presence';
 }
 
-export function DashboardTopbar() {
+type DashboardTopbarProps = {
+  name: string;
+  email: string;
+};
+
+type WeeklyReportRow = {
+  _id: string;
+  status: 'pending' | 'success' | 'failed';
+};
+
+export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialValue = useMemo(() => searchParams.get('q') ?? '', [searchParams]);
-  const [searchValue, setSearchValue] = useState(initialValue);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(new Date());
+  const [busy, setBusy] = useState<'none' | 'refresh' | 'report' | 'export'>('none');
+  const [notice, setNotice] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const initials = useMemo(() => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(), [name]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
 
-    const params = new URLSearchParams(searchParams.toString());
-    const trimmed = searchValue.trim();
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
 
-    if (trimmed.length > 0) {
-      params.set('q', trimmed);
-    } else {
-      params.delete('q');
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  const dispatchRefresh = () => {
+    window.dispatchEvent(new CustomEvent('dashboard:refresh'));
+  };
+
+  const refreshDashboard = async () => {
+    setBusy('refresh');
+    setNotice(null);
+    try {
+      const res = await fetch('/api/admin/dashboard/overview', { cache: 'no-store' });
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(res, 'Gagal menyegarkan data dashboard.');
+        setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
+        return;
+      }
+      setLastUpdatedAt(new Date());
+      dispatchRefresh();
+      setNotice({ tone: 'success', text: 'Dashboard berhasil diperbarui.' });
+    } finally {
+      setBusy('none');
     }
+  };
 
-    const query = params.toString();
-    router.push(query.length > 0 ? `${pathname}?${query}` : pathname);
+  const openSettings = () => {
+    router.push('/settings/geofence');
+  };
+
+  const runGenerateWeeklyReport = async () => {
+    setMenuOpen(false);
+    setBusy('report');
+    setNotice(null);
+    try {
+      const res = await fetch('/api/admin/reports', { method: 'POST' });
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(res, 'Gagal memproses trigger report mingguan.');
+        setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
+        return;
+      }
+      setLastUpdatedAt(new Date());
+      dispatchRefresh();
+      setNotice({ tone: 'success', text: 'Trigger report mingguan berhasil dijalankan.' });
+    } finally {
+      setBusy('none');
+    }
+  };
+
+  const runExportLatestReport = async () => {
+    setMenuOpen(false);
+    setBusy('export');
+    setNotice(null);
+    try {
+      const res = await fetch('/api/admin/reports', { cache: 'no-store' });
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(res, 'Gagal memuat daftar report mingguan.');
+        setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
+        return;
+      }
+      const reports = (await res.json()) as WeeklyReportRow[];
+      const latestSuccess = reports.find((item) => item.status === 'success');
+      if (!latestSuccess) {
+        setNotice({ tone: 'info', text: 'Belum ada report mingguan berstatus sukses untuk diunduh.' });
+        return;
+      }
+      window.location.assign(`/api/admin/reports/download?reportId=${encodeURIComponent(latestSuccess._id)}`);
+    } finally {
+      setBusy('none');
+    }
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-6">
-      <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
-        {getPageTitle(pathname)}
-      </h1>
+    <header className="z-20 bg-slate-100/95 backdrop-blur">
+      <div className="px-4 pt-5 md:px-6">
+        <div className="mx-auto w-full max-w-[1400px]">
+          <div className="flex items-center justify-between border-b border-slate-300 pb-5">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{getPageTitle(pathname)}</h1>
+            <div className="flex items-center gap-3">
+              <div className="hidden text-right md:block">
+                <p className="text-lg font-semibold text-slate-900">{name}</p>
+                <p className="text-sm text-slate-500">{email}</p>
+              </div>
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 md:hidden">
+                {initials}
+              </div>
+              <UserButton afterSignOutUrl="/" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <div className="flex items-center gap-3 md:gap-4">
-        <form onSubmit={handleSubmit} className="hidden sm:block">
-          <label className="relative block w-60 md:w-80">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-              placeholder="Cari pada halaman aktif"
-            />
-          </label>
-        </form>
-        <button
-          type="button"
-          className="relative rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:scale-[0.98]"
-          aria-label="Lihat notifikasi"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
-        </button>
-        <UserButton afterSignOutUrl="/" />
+      <div className="px-4 py-4 md:px-6">
+        <div className="mx-auto w-full max-w-[1400px]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => void refreshDashboard()}
+              disabled={busy !== 'none'}
+              className="inline-flex items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-base text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`} />
+              <span>
+                Last updated:{' '}
+                {lastUpdatedAt.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: '2-digit',
+                  year: 'numeric',
+                })}
+              </span>
+            </button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 rounded-xl border-slate-300 bg-white px-4 text-base font-medium text-slate-600 hover:bg-slate-50"
+                onClick={openSettings}
+              >
+                <Grid2X2 className="mr-2 h-4 w-4" />
+                View setting
+              </Button>
+
+              <div className="relative" ref={menuRef}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 rounded-xl border-slate-300 bg-white px-4 text-base font-medium text-slate-600 hover:bg-slate-50"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  disabled={busy !== 'none'}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Import/Export
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+
+                {menuOpen ? (
+                  <div className="absolute right-0 top-12 z-30 min-w-64 rounded-xl border border-slate-300 bg-white p-2 shadow-lg">
+                    <button
+                      type="button"
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                      onClick={() => void runExportLatestReport()}
+                    >
+                      Export latest weekly report
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                      onClick={() => void runGenerateWeeklyReport()}
+                    >
+                      Generate weekly report
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                      onClick={() => void refreshDashboard()}
+                    >
+                      Refresh dashboard data
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {notice ? (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+                notice.tone === 'error'
+                  ? 'border-rose-200 bg-rose-50 text-rose-900'
+                  : notice.tone === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                    : 'border-blue-200 bg-blue-50 text-blue-900'
+              }`}
+            >
+              {notice.text}
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

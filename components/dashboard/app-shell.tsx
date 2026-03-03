@@ -11,12 +11,12 @@ type DashboardAppShellProps = {
 
 export function DashboardAppShell({ role, name, email, children }: DashboardAppShellProps) {
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-slate-100 text-slate-900">
+    <div className="min-h-[100dvh] bg-slate-100 text-slate-900">
       <div className="flex min-h-[100dvh]">
         <DashboardSidebar role={role} name={name} email={email} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <DashboardTopbar />
-          <main className="flex-1 p-4 pb-24 md:p-6 md:pb-6">
+          <DashboardTopbar name={name} email={email} />
+          <main className="flex-1 px-4 pt-3 pb-24 md:px-6 md:pt-4 md:pb-6">
             <div className="mx-auto w-full max-w-[1400px]">{children}</div>
           </main>
         </div>

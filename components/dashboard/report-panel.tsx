@@ -516,6 +516,20 @@ export function ReportPanel() {
   }, [loadAttendance, loadReports, loadScanEvents, loadDeviceHeartbeat]);
 
   useEffect(() => {
+    const handleRefresh = () => {
+      void loadAttendance({ append: false, cursor: null });
+      void loadReports({ silent: true });
+      void loadScanEvents();
+      void loadDeviceHeartbeat();
+    };
+
+    window.addEventListener("dashboard:refresh", handleRefresh as EventListener);
+    return () => {
+      window.removeEventListener("dashboard:refresh", handleRefresh as EventListener);
+    };
+  }, [loadAttendance, loadDeviceHeartbeat, loadReports, loadScanEvents]);
+
+  useEffect(() => {
     if (!reports.some((report) => report.status === "pending")) {
       return;
     }

@@ -88,6 +88,17 @@ export function OverviewPanel() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadOverview();
+    };
+
+    window.addEventListener('dashboard:refresh', handleRefresh as EventListener);
+    return () => {
+      window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
+    };
+  }, [loadOverview]);
+
   const filteredActivity = useMemo(() => {
     if (!payload) {
       return [];

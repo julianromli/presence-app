@@ -44,7 +44,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-300 bg-slate-50/95 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
         <ul className="grid grid-cols-4 gap-1">
           {items.map((item) => {
             const active = isActive(pathname, item.href);
@@ -55,10 +55,10 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
                   href={item.href}
                   className={cn(
                     'flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium transition active:scale-[0.98]',
-                    active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+                    active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className={cn('h-4 w-4', active ? 'text-indigo-500' : 'text-slate-400')} />
                   {item.label}
                 </Link>
               </li>
@@ -71,10 +71,10 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
                 onClick={() => setAccountOpen((prev) => !prev)}
                 className={cn(
                   'flex w-full flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium transition active:scale-[0.98]',
-                  accountOpen ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+                  accountOpen ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
                 )}
               >
-                <UserRound className="h-4 w-4" />
+                <UserRound className={cn('h-4 w-4', accountOpen ? 'text-indigo-500' : 'text-slate-400')} />
                 Akun
               </button>
             </li>

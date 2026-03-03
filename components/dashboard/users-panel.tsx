@@ -131,6 +131,17 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadUsers({ append: false, cursor: null });
+    };
+
+    window.addEventListener('dashboard:refresh', handleRefresh as EventListener);
+    return () => {
+      window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
+    };
+  }, [loadUsers]);
+
   const handleFilterSubmit = async (event: FormEvent) => {
     event.preventDefault();
     await loadUsers({ append: false, cursor: null });
