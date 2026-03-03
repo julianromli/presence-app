@@ -276,7 +276,7 @@ export const listPaginated = query({
 
     const metricsId = await getOrRebuildUsersMetrics(ctx);
     if (!metricsId) {
-      const scopedRows = await queryBuilder.collect();
+      const scopedRows = await buildUsersQueryBuilder(ctx, args).order("desc").collect();
       return {
         rowsPage,
         summary: summarizeUsers(scopedRows),
@@ -285,7 +285,7 @@ export const listPaginated = query({
 
     const metrics = await ctx.db.get(metricsId);
     if (!metrics) {
-      const scopedRows = await queryBuilder.collect();
+      const scopedRows = await buildUsersQueryBuilder(ctx, args).order("desc").collect();
       return {
         rowsPage,
         summary: summarizeUsers(scopedRows),

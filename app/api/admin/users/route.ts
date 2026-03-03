@@ -84,6 +84,9 @@ export async function GET(req: Request) {
       summary: result.summary,
     } satisfies AdminUsersPage);
   } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[api/admin/users] convex query failed', error);
+    }
     return convexErrorResponse(error, 'Gagal memuat data user admin.');
   }
 }
