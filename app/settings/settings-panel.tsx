@@ -9,6 +9,9 @@ type SettingsPayload = {
   timezone: string;
   geofenceEnabled: boolean;
   geofenceRadiusMeters: number;
+  scanCooldownSeconds: number;
+  minLocationAccuracyMeters: number;
+  enforceDeviceHeartbeat: boolean;
   geofenceLat?: number;
   geofenceLng?: number;
   whitelistEnabled: boolean;
@@ -20,6 +23,9 @@ export function SettingsPanel() {
     timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
     geofenceRadiusMeters: 100,
+    scanCooldownSeconds: 30,
+    minLocationAccuracyMeters: 100,
+    enforceDeviceHeartbeat: false,
     geofenceLat: undefined,
     geofenceLng: undefined,
     whitelistEnabled: false,
@@ -37,6 +43,9 @@ export function SettingsPanel() {
         timezone: payload.timezone,
         geofenceEnabled: payload.geofenceEnabled,
         geofenceRadiusMeters: payload.geofenceRadiusMeters,
+        scanCooldownSeconds: payload.scanCooldownSeconds ?? 30,
+        minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
+        enforceDeviceHeartbeat: payload.enforceDeviceHeartbeat ?? false,
         geofenceLat: payload.geofenceLat,
         geofenceLng: payload.geofenceLng,
         whitelistEnabled: payload.whitelistEnabled,
@@ -111,6 +120,32 @@ export function SettingsPanel() {
           />
         </div>
         <div>
+          <label className="mb-1 block text-sm font-medium">Cooldown Scan (detik)</label>
+          <Input
+            type="number"
+            value={data.scanCooldownSeconds}
+            onChange={(e) =>
+              setData((prev) => ({
+                ...prev,
+                scanCooldownSeconds: Number(e.target.value),
+              }))
+            }
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Akurasi GPS Min (meter)</label>
+          <Input
+            type="number"
+            value={data.minLocationAccuracyMeters}
+            onChange={(e) =>
+              setData((prev) => ({
+                ...prev,
+                minLocationAccuracyMeters: Number(e.target.value),
+              }))
+            }
+          />
+        </div>
+        <div>
           <label className="mb-1 block text-sm font-medium">Latitude</label>
           <Input
             type="number"
@@ -137,6 +172,20 @@ export function SettingsPanel() {
           />
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={data.enforceDeviceHeartbeat}
+          onChange={(e) =>
+            setData((prev) => ({
+              ...prev,
+              enforceDeviceHeartbeat: e.target.checked,
+            }))
+          }
+        />
+        Wajibkan heartbeat device-qr
+      </label>
 
       <div>
         <label className="mb-1 block text-sm font-medium">Whitelist IP (pisahkan koma)</label>

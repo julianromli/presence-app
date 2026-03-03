@@ -66,6 +66,40 @@ type LoadReportOptions = {
   silent?: boolean;
 };
 
+type ScanEventRow = {
+  _id: string;
+  actorName: string;
+  actorEmail: string;
+  dateKey: string;
+  resultStatus: "accepted" | "rejected";
+  reasonCode: string;
+  attendanceStatus?: "check-in" | "check-out";
+  message?: string;
+  scannedAt: number;
+};
+
+type ScanEventSummary = {
+  total: number;
+  accepted: number;
+  rejected: number;
+  byReason: Array<{ reasonCode: string; count: number }>;
+};
+
+type ScanEventsResponse = {
+  rows: ScanEventRow[];
+  summary: ScanEventSummary;
+};
+
+type DeviceHeartbeatRow = {
+  deviceUserId: string;
+  name: string;
+  email: string;
+  role: "device-qr";
+  isActive: boolean;
+  lastSeenAt?: number;
+  online: boolean;
+};
+
 type PanelStatus = "idle" | "loading" | "success" | "empty" | "error";
 type NoticeTone = "info" | "success" | "warning" | "error";
 
@@ -112,6 +146,16 @@ export function ReportPanel() {
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [reason, setReason] = useState("Koreksi admin");
   const [reports, setReports] = useState<WeeklyReportRow[]>([]);
+  const [scanEvents, setScanEvents] = useState<ScanEventRow[]>([]);
+  const [scanEventSummary, setScanEventSummary] = useState<ScanEventSummary>({
+    total: 0,
+    accepted: 0,
+    rejected: 0,
+    byReason: [],
+  });
+  const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
+  const [deviceRows, setDeviceRows] = useState<DeviceHeartbeatRow[]>([]);
+  const [deviceStatus, setDeviceStatus] = useState<PanelStatus>("idle");
   const hasAttendanceFilter =
     employeeName.trim().length > 0 || editedFilter !== "all";
 
@@ -225,6 +269,38 @@ export function ReportPanel() {
     setReportsError(null);
   }, []);
 
+  const loadScanEvents = useCallback(async () => {
+    setScanEventsStatus("loading");
+    const res = await fetch(
+      `/api/admin/attendance/scan-events?dateKey=${encodeURIComponent(dateKey)}&limit=50`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      setScanEventsStatus("error");
+      return;
+    }
+
+    const data = (await res.json()) as ScanEventsResponse;
+    setScanEvents(data.rows);
+    setScanEventSummary(data.summary);
+    setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
+  }, [dateKey]);
+
+  const loadDeviceHeartbeat = useCallback(async () => {
+    setDeviceStatus("loading");
+    const res = await fetch("/api/admin/device/heartbeat", {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      setDeviceStatus("error");
+      return;
+    }
+
+    const data = (await res.json()) as DeviceHeartbeatRow[];
+    setDeviceRows(data);
+    setDeviceStatus(data.length === 0 ? "empty" : "success");
+  }, []);
+
   const triggerWeeklyReport = async () => {
     setNotice({ tone: "info", text: "Memproses report mingguan..." });
     const res = await fetch("/api/admin/reports", { method: "POST" });
@@ -294,7 +370,9 @@ export function ReportPanel() {
   useEffect(() => {
     void loadAttendance({ append: false, cursor: null });
     void loadReports();
-  }, [loadAttendance, loadReports]);
+    void loadScanEvents();
+    void loadDeviceHeartbeat();
+  }, [loadAttendance, loadReports, loadScanEvents, loadDeviceHeartbeat]);
 
   useEffect(() => {
     if (!reports.some((report) => report.status === "pending")) {
@@ -397,6 +475,12 @@ export function ReportPanel() {
           >
             Refresh Report
           </Button>
+          <Button variant="outline" type="button" onClick={() => loadScanEvents()}>
+            Refresh Scan Events
+          </Button>
+          <Button variant="outline" type="button" onClick={() => loadDeviceHeartbeat()}>
+            Refresh Device
+          </Button>
         </div>
 
         {notice ? (
@@ -406,6 +490,127 @@ export function ReportPanel() {
             {notice.text}
           </div>
         ) : null}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border p-4">
+          <p className="text-muted-foreground text-xs">Scan Total</p>
+          <p className="mt-2 text-2xl font-bold">{scanEventSummary.total}</p>
+        </div>
+        <div className="rounded-xl border p-4">
+          <p className="text-muted-foreground text-xs">Scan Accepted</p>
+          <p className="mt-2 text-2xl font-bold">{scanEventSummary.accepted}</p>
+        </div>
+        <div className="rounded-xl border p-4">
+          <p className="text-muted-foreground text-xs">Scan Rejected</p>
+          <p className="mt-2 text-2xl font-bold">{scanEventSummary.rejected}</p>
+        </div>
+      </section>
+
+      <section className="overflow-x-auto rounded-xl border">
+        <div className="border-b p-4">
+          <h2 className="text-lg font-semibold">Status Device QR</h2>
+        </div>
+        <table className="w-full min-w-[700px] text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="p-3 text-left">Nama</th>
+              <th className="p-3 text-left">Email</th>
+              <th className="p-3 text-left">Online</th>
+              <th className="p-3 text-left">Last Seen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deviceStatus === "loading" ? (
+              <tr>
+                <td className="p-3 text-muted-foreground" colSpan={4}>
+                  Memuat status device...
+                </td>
+              </tr>
+            ) : deviceRows.length === 0 ? (
+              <tr>
+                <td className="p-3 text-muted-foreground" colSpan={4}>
+                  Tidak ada akun device-qr aktif.
+                </td>
+              </tr>
+            ) : (
+              deviceRows.map((row) => (
+                <tr key={row.deviceUserId} className="border-t">
+                  <td className="p-3">{row.name}</td>
+                  <td className="p-3">{row.email}</td>
+                  <td className="p-3">{row.online ? "Online" : "Offline"}</td>
+                  <td className="p-3">
+                    {row.lastSeenAt
+                      ? new Date(row.lastSeenAt).toLocaleString("id-ID")
+                      : "-"}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="overflow-x-auto rounded-xl border">
+        <div className="border-b p-4">
+          <h2 className="text-lg font-semibold">Scan Events</h2>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Breakdown alasan reject hari {dateKey}
+          </p>
+        </div>
+        <div className="border-b p-4">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {scanEventSummary.byReason.slice(0, 8).map((item) => (
+              <span key={item.reasonCode} className="rounded-full border px-2 py-1">
+                {item.reasonCode}: {item.count}
+              </span>
+            ))}
+            {scanEventSummary.byReason.length === 0 ? (
+              <span className="text-muted-foreground">Belum ada breakdown reason.</span>
+            ) : null}
+          </div>
+        </div>
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="p-3 text-left">Waktu</th>
+              <th className="p-3 text-left">Karyawan</th>
+              <th className="p-3 text-left">Result</th>
+              <th className="p-3 text-left">Reason</th>
+              <th className="p-3 text-left">Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scanEventsStatus === "loading" ? (
+              <tr>
+                <td className="p-3 text-muted-foreground" colSpan={5}>
+                  Memuat scan events...
+                </td>
+              </tr>
+            ) : scanEvents.length === 0 ? (
+              <tr>
+                <td className="p-3 text-muted-foreground" colSpan={5}>
+                  Belum ada scan events.
+                </td>
+              </tr>
+            ) : (
+              scanEvents.map((row) => (
+                <tr key={row._id} className="border-t">
+                  <td className="p-3">
+                    {new Date(row.scannedAt).toLocaleTimeString("id-ID")}
+                  </td>
+                  <td className="p-3">
+                    {row.actorName}
+                    <div className="text-muted-foreground text-xs">{row.actorEmail}</div>
+                  </td>
+                  <td className="p-3">{row.resultStatus}</td>
+                  <td className="p-3">{row.reasonCode}</td>
+                  <td className="p-3">{row.message ?? "-"}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </section>
 
       <section className="overflow-x-auto rounded-xl border">

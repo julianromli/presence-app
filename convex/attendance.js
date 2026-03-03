@@ -4,6 +4,7 @@ import {
   paginationResultValidator,
 } from "convex/server";
 
+import { internal } from "./_generated/api";
 import { mutation, query, internalQuery } from "./_generated/server";
 import {
   buildDateKey,
@@ -27,6 +28,26 @@ const attendanceWithEmployeeValidator = v.object({
   editedAt: v.optional(v.number()),
   editReason: v.optional(v.string()),
   lastScanAt: v.optional(v.number()),
+  checkInMeta: v.optional(
+    v.object({
+      ipAddress: v.optional(v.string()),
+      latitude: v.optional(v.number()),
+      longitude: v.optional(v.number()),
+      accuracyMeters: v.optional(v.number()),
+      scannedAt: v.number(),
+      sourceDeviceId: v.id("users"),
+    }),
+  ),
+  checkOutMeta: v.optional(
+    v.object({
+      ipAddress: v.optional(v.string()),
+      latitude: v.optional(v.number()),
+      longitude: v.optional(v.number()),
+      accuracyMeters: v.optional(v.number()),
+      scannedAt: v.number(),
+      sourceDeviceId: v.id("users"),
+    }),
+  ),
   createdAt: v.number(),
   updatedAt: v.number(),
   employeeName: v.string(),
@@ -36,6 +57,39 @@ const attendanceSummaryValidator = v.object({
   checkedIn: v.number(),
   checkedOut: v.number(),
   edited: v.number(),
+});
+const scanEventValidator = v.object({
+  _id: v.id("scan_events"),
+  _creationTime: v.number(),
+  actorUserId: v.id("users"),
+  actorName: v.string(),
+  actorEmail: v.string(),
+  deviceUserId: v.optional(v.id("users")),
+  dateKey: v.string(),
+  resultStatus: v.union(v.literal("accepted"), v.literal("rejected")),
+  reasonCode: v.string(),
+  attendanceStatus: v.optional(
+    v.union(v.literal("check-in"), v.literal("check-out")),
+  ),
+  message: v.optional(v.string()),
+  ipAddress: v.optional(v.string()),
+  latitude: v.optional(v.number()),
+  longitude: v.optional(v.number()),
+  accuracyMeters: v.optional(v.number()),
+  idempotencyKey: v.string(),
+  scannedAt: v.number(),
+  createdAt: v.number(),
+});
+const scanEventSummaryValidator = v.object({
+  total: v.number(),
+  accepted: v.number(),
+  rejected: v.number(),
+  byReason: v.array(
+    v.object({
+      reasonCode: v.string(),
+      count: v.number(),
+    }),
+  ),
 });
 const paginatedAttendanceValidator = paginationResultValidator(
   attendanceWithEmployeeValidator,
@@ -56,67 +110,40 @@ function normalizeKeyword(value) {
   return value.trim().toLocaleLowerCase("id-ID");
 }
 
-async function sha256Hex(input) {
-  const bytes = new TextEncoder().encode(input);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+async function writeScanEvent(ctx, payload) {
+  await ctx.db.insert("scan_events", {
+    ...payload,
+    createdAt: payload.scannedAt,
+  });
 }
 
-async function validateAndConsumeToken(ctx, token) {
-  const tokenHash = await sha256Hex(token);
-  const tokenRow = await ctx.db
-    .query("qr_tokens")
-    .withIndex("by_token_hash", (q) => q.eq("tokenHash", tokenHash))
-    .unique();
-
-  if (!tokenRow) {
-    throw new ConvexError({
-      code: "TOKEN_UNKNOWN",
-      message: "Token tidak dikenal",
-    });
-  }
-
-  const now = Date.now();
-  if (tokenRow.expiresAt < now) {
-    throw new ConvexError({
-      code: "TOKEN_EXPIRED",
-      message: "Token sudah expired",
-    });
-  }
-
-  if (tokenRow.usedAt) {
-    throw new ConvexError({
-      code: "TOKEN_REPLAY",
-      message: "Token sudah pernah dipakai",
-    });
-  }
-
-  await ctx.db.patch(tokenRow._id, { usedAt: now });
-  return tokenRow.deviceUserId;
+function buildScanMeta(args, scannedAt, sourceDeviceId) {
+  return {
+    ipAddress: args.ipAddress,
+    latitude: args.latitude,
+    longitude: args.longitude,
+    accuracyMeters: args.accuracyMeters,
+    scannedAt,
+    sourceDeviceId,
+  };
 }
 
-async function processScan(ctx, actor, args) {
+function throwScanError(code, message) {
+  throw new ConvexError({ code, message });
+}
+
+async function processScan(ctx, actor, args, runtime) {
   if (actor.role !== "karyawan") {
-    throw new ConvexError({
-      code: "FORBIDDEN",
-      message: "Only karyawan can scan",
-    });
+    throwScanError("FORBIDDEN", "Only karyawan can scan");
   }
 
-  const now = Date.now();
-  const settings = await ensureGlobalSettingsForMutation(ctx);
-  const sourceDeviceId = await validateAndConsumeToken(ctx, args.token);
+  const { settings, now, dateKey } = runtime;
 
   if (
     settings.whitelistEnabled &&
     !ipAllowed(args.ipAddress, settings.whitelistIps)
   ) {
-    throw new ConvexError({
-      code: "IP_NOT_ALLOWED",
-      message: "IP address tidak diizinkan",
-    });
+    throwScanError("IP_NOT_ALLOWED", "IP address tidak diizinkan");
   }
 
   if (
@@ -125,10 +152,17 @@ async function processScan(ctx, actor, args) {
     settings.geofenceLng !== undefined
   ) {
     if (args.latitude === undefined || args.longitude === undefined) {
-      throw new ConvexError({
-        code: "GEOFENCE_COORD_REQUIRED",
-        message: "Lokasi wajib diisi",
-      });
+      throwScanError("GEOFENCE_COORD_REQUIRED", "Lokasi wajib diisi");
+    }
+
+    if (
+      args.accuracyMeters !== undefined &&
+      args.accuracyMeters > settings.minLocationAccuracyMeters
+    ) {
+      throwScanError(
+        "GEOFENCE_ACCURACY_TOO_LOW",
+        "Akurasi GPS tidak mencukupi",
+      );
     }
 
     const meters = distanceMeters(
@@ -139,14 +173,52 @@ async function processScan(ctx, actor, args) {
     );
 
     if (meters > settings.geofenceRadiusMeters) {
-      throw new ConvexError({
-        code: "GEOFENCE_OUTSIDE_RADIUS",
-        message: "Lokasi di luar radius kantor",
-      });
+      throwScanError("GEOFENCE_OUTSIDE_RADIUS", "Lokasi di luar radius kantor");
     }
   }
 
-  const dateKey = buildDateKey(now, settings.timezone);
+  if (args.idempotencyKey) {
+    const existingEvent = await ctx.db
+      .query("scan_events")
+      .withIndex("by_actor_and_idempotency", (q) =>
+        q.eq("actorUserId", actor._id).eq("idempotencyKey", args.idempotencyKey),
+      )
+      .unique();
+
+    if (existingEvent && now - existingEvent.scannedAt <= 60_000) {
+      if (existingEvent.resultStatus === "accepted" && existingEvent.attendanceStatus) {
+        return {
+          status: existingEvent.attendanceStatus,
+          dateKey: existingEvent.dateKey,
+          message: existingEvent.message ?? "Scan berhasil diproses sebelumnya",
+          sourceDeviceId: existingEvent.deviceUserId,
+          scanAt: existingEvent.scannedAt,
+          cooldownSeconds: settings.scanCooldownSeconds,
+        };
+      }
+
+      throwScanError(
+        existingEvent.reasonCode || "SCAN_REJECTED",
+        existingEvent.message ?? "Scan ditolak",
+      );
+    }
+  }
+
+  const tokenResult = await ctx.runMutation(internal.qrTokens.validateAndConsume, {
+    token: args.token,
+  });
+  if (!tokenResult.valid || !tokenResult.deviceUserId) {
+    const reasonCode = tokenResult.reason ?? "TOKEN_UNKNOWN";
+    const reasonMessage =
+      reasonCode === "TOKEN_EXPIRED"
+        ? "Token sudah expired"
+        : reasonCode === "TOKEN_REPLAY"
+          ? "Token sudah pernah dipakai"
+          : "Token tidak dikenal";
+    throwScanError(reasonCode, reasonMessage);
+  }
+  const sourceDeviceId = tokenResult.deviceUserId;
+
   const existing = await ctx.db
     .query("attendance")
     .withIndex("by_user_and_date", (q) =>
@@ -154,11 +226,9 @@ async function processScan(ctx, actor, args) {
     )
     .unique();
 
-  if (existing?.lastScanAt && now - existing.lastScanAt < 30_000) {
-    throw new ConvexError({
-      code: "SPAM_DETECTED",
-      message: "Scan terlalu cepat, coba lagi beberapa detik",
-    });
+  const cooldownMs = settings.scanCooldownSeconds * 1000;
+  if (existing?.lastScanAt && now - existing.lastScanAt < cooldownMs) {
+    throwScanError("SPAM_DETECTED", "Scan terlalu cepat, coba lagi beberapa detik");
   }
 
   if (!existing) {
@@ -173,6 +243,8 @@ async function processScan(ctx, actor, args) {
       editedAt: undefined,
       editReason: undefined,
       lastScanAt: now,
+      checkInMeta: buildScanMeta(args, now, sourceDeviceId),
+      checkOutMeta: undefined,
       createdAt: now,
       updatedAt: now,
     });
@@ -181,21 +253,21 @@ async function processScan(ctx, actor, args) {
       status: "check-in",
       dateKey,
       message: "Check-in berhasil",
+      sourceDeviceId,
+      scanAt: now,
+      cooldownSeconds: settings.scanCooldownSeconds,
     };
   }
 
   if (existing.checkOutAt !== undefined) {
-    return {
-      status: "check-out",
-      dateKey,
-      message: "Check-out sudah tercatat",
-    };
+    throwScanError("CHECKOUT_ALREADY_RECORDED", "Check-out sudah tercatat");
   }
 
   await ctx.db.patch(existing._id, {
     checkOutAt: now,
     sourceDeviceId,
     lastScanAt: now,
+    checkOutMeta: buildScanMeta(args, now, sourceDeviceId),
     updatedAt: now,
   });
 
@@ -203,6 +275,9 @@ async function processScan(ctx, actor, args) {
     status: "check-out",
     dateKey,
     message: "Check-out berhasil",
+    sourceDeviceId,
+    scanAt: now,
+    cooldownSeconds: settings.scanCooldownSeconds,
   };
 }
 
@@ -313,15 +388,148 @@ export const recordScan = mutation({
     ipAddress: v.optional(v.string()),
     latitude: v.optional(v.number()),
     longitude: v.optional(v.number()),
+    accuracyMeters: v.optional(v.number()),
+    idempotencyKey: v.optional(v.string()),
   },
   returns: v.object({
     status: v.union(v.literal("check-in"), v.literal("check-out")),
     dateKey: v.string(),
     message: v.string(),
+    scanAt: v.number(),
+    policy: v.object({
+      cooldownSeconds: v.number(),
+    }),
   }),
   handler: async (ctx, args) => {
     const actor = await getCurrentDbUser(ctx);
-    return await processScan(ctx, actor, args);
+    const now = Date.now();
+    const settings = await ensureGlobalSettingsForMutation(ctx);
+    const dateKey = buildDateKey(now, settings.timezone);
+    const idempotencyKey = args.idempotencyKey?.trim() || "";
+
+    try {
+      const result = await processScan(
+        ctx,
+        actor,
+        {
+          ...args,
+          idempotencyKey,
+        },
+        { settings, now, dateKey },
+      );
+
+      await writeScanEvent(ctx, {
+        actorUserId: actor._id,
+        deviceUserId: result.sourceDeviceId,
+        dateKey: result.dateKey,
+        resultStatus: "accepted",
+        reasonCode: "OK",
+        attendanceStatus: result.status,
+        message: result.message,
+        ipAddress: args.ipAddress,
+        latitude: args.latitude,
+        longitude: args.longitude,
+        accuracyMeters: args.accuracyMeters,
+        idempotencyKey,
+        scannedAt: result.scanAt,
+      });
+
+      return {
+        status: result.status,
+        dateKey: result.dateKey,
+        message: result.message,
+        scanAt: result.scanAt,
+        policy: {
+          cooldownSeconds: result.cooldownSeconds,
+        },
+      };
+    } catch (error) {
+      const code =
+        error instanceof ConvexError && error.data?.code
+          ? String(error.data.code)
+          : "SCAN_FAILED";
+      const message =
+        error instanceof ConvexError && error.data?.message
+          ? String(error.data.message)
+          : "Scan gagal diproses";
+
+      await writeScanEvent(ctx, {
+        actorUserId: actor._id,
+        deviceUserId: undefined,
+        dateKey,
+        resultStatus: "rejected",
+        reasonCode: code,
+        attendanceStatus: undefined,
+        message,
+        ipAddress: args.ipAddress,
+        latitude: args.latitude,
+        longitude: args.longitude,
+        accuracyMeters: args.accuracyMeters,
+        idempotencyKey,
+        scannedAt: now,
+      });
+
+      throw error;
+    }
+  },
+});
+
+export const listScanEventsByDate = query({
+  args: {
+    dateKey: v.string(),
+    status: v.optional(v.union(v.literal("accepted"), v.literal("rejected"))),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    rows: v.array(scanEventValidator),
+    summary: scanEventSummaryValidator,
+  }),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ["admin", "superadmin"]);
+    const limit = Math.min(Math.max(Math.trunc(args.limit ?? 60), 1), 200);
+
+    const baseRows = await ctx.db
+      .query("scan_events")
+      .withIndex("by_date_and_status", (q) => q.eq("dateKey", args.dateKey))
+      .order("desc")
+      .take(500);
+
+    const filtered =
+      args.status === undefined
+        ? baseRows
+        : baseRows.filter((row) => row.resultStatus === args.status);
+
+    const actorIds = [...new Set(filtered.map((row) => String(row.actorUserId)))];
+    const actorDocs = await Promise.all(actorIds.map((id) => ctx.db.get(id)));
+    const actorMap = new Map(actorIds.map((id, idx) => [id, actorDocs[idx]]));
+
+    const rows = filtered.slice(0, limit).map((row) => {
+      const actor = actorMap.get(String(row.actorUserId));
+      return {
+        ...row,
+        actorName: actor?.name ?? "Unknown",
+        actorEmail: actor?.email ?? "unknown@local",
+      };
+    });
+
+    const byReasonMap = new Map();
+    for (const row of filtered) {
+      byReasonMap.set(row.reasonCode, (byReasonMap.get(row.reasonCode) ?? 0) + 1);
+    }
+
+    const byReason = [...byReasonMap.entries()]
+      .map(([reasonCode, count]) => ({ reasonCode, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      rows,
+      summary: {
+        total: filtered.length,
+        accepted: filtered.filter((row) => row.resultStatus === "accepted").length,
+        rejected: filtered.filter((row) => row.resultStatus === "rejected").length,
+        byReason,
+      },
+    };
   },
 });
 

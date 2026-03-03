@@ -20,6 +20,7 @@ export type DashboardOverviewPayload = {
     attendanceRatePct: number;
     checkedOut: number;
     editedToday: number;
+    deviceQrOnline: number;
   };
   trend7d: TrendPoint[];
   recentActivity: RecentActivityItem[];

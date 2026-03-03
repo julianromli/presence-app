@@ -26,6 +26,7 @@ const overviewValidator = v.object({
     attendanceRatePct: v.number(),
     checkedOut: v.number(),
     editedToday: v.number(),
+    deviceQrOnline: v.number(),
   }),
   trend7d: v.array(trendPointValidator),
   recentActivity: v.array(recentActivityValidator),
@@ -72,6 +73,11 @@ export const getOverview = query({
     const activeEmployees = await ctx.db
       .query('users')
       .withIndex('by_role_and_active', (q) => q.eq('role', 'karyawan').eq('isActive', true))
+      .collect();
+    const onlineWindowStart = now - 60_000;
+    const onlineDeviceRows = await ctx.db
+      .query('device_heartbeats')
+      .withIndex('by_last_seen_at', (q) => q.gte('lastSeenAt', onlineWindowStart))
       .collect();
 
     const todayRows = await ctx.db
@@ -149,6 +155,7 @@ export const getOverview = query({
           attendanceRatePct: computeAttendanceRatePct(presentToday, activeEmployees.length),
           checkedOut,
           editedToday,
+          deviceQrOnline: onlineDeviceRows.length,
         },
         trend7d,
         recentActivity: recentActivity.slice(0, 8),

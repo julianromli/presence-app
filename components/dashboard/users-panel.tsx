@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ type UsersPanelProps = {
 
 export function UsersPanel({ viewerRole }: UsersPanelProps) {
   const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
-  const [status, setStatus] = useState<PanelStatus>('idle');
+  const [status, setStatus] = useState<PanelStatus>('loading');
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [summary, setSummary] = useState<AdminUsersPage['summary']>({
     total: 0,
@@ -40,7 +40,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
     [filters],
   );
 
-  const loadUsers = async (
+  const loadUsers = useCallback(async (
     opts: { append: boolean; cursor: string | null; filtersOverride?: UsersPanelFilters } = {
       append: false,
       cursor: null,
@@ -79,10 +79,37 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
     setIsLastPage(data.pageInfo.isDone);
     setStatus(mergedCount === 0 ? 'empty' : 'success');
     setLoading(false);
-  };
+  }, [filters]);
 
   useEffect(() => {
-    void loadUsers({ append: false, cursor: null });
+    let cancelled = false;
+    const run = async () => {
+      const res = await fetch(`/api/admin/users?${buildUsersQueryString(DEFAULT_USERS_FILTERS, null)}`, {
+        cache: 'no-store',
+      });
+
+      if (cancelled) return;
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memuat data user.');
+        if (cancelled) return;
+        setError(parsed);
+        setStatus('error');
+        return;
+      }
+
+      const data = (await res.json()) as AdminUsersPage;
+      if (cancelled) return;
+      setRows(data.rows);
+      setSummary(data.summary);
+      setNextCursor(data.pageInfo.isDone ? null : data.pageInfo.continueCursor);
+      setIsLastPage(data.pageInfo.isDone);
+      setStatus(data.rows.length === 0 ? 'empty' : 'success');
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleFilterSubmit = async (event: FormEvent) => {

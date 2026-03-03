@@ -41,6 +41,26 @@ export default defineSchema({
     dateKey: v.string(),
     checkInAt: v.optional(v.number()),
     checkOutAt: v.optional(v.number()),
+    checkInMeta: v.optional(
+      v.object({
+        ipAddress: v.optional(v.string()),
+        latitude: v.optional(v.number()),
+        longitude: v.optional(v.number()),
+        accuracyMeters: v.optional(v.number()),
+        scannedAt: v.number(),
+        sourceDeviceId: v.id("users"),
+      }),
+    ),
+    checkOutMeta: v.optional(
+      v.object({
+        ipAddress: v.optional(v.string()),
+        latitude: v.optional(v.number()),
+        longitude: v.optional(v.number()),
+        accuracyMeters: v.optional(v.number()),
+        scannedAt: v.number(),
+        sourceDeviceId: v.id("users"),
+      }),
+    ),
     sourceDeviceId: v.optional(v.id("users")),
     edited: v.boolean(),
     editedBy: v.optional(v.id("users")),
@@ -59,6 +79,9 @@ export default defineSchema({
     timezone: v.string(),
     geofenceEnabled: v.boolean(),
     geofenceRadiusMeters: v.number(),
+    scanCooldownSeconds: v.optional(v.number()),
+    minLocationAccuracyMeters: v.optional(v.number()),
+    enforceDeviceHeartbeat: v.optional(v.boolean()),
     geofenceLat: v.optional(v.number()),
     geofenceLng: v.optional(v.number()),
     whitelistEnabled: v.boolean(),
@@ -77,6 +100,39 @@ export default defineSchema({
   })
     .index("by_token_hash", ["tokenHash"])
     .index("by_device_and_expiry", ["deviceUserId", "expiresAt"]),
+
+  device_heartbeats: defineTable({
+    deviceUserId: v.id("users"),
+    lastSeenAt: v.number(),
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_device_user_id", ["deviceUserId"])
+    .index("by_last_seen_at", ["lastSeenAt"]),
+
+  scan_events: defineTable({
+    actorUserId: v.id("users"),
+    deviceUserId: v.optional(v.id("users")),
+    dateKey: v.string(),
+    resultStatus: v.union(v.literal("accepted"), v.literal("rejected")),
+    reasonCode: v.string(),
+    attendanceStatus: v.optional(
+      v.union(v.literal("check-in"), v.literal("check-out")),
+    ),
+    message: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    accuracyMeters: v.optional(v.number()),
+    idempotencyKey: v.string(),
+    scannedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_actor_and_scanned_at", ["actorUserId", "scannedAt"])
+    .index("by_actor_and_idempotency", ["actorUserId", "idempotencyKey"])
+    .index("by_date_and_status", ["dateKey", "resultStatus"])
+    .index("by_reason_and_scanned_at", ["reasonCode", "scannedAt"]),
 
   audit_logs: defineTable({
     actorUserId: v.id("users"),

@@ -1,7 +1,7 @@
 'use client';
 
 import { Activity, CheckCircle2, Clock3, RefreshCw, Users } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -16,32 +16,54 @@ function dayLabelFromDateKey(dateKey: string) {
   return date.toLocaleDateString('id-ID', { weekday: 'short' });
 }
 
+async function fetchOverviewPayload() {
+  const res = await fetch('/api/admin/dashboard/overview', { cache: 'no-store' });
+  if (!res.ok) {
+    const parsed = await parseApiErrorResponse(res, 'Gagal memuat ringkasan dashboard.');
+    throw parsed;
+  }
+  return (await res.json()) as DashboardOverviewPayload;
+}
+
 export function OverviewPanel() {
   const searchParams = useSearchParams();
   const quickFilter = (searchParams.get('q') ?? '').trim().toLocaleLowerCase('id-ID');
-  const [status, setStatus] = useState<PanelStatus>('idle');
+  const [status, setStatus] = useState<PanelStatus>('loading');
   const [payload, setPayload] = useState<DashboardOverviewPayload | null>(null);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     setStatus('loading');
     setError(null);
-
-    const res = await fetch('/api/admin/dashboard/overview', { cache: 'no-store' });
-    if (!res.ok) {
-      const parsed = await parseApiErrorResponse(res, 'Gagal memuat ringkasan dashboard.');
-      setError(parsed);
+    try {
+      const nextPayload = await fetchOverviewPayload();
+      setPayload(nextPayload);
+      setStatus(nextPayload.recentActivity.length === 0 ? 'empty' : 'success');
+    } catch (parsedError) {
+      setError(parsedError as ApiErrorInfo);
       setStatus('error');
-      return;
     }
-
-    const nextPayload = (await res.json()) as DashboardOverviewPayload;
-    setPayload(nextPayload);
-    setStatus(nextPayload.recentActivity.length === 0 ? 'empty' : 'success');
-  };
+  }, []);
 
   useEffect(() => {
-    void loadOverview();
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const nextPayload = await fetchOverviewPayload();
+        if (cancelled) return;
+        setPayload(nextPayload);
+        setStatus(nextPayload.recentActivity.length === 0 ? 'empty' : 'success');
+      } catch (parsedError) {
+        if (cancelled) return;
+        setError(parsedError as ApiErrorInfo);
+        setStatus('error');
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filteredActivity = useMemo(() => {
@@ -87,7 +109,7 @@ export function OverviewPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <article className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-medium text-slate-500">Karyawan Aktif</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.activeEmployees}</p>
@@ -107,6 +129,10 @@ export function OverviewPanel() {
         <article className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-medium text-slate-500">Edit Hari Ini</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.editedToday}</p>
+        </article>
+        <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-medium text-slate-500">Device QR Online</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.deviceQrOnline}</p>
         </article>
       </div>
 

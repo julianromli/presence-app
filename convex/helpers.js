@@ -48,6 +48,9 @@ function buildDefaultGlobalSettings(now = Date.now()) {
     timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
     geofenceRadiusMeters: 100,
+    scanCooldownSeconds: 30,
+    minLocationAccuracyMeters: 100,
+    enforceDeviceHeartbeat: false,
     geofenceLat: undefined,
     geofenceLng: undefined,
     whitelistEnabled: false,
@@ -79,6 +82,26 @@ export async function getGlobalSettingsOrThrow(ctx) {
 export async function ensureGlobalSettingsForMutation(ctx) {
   const existing = await getGlobalSettingsOrNull(ctx);
   if (existing) {
+    const patch = {};
+
+    if (existing.scanCooldownSeconds === undefined) {
+      patch.scanCooldownSeconds = 30;
+    }
+    if (existing.minLocationAccuracyMeters === undefined) {
+      patch.minLocationAccuracyMeters = 100;
+    }
+    if (existing.enforceDeviceHeartbeat === undefined) {
+      patch.enforceDeviceHeartbeat = false;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(existing._id, patch);
+      const updated = await ctx.db.get(existing._id);
+      if (updated) {
+        return updated;
+      }
+    }
+
     return existing;
   }
 
@@ -95,7 +118,8 @@ export async function ensureGlobalSettingsForMutation(ctx) {
 
 export function ipAllowed(ip, whitelistIps) {
   if (!ip) return false;
-  return whitelistIps.includes(ip);
+  const normalized = ip.trim().toLowerCase();
+  return whitelistIps.map((item) => item.trim().toLowerCase()).includes(normalized);
 }
 
 export function distanceMeters(lat1, lng1, lat2, lng2) {

@@ -37,6 +37,9 @@ export async function PATCH(req: Request) {
     timezone?: string;
     geofenceEnabled?: boolean;
     geofenceRadiusMeters?: number;
+    scanCooldownSeconds?: number;
+    minLocationAccuracyMeters?: number;
+    enforceDeviceHeartbeat?: boolean;
     geofenceLat?: number;
     geofenceLng?: number;
     whitelistEnabled?: boolean;
@@ -60,6 +63,9 @@ export async function PATCH(req: Request) {
       timezone: body.timezone,
       geofenceEnabled: body.geofenceEnabled,
       geofenceRadiusMeters: body.geofenceRadiusMeters,
+      scanCooldownSeconds: body.scanCooldownSeconds,
+      minLocationAccuracyMeters: body.minLocationAccuracyMeters,
+      enforceDeviceHeartbeat: body.enforceDeviceHeartbeat,
       geofenceLat: body.geofenceLat,
       geofenceLng: body.geofenceLng,
       whitelistEnabled: body.whitelistEnabled,

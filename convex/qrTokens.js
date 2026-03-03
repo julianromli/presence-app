@@ -13,9 +13,10 @@ async function sha256Hex(input) {
 
 async function issueToken(ctx, deviceUserId) {
   const issuedAt = Date.now();
-  const expiresAt = issuedAt + 5000;
-  const nonce = crypto.randomUUID();
-  const rawToken = `${deviceUserId}:${issuedAt}:${expiresAt}:${nonce}`;
+  const ttlMs = 5000;
+  const expiresAt = issuedAt + ttlMs;
+  const nonce = crypto.randomUUID().replaceAll('-', '');
+  const rawToken = crypto.randomUUID().replaceAll('-', '') + nonce;
   const tokenHash = await sha256Hex(rawToken);
 
   await ctx.db.insert('qr_tokens', {
@@ -31,6 +32,8 @@ async function issueToken(ctx, deviceUserId) {
     token: rawToken,
     issuedAt,
     expiresAt,
+    ttlMs,
+    serverTime: issuedAt,
   };
 }
 
@@ -40,6 +43,8 @@ export const issue = mutation({
     token: v.string(),
     expiresAt: v.number(),
     issuedAt: v.number(),
+    ttlMs: v.number(),
+    serverTime: v.number(),
   }),
   handler: async (ctx) => {
     const deviceUser = await requireRole(ctx, ['device-qr']);
@@ -105,8 +110,7 @@ export const cleanupExpired = internalMutation({
 });
 
 export const verifyTokenFormat = (token) => {
-  const parts = token.split(':');
-  if (parts.length < 4) {
+  if (typeof token !== 'string' || token.trim().length < 32) {
     throw new ConvexError({ code: 'INVALID_TOKEN_FORMAT', message: 'Malformed token' });
   }
 };

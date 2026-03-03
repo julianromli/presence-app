@@ -7,6 +7,9 @@ export function DeviceQrPanel() {
   const [expiresAt, setExpiresAt] = useState(0);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [heartbeat, setHeartbeat] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [showToken, setShowToken] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   useEffect(() => {
     let active = true;
@@ -38,6 +41,29 @@ export function DeviceQrPanel() {
 
     return () => clearInterval(timer);
   }, [expiresAt]);
+
+  useEffect(() => {
+    setCopyState('idle');
+  }, [token]);
+
+  useEffect(() => {
+    let mounted = true;
+    const sendHeartbeat = async () => {
+      const res = await fetch('/api/device/ping', { method: 'POST' });
+      if (!mounted) return;
+      setHeartbeat(res.ok ? 'ok' : 'error');
+    };
+
+    void sendHeartbeat();
+    const interval = setInterval(() => {
+      void sendHeartbeat();
+    }, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -77,6 +103,52 @@ export function DeviceQrPanel() {
         </div>
 
         <p className="mt-4 text-sm font-medium">Berlaku: {secondsLeft} detik</p>
+        <p className="mt-2 text-xs text-zinc-500">
+          Heartbeat device: {heartbeat === 'ok' ? 'online' : heartbeat === 'error' ? 'offline' : '...'}
+        </p>
+
+        <div className="mt-6 rounded-xl border bg-zinc-50 p-4 text-left dark:bg-zinc-800/40">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border px-3 py-1 text-xs font-medium"
+              onClick={() => setShowToken((prev) => !prev)}
+            >
+              {showToken ? 'Sembunyikan Token' : 'Tampilkan Token (Fallback)'}
+            </button>
+            <button
+              type="button"
+              className="rounded-md border px-3 py-1 text-xs font-medium"
+              disabled={!token}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(token);
+                  setCopyState('copied');
+                } catch {
+                  setCopyState('failed');
+                }
+              }}
+            >
+              Copy Token
+            </button>
+            <span className="text-xs text-zinc-500">
+              {copyState === 'copied'
+                ? 'Token tersalin.'
+                : copyState === 'failed'
+                  ? 'Gagal copy, coba manual select.'
+                  : ''}
+            </span>
+          </div>
+          {showToken ? (
+            <p className="mt-3 break-all rounded-md border bg-white p-2 font-mono text-[11px] text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+              {token || 'Memuat token...'}
+            </p>
+          ) : (
+            <p className="mt-3 text-xs text-zinc-500">
+              Gunakan hanya untuk fallback manual. Token berubah sangat cepat (sekitar 5 detik).
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

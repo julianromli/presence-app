@@ -12,6 +12,8 @@ export async function POST(req: Request) {
     token?: string;
     latitude?: number;
     longitude?: number;
+    accuracyMeters?: number;
+    idempotencyKey?: string;
   };
   try {
     body = await req.json();
@@ -46,6 +48,8 @@ export async function POST(req: Request) {
       ipAddress,
       latitude: body.latitude,
       longitude: body.longitude,
+      accuracyMeters: body.accuracyMeters,
+      idempotencyKey: body.idempotencyKey,
     });
 
     return Response.json(response);

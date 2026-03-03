@@ -12,6 +12,9 @@ const settingsValidator = v.object({
   timezone: v.string(),
   geofenceEnabled: v.boolean(),
   geofenceRadiusMeters: v.number(),
+  scanCooldownSeconds: v.optional(v.number()),
+  minLocationAccuracyMeters: v.optional(v.number()),
+  enforceDeviceHeartbeat: v.optional(v.boolean()),
   geofenceLat: v.optional(v.number()),
   geofenceLng: v.optional(v.number()),
   whitelistEnabled: v.boolean(),
@@ -61,6 +64,9 @@ export const update = mutation({
     timezone: v.optional(v.string()),
     geofenceEnabled: v.optional(v.boolean()),
     geofenceRadiusMeters: v.optional(v.number()),
+    scanCooldownSeconds: v.optional(v.number()),
+    minLocationAccuracyMeters: v.optional(v.number()),
+    enforceDeviceHeartbeat: v.optional(v.boolean()),
     geofenceLat: v.optional(v.number()),
     geofenceLng: v.optional(v.number()),
     whitelistEnabled: v.optional(v.boolean()),
@@ -76,6 +82,12 @@ export const update = mutation({
       geofenceEnabled: args.geofenceEnabled ?? current.geofenceEnabled,
       geofenceRadiusMeters:
         args.geofenceRadiusMeters ?? current.geofenceRadiusMeters,
+      scanCooldownSeconds:
+        args.scanCooldownSeconds ?? current.scanCooldownSeconds,
+      minLocationAccuracyMeters:
+        args.minLocationAccuracyMeters ?? current.minLocationAccuracyMeters,
+      enforceDeviceHeartbeat:
+        args.enforceDeviceHeartbeat ?? current.enforceDeviceHeartbeat,
       geofenceLat: args.geofenceLat ?? current.geofenceLat,
       geofenceLng: args.geofenceLng ?? current.geofenceLng,
       whitelistEnabled: args.whitelistEnabled ?? current.whitelistEnabled,
