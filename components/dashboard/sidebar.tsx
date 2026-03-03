@@ -39,7 +39,7 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
       : navItems.filter((item) => item.href !== '/settings/geofence');
 
   return (
-    <aside className="hidden w-64 border-r border-slate-200 bg-white md:flex md:flex-col">
+    <aside className="hidden w-64 border-r border-slate-200 bg-white/90 backdrop-blur md:flex md:flex-col">
       <div className="flex h-16 items-center border-b border-slate-200 px-6">
         <div className="mr-3 grid h-6 w-6 place-items-center rounded bg-slate-900 text-[10px] font-bold text-white">
           P
@@ -55,12 +55,17 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-slate-100 text-slate-900'
+                  ? 'bg-slate-900 text-white'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
+              <span
+                className={`absolute inset-y-1 left-0 w-1 rounded-r-full transition ${
+                  active ? 'bg-slate-300' : 'bg-transparent group-hover:bg-slate-200'
+                }`}
+              />
               <Icon className="h-4 w-4" />
               {item.label}
             </Link>
@@ -69,7 +74,7 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
       </nav>
 
       <div className="border-t border-slate-200 p-4">
-        <div className="flex items-start gap-3 rounded-lg bg-slate-50 p-3">
+        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
           <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">
             {name.slice(0, 2).toUpperCase()}
           </div>

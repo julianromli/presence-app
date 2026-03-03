@@ -49,8 +49,10 @@ export function DashboardTopbar() {
   };
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
-      <h1 className="text-lg font-semibold text-slate-900 md:text-xl">{getPageTitle(pathname)}</h1>
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-6">
+      <h1 className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
+        {getPageTitle(pathname)}
+      </h1>
 
       <div className="flex items-center gap-3 md:gap-4">
         <form onSubmit={handleSubmit} className="hidden sm:block">
@@ -59,14 +61,14 @@ export function DashboardTopbar() {
             <input
               value={searchValue}
               onChange={(event) => setSearchValue(event.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-slate-300 focus:bg-white"
+              className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
               placeholder="Cari pada halaman aktif"
             />
           </label>
         </form>
         <button
           type="button"
-          className="relative rounded-full p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+          className="relative rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:scale-[0.98]"
           aria-label="Lihat notifikasi"
         >
           <Bell className="h-4 w-4" />
