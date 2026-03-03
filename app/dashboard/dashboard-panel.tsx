@@ -23,6 +23,11 @@ type WeeklyReportRow = {
   generatedAt?: number;
   fileName?: string;
   errorMessage?: string;
+  triggerSource?: "manual" | "cron";
+  attempts?: number;
+  durationMs?: number;
+  startedAt?: number;
+  finishedAt?: number;
 };
 
 type WeeklyTriggerResponse = {
@@ -356,6 +361,9 @@ export function DashboardPanel() {
               <th className="p-3 text-left">Week Key</th>
               <th className="p-3 text-left">Range</th>
               <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Source</th>
+              <th className="p-3 text-left">Attempt</th>
+              <th className="p-3 text-left">Durasi</th>
               <th className="p-3 text-left">Error</th>
               <th className="p-3 text-left">Generated At</th>
               <th className="p-3 text-left">Aksi</th>
@@ -369,6 +377,13 @@ export function DashboardPanel() {
                   {report.startDate} s/d {report.endDate}
                 </td>
                 <td className="p-3">{report.status}</td>
+                <td className="p-3">{report.triggerSource ?? "-"}</td>
+                <td className="p-3">{report.attempts ?? 1}</td>
+                <td className="p-3">
+                  {report.durationMs !== undefined
+                    ? `${Math.max(0, Math.round(report.durationMs / 1000))} detik`
+                    : "-"}
+                </td>
                 <td className="p-3 max-w-[360px] truncate">
                   {report.status === "failed"
                     ? (report.errorMessage ?? "-")
@@ -393,7 +408,7 @@ export function DashboardPanel() {
             ))}
             {reports.length === 0 ? (
               <tr>
-                <td className="p-3 text-muted-foreground" colSpan={6}>
+                <td className="p-3 text-muted-foreground" colSpan={9}>
                   Belum ada report mingguan.
                 </td>
               </tr>
