@@ -1,9 +1,14 @@
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
-import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
-export const APP_ROLES = ['superadmin', 'admin', 'karyawan', 'device-qr'] as const;
+export const APP_ROLES = [
+  "superadmin",
+  "admin",
+  "karyawan",
+  "device-qr",
+] as const;
 export type AppRole = (typeof APP_ROLES)[number];
 
 export type DbUserSession = {
@@ -19,11 +24,17 @@ export type DbUserSession = {
 };
 
 function forbiddenResponse() {
-  return new Response(JSON.stringify({ message: 'Forbidden' }), { status: 403 });
+  return new Response(
+    JSON.stringify({ code: "FORBIDDEN", message: "Forbidden" }),
+    { status: 403 },
+  );
 }
 
 function unauthorizedResponse() {
-  return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+  return new Response(
+    JSON.stringify({ code: "UNAUTHENTICATED", message: "Unauthorized" }),
+    { status: 401 },
+  );
 }
 
 export async function getConvexTokenOrNull() {
@@ -32,7 +43,7 @@ export async function getConvexTokenOrNull() {
     return null;
   }
 
-  return (await session.getToken({ template: 'convex' })) ?? null;
+  return (await session.getToken({ template: "convex" })) ?? null;
 }
 
 async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {
@@ -47,7 +58,7 @@ async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {
   }
 
   try {
-    const user = await convex.query<DbUserSession | null>('users:me', {});
+    const user = await convex.query<DbUserSession | null>("users:me", {});
     return user;
   } catch {
     return null;
@@ -76,12 +87,12 @@ export async function requireUser() {
 export async function requireRolePageFromDb(roles: AppRole[]) {
   const session = await auth();
   if (!session.userId) {
-    redirect('/sign-in');
+    redirect("/sign-in");
   }
 
   const current = await requireUser();
   if (!current || !current.role || !roles.includes(current.role)) {
-    redirect('/forbidden');
+    redirect("/forbidden");
   }
 
   return current;
