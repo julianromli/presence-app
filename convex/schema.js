@@ -79,6 +79,10 @@ export default defineSchema({
     startDate: v.string(),
     endDate: v.string(),
     fileUrl: v.optional(v.string()),
+    storageId: v.optional(v.id('_storage')),
+    fileName: v.optional(v.string()),
+    mimeType: v.optional(v.string()),
+    byteLength: v.optional(v.number()),
     status: v.union(
       v.literal('pending'),
       v.literal('success'),

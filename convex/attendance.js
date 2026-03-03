@@ -10,6 +10,35 @@ import {
   requireRole,
 } from './helpers';
 
+const attendanceWithEmployeeValidator = v.object({
+  _id: v.id('attendance'),
+  _creationTime: v.number(),
+  userId: v.id('users'),
+  dateKey: v.string(),
+  checkInAt: v.optional(v.number()),
+  checkOutAt: v.optional(v.number()),
+  sourceDeviceId: v.optional(v.id('users')),
+  edited: v.boolean(),
+  editedBy: v.optional(v.id('users')),
+  editedAt: v.optional(v.number()),
+  editReason: v.optional(v.string()),
+  lastScanAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  employeeName: v.string(),
+});
+
+async function enrichRowsWithEmployeeName(ctx, rows) {
+  const userIds = [...new Set(rows.map((row) => String(row.userId)))];
+  const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+  const userById = new Map(userIds.map((id, index) => [id, users[index]]));
+
+  return rows.map((row) => ({
+    ...row,
+    employeeName: userById.get(String(row.userId))?.name ?? 'Unknown',
+  }));
+}
+
 async function sha256Hex(input) {
   const bytes = new TextEncoder().encode(input);
   const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
@@ -115,6 +144,14 @@ async function processScan(ctx, actor, args) {
     };
   }
 
+  if (existing.checkOutAt !== undefined) {
+    return {
+      status: 'check-out',
+      dateKey,
+      message: 'Check-out sudah tercatat',
+    };
+  }
+
   await ctx.db.patch(existing._id, {
     checkOutAt: now,
     sourceDeviceId,
@@ -131,13 +168,14 @@ async function processScan(ctx, actor, args) {
 
 export const listByDate = query({
   args: { dateKey: v.string() },
-  returns: v.array(v.any()),
+  returns: v.array(attendanceWithEmployeeValidator),
   handler: async (ctx, args) => {
     await requireRole(ctx, ['admin', 'superadmin']);
-    return await ctx.db
+    const rows = await ctx.db
       .query('attendance')
       .withIndex('by_date_and_user', (q) => q.eq('dateKey', args.dateKey))
       .collect();
+    return await enrichRowsWithEmployeeName(ctx, rows);
   },
 });
 
@@ -146,25 +184,15 @@ export const listByDateRangeUnsafe = internalQuery({
     startDateKey: v.string(),
     endDateKey: v.string(),
   },
-  returns: v.array(v.any()),
+  returns: v.array(attendanceWithEmployeeValidator),
   handler: async (ctx, args) => {
-    const attendance = await ctx.db
+    const rows = await ctx.db
       .query('attendance')
       .withIndex('by_date_and_user', (q) =>
         q.gte('dateKey', args.startDateKey).lte('dateKey', args.endDateKey),
       )
       .collect();
-
-    const result = [];
-    for (const row of attendance) {
-      const user = await ctx.db.get(row.userId);
-      result.push({
-        ...row,
-        employeeName: user?.name ?? 'Unknown',
-      });
-    }
-
-    return result;
+    return await enrichRowsWithEmployeeName(ctx, rows);
   },
 });
 
@@ -186,33 +214,6 @@ export const recordScan = mutation({
   },
 });
 
-export const recordScanByClerk = mutation({
-  args: {
-    clerkUserId: v.string(),
-    token: v.string(),
-    ipAddress: v.optional(v.string()),
-    latitude: v.optional(v.number()),
-    longitude: v.optional(v.number()),
-  },
-  returns: v.object({
-    status: v.union(v.literal('check-in'), v.literal('check-out')),
-    dateKey: v.string(),
-    message: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    const actor = await ctx.db
-      .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
-      .unique();
-
-    if (!actor) {
-      throw new ConvexError({ code: 'USER_NOT_FOUND', message: 'User belum tersinkron' });
-    }
-
-    return await processScan(ctx, actor, args);
-  },
-});
-
 export const editAttendance = mutation({
   args: {
     attendanceId: v.id('attendance'),
@@ -225,91 +226,6 @@ export const editAttendance = mutation({
     const actor = await requireRole(ctx, ['admin', 'superadmin']);
     const row = await ctx.db.get(args.attendanceId);
 
-    if (!row) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Data absensi tidak ditemukan' });
-    }
-
-    await ctx.db.patch(args.attendanceId, {
-      checkInAt: args.checkInAt ?? row.checkInAt,
-      checkOutAt: args.checkOutAt ?? row.checkOutAt,
-      edited: true,
-      editedBy: actor._id,
-      editedAt: Date.now(),
-      editReason: args.reason,
-      updatedAt: Date.now(),
-    });
-
-    await ctx.db.insert('audit_logs', {
-      actorUserId: actor._id,
-      action: 'attendance.edited',
-      targetType: 'attendance',
-      targetId: String(args.attendanceId),
-      payload: {
-        checkInAt: args.checkInAt,
-        checkOutAt: args.checkOutAt,
-        reason: args.reason,
-      },
-      createdAt: Date.now(),
-    });
-
-    return null;
-  },
-});
-
-export const listByDateByClerk = mutation({
-  args: {
-    clerkUserId: v.string(),
-    dateKey: v.string(),
-  },
-  returns: v.array(v.any()),
-  handler: async (ctx, args) => {
-    const actor = await ctx.db
-      .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
-      .unique();
-
-    if (!actor || (actor.role !== 'admin' && actor.role !== 'superadmin')) {
-      throw new ConvexError({ code: 'FORBIDDEN', message: 'Admin role required' });
-    }
-
-    const rows = await ctx.db
-      .query('attendance')
-      .withIndex('by_date_and_user', (q) => q.eq('dateKey', args.dateKey))
-      .collect();
-
-    const enriched = [];
-    for (const row of rows) {
-      const user = await ctx.db.get(row.userId);
-      enriched.push({
-        ...row,
-        employeeName: user?.name ?? 'Unknown',
-      });
-    }
-
-    return enriched;
-  },
-});
-
-export const editAttendanceByClerk = mutation({
-  args: {
-    clerkUserId: v.string(),
-    attendanceId: v.id('attendance'),
-    checkInAt: v.optional(v.number()),
-    checkOutAt: v.optional(v.number()),
-    reason: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const actor = await ctx.db
-      .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
-      .unique();
-
-    if (!actor || (actor.role !== 'admin' && actor.role !== 'superadmin')) {
-      throw new ConvexError({ code: 'FORBIDDEN', message: 'Admin role required' });
-    }
-
-    const row = await ctx.db.get(args.attendanceId);
     if (!row) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Data absensi tidak ditemukan' });
     }

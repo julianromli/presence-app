@@ -1,17 +1,10 @@
-import { auth } from '@clerk/nextjs/server';
-
-import { getConvexHttpClient } from '@/lib/convex-http';
-import { requireRoleApi } from '@/lib/auth';
+import { getConvexTokenOrNull, requireRoleApiFromDb } from '@/lib/auth';
+import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 
 export async function POST(req: Request) {
-  const roleResult = await requireRoleApi(['karyawan']);
+  const roleResult = await requireRoleApiFromDb(['karyawan']);
   if ('error' in roleResult) {
     return roleResult.error;
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return Response.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   const body = (await req.json()) as {
@@ -25,14 +18,18 @@ export async function POST(req: Request) {
   }
 
   const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const convex = getConvexHttpClient();
+  const token = await getConvexTokenOrNull();
+  if (!token) {
+    return Response.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
+  const convex = getAuthedConvexHttpClient(token);
   if (!convex) {
     return Response.json({ message: 'Convex URL missing' }, { status: 500 });
   }
 
   try {
-    const response = await convex.mutation('attendance:recordScanByClerk', {
-      clerkUserId: userId,
+    const response = await convex.mutation('attendance:recordScan', {
       token: body.token,
       ipAddress,
       latitude: body.latitude,

@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
-import { mutation } from './_generated/server';
+import { internalMutation, mutation } from './_generated/server';
 import { requireRole } from './helpers';
 
 async function sha256Hex(input) {
@@ -47,30 +47,7 @@ export const issue = mutation({
   },
 });
 
-export const issueForDevice = mutation({
-  args: {
-    clerkUserId: v.string(),
-  },
-  returns: v.object({
-    token: v.string(),
-    expiresAt: v.number(),
-    issuedAt: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    const deviceUser = await ctx.db
-      .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
-      .unique();
-
-    if (!deviceUser || deviceUser.role !== 'device-qr') {
-      throw new ConvexError({ code: 'FORBIDDEN', message: 'Device role required' });
-    }
-
-    return await issueToken(ctx, deviceUser._id);
-  },
-});
-
-export const validateAndConsume = mutation({
+export const validateAndConsume = internalMutation({
   args: {
     token: v.string(),
   },
@@ -109,7 +86,7 @@ export const validateAndConsume = mutation({
   },
 });
 
-export const cleanupExpired = mutation({
+export const cleanupExpired = internalMutation({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {

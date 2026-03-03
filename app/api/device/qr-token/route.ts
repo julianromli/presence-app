@@ -1,27 +1,23 @@
-import { auth } from '@clerk/nextjs/server';
-
-import { getConvexHttpClient } from '@/lib/convex-http';
-import { requireRoleApi } from '@/lib/auth';
+import { getConvexTokenOrNull, requireRoleApiFromDb } from '@/lib/auth';
+import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 
 export async function GET() {
-  const result = await requireRoleApi(['device-qr']);
+  const result = await requireRoleApiFromDb(['device-qr']);
   if ('error' in result) {
     return result.error;
   }
 
-  const { userId } = await auth();
-  if (!userId) {
+  const token = await getConvexTokenOrNull();
+  if (!token) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  const convex = getConvexHttpClient();
+  const convex = getAuthedConvexHttpClient(token);
   if (!convex) {
     return Response.json({ message: 'Convex URL missing' }, { status: 500 });
   }
 
-  const issued = await convex.mutation('qrTokens:issueForDevice', {
-    clerkUserId: userId,
-  });
+  const issued = await convex.mutation('qrTokens:issue', {});
 
   return Response.json(issued);
 }

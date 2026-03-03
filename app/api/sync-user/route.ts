@@ -1,6 +1,7 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
 
-import { getConvexHttpClient } from '@/lib/convex-http';
+import { getConvexTokenOrNull } from '@/lib/auth';
+import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 
 export async function POST() {
   const { userId } = await auth();
@@ -13,25 +14,18 @@ export async function POST() {
     return Response.json({ message: 'User not found' }, { status: 404 });
   }
 
-  const convex = getConvexHttpClient();
+  const token = await getConvexTokenOrNull();
+  if (!token) {
+    return Response.json({ message: 'Convex token missing' }, { status: 401 });
+  }
+  const convex = getAuthedConvexHttpClient(token);
   if (!convex) {
     return Response.json({ message: 'Convex URL missing, skip sync' }, { status: 200 });
   }
 
-  const metadataRole = user.publicMetadata?.role;
-  const role =
-    metadataRole === 'superadmin' ||
-    metadataRole === 'admin' ||
-    metadataRole === 'device-qr' ||
-    metadataRole === 'karyawan'
-      ? metadataRole
-      : 'karyawan';
-
   await convex.mutation('users:upsertFromClerk', {
-    clerkUserId: user.id,
     name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Unknown',
     email: user.primaryEmailAddress?.emailAddress ?? `${user.id}@unknown.local`,
-    role,
   });
 
   return Response.json({ ok: true });

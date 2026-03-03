@@ -1,7 +1,7 @@
-import { requireRoleApi } from '@/lib/auth';
+import { requireRoleApiFromDb } from '@/lib/auth';
 
 export async function GET() {
-  const result = await requireRoleApi(['device-qr']);
+  const result = await requireRoleApiFromDb(['device-qr']);
   if ('error' in result) {
     return result.error;
   }

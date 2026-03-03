@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,17 @@ type AttendanceRow = {
   edited: boolean;
 };
 
+type WeeklyReportRow = {
+  _id: string;
+  weekKey: string;
+  startDate: string;
+  endDate: string;
+  status: 'pending' | 'success' | 'failed';
+  generatedAt?: number;
+  fileName?: string;
+  errorMessage?: string;
+};
+
 function todayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -24,6 +35,7 @@ export function DashboardPanel() {
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState('Koreksi admin');
   const [reportStatus, setReportStatus] = useState('');
+  const [reports, setReports] = useState<WeeklyReportRow[]>([]);
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -54,6 +66,20 @@ export function DashboardPanel() {
     const res = await fetch('/api/admin/reports', { method: 'POST' });
     const data = await res.json();
     setReportStatus(`Report ${data.weekKey ?? '-'} status: ${data.status ?? 'unknown'}`);
+    await loadReports();
+  };
+
+  const loadReports = async () => {
+    const res = await fetch('/api/admin/reports', { cache: 'no-store' });
+    if (!res.ok) {
+      return;
+    }
+    const data = (await res.json()) as WeeklyReportRow[];
+    setReports(data);
+  };
+
+  const downloadReport = (reportId: string) => {
+    window.location.assign(`/api/admin/reports/download?reportId=${encodeURIComponent(reportId)}`);
   };
 
   const editRow = async (attendanceId: string) => {
@@ -76,6 +102,22 @@ export function DashboardPanel() {
     e.preventDefault();
     await loadAttendance();
   };
+
+  useEffect(() => {
+    void loadReports();
+  }, []);
+
+  useEffect(() => {
+    if (!reports.some((report) => report.status === 'pending')) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      void loadReports();
+    }, 12_000);
+
+    return () => clearInterval(interval);
+  }, [reports]);
 
   return (
     <div className="space-y-6">
@@ -154,6 +196,58 @@ export function DashboardPanel() {
               <tr>
                 <td className="p-3 text-muted-foreground" colSpan={6}>
                   Belum ada data. Pilih tanggal lalu klik Muat Data.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="overflow-x-auto rounded-xl border">
+        <div className="border-b p-4">
+          <h2 className="text-lg font-semibold">Riwayat Report Mingguan</h2>
+        </div>
+        <table className="w-full min-w-[700px] text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="p-3 text-left">Week Key</th>
+              <th className="p-3 text-left">Range</th>
+              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Error</th>
+              <th className="p-3 text-left">Generated At</th>
+              <th className="p-3 text-left">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reports.map((report) => (
+              <tr key={report._id} className="border-t">
+                <td className="p-3">{report.weekKey}</td>
+                <td className="p-3">
+                  {report.startDate} s/d {report.endDate}
+                </td>
+                <td className="p-3">{report.status}</td>
+                <td className="p-3 max-w-[360px] truncate">
+                  {report.status === 'failed' ? (report.errorMessage ?? '-') : '-'}
+                </td>
+                <td className="p-3">
+                  {report.generatedAt ? new Date(report.generatedAt).toLocaleString('id-ID') : '-'}
+                </td>
+                <td className="p-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={report.status !== 'success'}
+                    onClick={() => downloadReport(report._id)}
+                  >
+                    Unduh
+                  </Button>
+                </td>
+              </tr>
+            ))}
+            {reports.length === 0 ? (
+              <tr>
+                <td className="p-3 text-muted-foreground" colSpan={6}>
+                  Belum ada report mingguan.
                 </td>
               </tr>
             ) : null}

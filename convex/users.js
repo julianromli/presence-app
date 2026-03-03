@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { getCurrentDbUser, requireRole } from './helpers';
+import { getCurrentDbUser, requireIdentity, requireRole } from './helpers';
 
 const roleValidator = v.union(
   v.literal('superadmin'),
@@ -37,35 +37,33 @@ export const me = query({
 
 export const upsertFromClerk = mutation({
   args: {
-    clerkUserId: v.string(),
     name: v.string(),
     email: v.string(),
-    role: v.optional(roleValidator),
   },
   returns: v.id('users'),
   handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const clerkUserId = identity.subject;
     const now = Date.now();
     const existing = await ctx.db
       .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', clerkUserId))
       .unique();
 
     if (existing) {
       await ctx.db.patch(existing._id, {
         name: args.name,
         email: args.email,
-        role: args.role ?? existing.role,
-        isActive: true,
         updatedAt: now,
       });
       return existing._id;
     }
 
     return await ctx.db.insert('users', {
-      clerkUserId: args.clerkUserId,
+      clerkUserId,
       name: args.name,
       email: args.email,
-      role: args.role ?? 'karyawan',
+      role: 'karyawan',
       isActive: true,
       createdAt: now,
       updatedAt: now,

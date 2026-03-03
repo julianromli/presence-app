@@ -1,11 +1,11 @@
 import { UserButton } from '@clerk/nextjs';
 
-import { requireRolePage } from '@/lib/auth';
+import { requireRolePageFromDb } from '@/lib/auth';
 
 import { DashboardPanel } from './dashboard-panel';
 
 export default async function DashboardPage() {
-  const session = await requireRolePage(['admin', 'superadmin']);
+  const session = await requireRolePageFromDb(['admin', 'superadmin']);
 
   return (
     <div className="container py-10">

@@ -1,28 +1,58 @@
-'use node';
+import { ConvexError, v } from 'convex/values';
 
-import { v } from 'convex/values';
-import * as XLSX from 'xlsx';
+import { api, internal } from './_generated/api';
+import { action, internalMutation, query } from './_generated/server';
+import { requireRole } from './helpers';
 
-import { internal } from './_generated/api';
-import { action, internalAction, internalMutation, query } from './_generated/server';
-
-function formatDate(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function getWeekRange(now = new Date()) {
-  const day = now.getUTCDay() || 7;
-  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day + 1));
-  const sunday = new Date(monday);
-  sunday.setUTCDate(monday.getUTCDate() + 6);
-  return { monday, sunday };
-}
+const weeklyReportValidator = v.object({
+  _id: v.id('weekly_reports'),
+  _creationTime: v.number(),
+  weekKey: v.string(),
+  startDate: v.string(),
+  endDate: v.string(),
+  fileUrl: v.optional(v.string()),
+  storageId: v.optional(v.id('_storage')),
+  fileName: v.optional(v.string()),
+  mimeType: v.optional(v.string()),
+  byteLength: v.optional(v.number()),
+  status: v.union(v.literal('pending'), v.literal('success'), v.literal('failed')),
+  generatedAt: v.optional(v.number()),
+  errorMessage: v.optional(v.string()),
+});
 
 export const listWeekly = query({
   args: {},
-  returns: v.array(v.any()),
+  returns: v.array(weeklyReportValidator),
   handler: async (ctx) => {
+    await requireRole(ctx, ['admin', 'superadmin']);
     return await ctx.db.query('weekly_reports').order('desc').take(20);
+  },
+});
+
+export const getDownloadUrl = query({
+  args: { reportId: v.id('weekly_reports') },
+  returns: v.object({
+    url: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ['admin', 'superadmin']);
+
+    const report = await ctx.db.get(args.reportId);
+    if (!report) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Report tidak ditemukan' });
+    }
+
+    let url = report.fileUrl;
+    if (report.storageId) {
+      const storageUrl = await ctx.storage.getUrl(report.storageId);
+      url = storageUrl ?? undefined;
+    }
+
+    return {
+      url,
+      fileName: report.fileName ?? `presence_${report.weekKey}.xlsx`,
+    };
   },
 });
 
@@ -33,6 +63,10 @@ export const markWeeklyReport = internalMutation({
     endDate: v.string(),
     status: v.union(v.literal('pending'), v.literal('success'), v.literal('failed')),
     fileUrl: v.optional(v.string()),
+    storageId: v.optional(v.id('_storage')),
+    fileName: v.optional(v.string()),
+    mimeType: v.optional(v.string()),
+    byteLength: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   },
   returns: v.null(),
@@ -47,6 +81,10 @@ export const markWeeklyReport = internalMutation({
       endDate: args.endDate,
       status: args.status,
       fileUrl: args.fileUrl,
+      storageId: args.storageId,
+      fileName: args.fileName,
+      mimeType: args.mimeType,
+      byteLength: args.byteLength,
       errorMessage: args.errorMessage,
       generatedAt: Date.now(),
     };
@@ -65,67 +103,6 @@ export const markWeeklyReport = internalMutation({
   },
 });
 
-export const runWeeklyReport = internalAction({
-  args: {},
-  returns: v.object({
-    weekKey: v.string(),
-    status: v.string(),
-  }),
-  handler: async (ctx) => {
-    const { monday, sunday } = getWeekRange(new Date());
-    const weekKey = `${formatDate(monday)}_${formatDate(sunday)}`;
-
-    await ctx.runMutation(internal.reports.markWeeklyReport, {
-      weekKey,
-      startDate: formatDate(monday),
-      endDate: formatDate(sunday),
-      status: 'pending',
-    });
-
-    try {
-      const rows = await ctx.runQuery(internal.attendance.listByDateRangeUnsafe, {
-        startDateKey: formatDate(monday),
-        endDateKey: formatDate(sunday),
-      });
-
-      const worksheetData = rows.map((row) => ({
-        'Minggu Ke-': weekKey,
-        'Nama Karyawan': row.employeeName,
-        'Jam Datang': row.checkInAt ? new Date(row.checkInAt).toISOString() : '-',
-        'Jam Pulang': row.checkOutAt ? new Date(row.checkOutAt).toISOString() : '-',
-        'Tanggal Kehadiran': row.dateKey,
-        'Edited atau Tidak': row.edited ? 'Edited' : 'Tidak',
-      }));
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(worksheetData);
-      XLSX.utils.book_append_sheet(wb, ws, 'Presence');
-      const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-      const fileUrl = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${base64}`;
-
-      await ctx.runMutation(internal.reports.markWeeklyReport, {
-        weekKey,
-        startDate: formatDate(monday),
-        endDate: formatDate(sunday),
-        status: 'success',
-        fileUrl,
-      });
-
-      return { weekKey, status: 'success' };
-    } catch (error) {
-      await ctx.runMutation(internal.reports.markWeeklyReport, {
-        weekKey,
-        startDate: formatDate(monday),
-        endDate: formatDate(sunday),
-        status: 'failed',
-        errorMessage: String(error),
-      });
-
-      return { weekKey, status: 'failed' };
-    }
-  },
-});
-
 export const triggerWeeklyReport = action({
   args: {},
   returns: v.object({
@@ -133,6 +110,11 @@ export const triggerWeeklyReport = action({
     status: v.string(),
   }),
   handler: async (ctx) => {
-    return await ctx.runAction(internal.reports.runWeeklyReport, {});
+    const actor = await ctx.runQuery(api.users.me, {});
+    if (!actor || (actor.role !== 'admin' && actor.role !== 'superadmin')) {
+      throw new Error('FORBIDDEN');
+    }
+
+    return await ctx.runAction(internal.reportsNode.runWeeklyReport, {});
   },
 });

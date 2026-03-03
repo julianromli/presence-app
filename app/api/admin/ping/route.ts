@@ -1,7 +1,7 @@
-import { requireRoleApi } from '@/lib/auth';
+import { requireRoleApiFromDb } from '@/lib/auth';
 
 export async function GET() {
-  const result = await requireRoleApi(['admin', 'superadmin']);
+  const result = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in result) {
     return result.error;
   }

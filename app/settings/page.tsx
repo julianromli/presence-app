@@ -1,9 +1,9 @@
-import { requireRolePage } from '@/lib/auth';
+import { requireRolePageFromDb } from '@/lib/auth';
 
 import { SettingsPanel } from './settings-panel';
 
 export default async function SettingsPage() {
-  await requireRolePage(['superadmin']);
+  await requireRolePageFromDb(['superadmin']);
 
   return (
     <div className="container py-10">

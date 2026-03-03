@@ -18,6 +18,9 @@ export async function getCurrentDbUser(ctx) {
   if (!user) {
     throw new ConvexError({ code: 'USER_NOT_FOUND', message: 'User row missing' });
   }
+  if (!user.isActive) {
+    throw new ConvexError({ code: 'INACTIVE_USER', message: 'User is inactive' });
+  }
 
   return user;
 }
