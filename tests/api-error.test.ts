@@ -1,0 +1,47 @@
+import { ConvexError } from 'convex/values';
+import { describe, expect, it } from 'vitest';
+
+import { convexErrorResponse } from '../lib/api-error';
+
+function makeConvexErrorData(code: string, message: string) {
+  const error = new ConvexError(message) as ConvexError<string> & {
+    data?: { code: string; message: string };
+  };
+  error.data = { code, message };
+  return error;
+}
+
+describe('convexErrorResponse', () => {
+  it('maps known convex error codes to expected status', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData('SPAM_DETECTED', 'Scan terlalu cepat'),
+      'fallback',
+    );
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'SPAM_DETECTED',
+      message: 'Scan terlalu cepat',
+    });
+  });
+
+  it('maps forbidden text errors to 403', async () => {
+    const response = convexErrorResponse(new Error('FORBIDDEN'), 'fallback');
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Forbidden',
+    });
+  });
+
+  it('falls back to internal error for unknown exceptions', async () => {
+    const response = convexErrorResponse(new Error('unexpected'), 'Fallback Error');
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'INTERNAL_ERROR',
+      message: 'Fallback Error',
+    });
+  });
+});

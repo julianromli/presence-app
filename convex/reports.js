@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, query } from "./_generated/server";
 import { requireRole } from "./helpers";
+import { decideWeeklyReportStart } from "./reportIdempotency";
 
 const triggerSourceValidator = v.union(v.literal("manual"), v.literal("cron"));
 const weeklyStatusValidator = v.union(
@@ -158,80 +159,49 @@ export const beginWeeklyReport = internalMutation({
       .query("weekly_reports")
       .withIndex("by_week_key", (q) => q.eq("weekKey", args.weekKey))
       .unique();
+    const decision = decideWeeklyReportStart(existing, {
+      now,
+      triggerSource: args.triggerSource,
+      triggeredBy: args.triggeredBy,
+      startDate: args.startDate,
+      endDate: args.endDate,
+    });
 
     if (existing) {
-      if (existing.status === "success" || existing.status === "pending") {
-        await ctx.db.patch(existing._id, {
-          lastTriggeredAt: now,
-          triggerSource: args.triggerSource,
-          triggeredBy: args.triggeredBy,
-        });
+      if (decision.mode === "skip") {
+        await ctx.db.patch(existing._id, decision.patch);
 
         return {
           reportId: existing._id,
-          runGeneration: false,
-          status: existing.status,
-          startedAt: existing.startedAt ?? now,
-          attempts: existing.attempts ?? 1,
+          runGeneration: decision.runGeneration,
+          status: decision.status,
+          startedAt: decision.startedAt,
+          attempts: decision.attempts,
         };
       }
 
-      const attempts = (existing.attempts ?? 0) + 1;
-      await ctx.db.patch(existing._id, {
-        startDate: args.startDate,
-        endDate: args.endDate,
-        status: "pending",
-        errorMessage: undefined,
-        fileUrl: undefined,
-        storageId: undefined,
-        fileName: undefined,
-        mimeType: undefined,
-        byteLength: undefined,
-        startedAt: now,
-        finishedAt: undefined,
-        durationMs: undefined,
-        triggerSource: args.triggerSource,
-        triggeredBy: args.triggeredBy,
-        lastTriggeredAt: now,
-        attempts,
-      });
+      await ctx.db.patch(existing._id, decision.patch);
 
       return {
         reportId: existing._id,
-        runGeneration: true,
-        status: "pending",
-        startedAt: now,
-        attempts,
+        runGeneration: decision.runGeneration,
+        status: decision.status,
+        startedAt: decision.startedAt,
+        attempts: decision.attempts,
       };
     }
 
     const reportId = await ctx.db.insert("weekly_reports", {
       weekKey: args.weekKey,
-      startDate: args.startDate,
-      endDate: args.endDate,
-      status: "pending",
-      generatedAt: undefined,
-      errorMessage: undefined,
-      fileUrl: undefined,
-      storageId: undefined,
-      fileName: undefined,
-      mimeType: undefined,
-      byteLength: undefined,
-      startedAt: now,
-      finishedAt: undefined,
-      durationMs: undefined,
-      triggerSource: args.triggerSource,
-      triggeredBy: args.triggeredBy,
-      lastTriggeredAt: now,
-      attempts: 1,
+      ...decision.doc,
     });
 
     return {
       reportId,
-      runGeneration: true,
-      status: "pending",
-      startedAt: now,
-      attempts: 1,
+      runGeneration: decision.runGeneration,
+      status: decision.status,
+      startedAt: decision.startedAt,
+      attempts: decision.attempts,
     };
   },
 });
