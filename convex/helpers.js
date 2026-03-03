@@ -24,7 +24,6 @@ export async function getCurrentDbUser(ctx) {
 
   return user;
 }
-
 export async function requireRole(ctx, allowedRoles) {
   const user = await getCurrentDbUser(ctx);
   if (!allowedRoles.includes(user.role)) {
@@ -43,17 +42,8 @@ export function buildDateKey(ts, timezone) {
   return formatter.format(new Date(ts));
 }
 
-export async function getGlobalSettings(ctx) {
-  const existing = await ctx.db
-    .query('settings')
-    .withIndex('by_key', (q) => q.eq('key', 'global'))
-    .unique();
-
-  if (existing) {
-    return existing;
-  }
-
-  const _id = await ctx.db.insert('settings', {
+function buildDefaultGlobalSettings(now = Date.now()) {
+  return {
     key: 'global',
     timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
@@ -63,10 +53,44 @@ export async function getGlobalSettings(ctx) {
     whitelistEnabled: false,
     whitelistIps: [],
     updatedBy: undefined,
-    updatedAt: Date.now(),
-  });
+    updatedAt: now,
+  };
+}
 
-  return await ctx.db.get(_id);
+export async function getGlobalSettingsOrNull(ctx) {
+  return await ctx.db
+    .query('settings')
+    .withIndex('by_key', (q) => q.eq('key', 'global'))
+    .unique();
+}
+
+export async function getGlobalSettingsOrThrow(ctx) {
+  const existing = await getGlobalSettingsOrNull(ctx);
+  if (existing) {
+    return existing;
+  }
+
+  throw new ConvexError({
+    code: 'SETTINGS_NOT_INITIALIZED',
+    message: 'Global settings belum diinisialisasi.',
+  });
+}
+
+export async function ensureGlobalSettingsForMutation(ctx) {
+  const existing = await getGlobalSettingsOrNull(ctx);
+  if (existing) {
+    return existing;
+  }
+
+  const _id = await ctx.db.insert('settings', buildDefaultGlobalSettings());
+  const created = await ctx.db.get(_id);
+  if (!created) {
+    throw new ConvexError({
+      code: 'INTERNAL_ERROR',
+      message: 'Gagal membuat global settings.',
+    });
+  }
+  return created;
 }
 
 export function ipAllowed(ip, whitelistIps) {

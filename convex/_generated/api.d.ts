@@ -11,6 +11,7 @@
 import type * as attendance from "../attendance.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
+import type * as dashboardOverviewShape from "../dashboardOverviewShape.js";
 import type * as helpers from "../helpers.js";
 import type * as qrTokens from "../qrTokens.js";
 import type * as reportIdempotency from "../reportIdempotency.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   crons: typeof crons;
   dashboard: typeof dashboard;
+  dashboardOverviewShape: typeof dashboardOverviewShape;
   helpers: typeof helpers;
   qrTokens: typeof qrTokens;
   reportIdempotency: typeof reportIdempotency;

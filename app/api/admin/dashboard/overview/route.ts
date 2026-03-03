@@ -18,9 +18,13 @@ export async function GET() {
   }
 
   try {
+    await convex.mutation('settings:ensureGlobal', {});
     const payload = await convex.query<DashboardOverviewPayload>('dashboard:getOverview', {});
     return Response.json(payload);
   } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[api/admin/dashboard/overview] convex query failed', error);
+    }
     return convexErrorResponse(error, 'Gagal memuat ringkasan dashboard.');
   }
 }

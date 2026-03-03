@@ -1,7 +1,11 @@
 import { v } from "convex/values";
 
-import { internalQuery, mutation, query } from "./_generated/server";
-import { getGlobalSettings, requireRole } from "./helpers";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import {
+  ensureGlobalSettingsForMutation,
+  getGlobalSettingsOrThrow,
+  requireRole,
+} from "./helpers";
 
 const settingsValidator = v.object({
   key: v.literal("global"),
@@ -18,12 +22,29 @@ const settingsValidator = v.object({
   _creationTime: v.number(),
 });
 
+export const ensureGlobal = mutation({
+  args: {},
+  returns: settingsValidator,
+  handler: async (ctx) => {
+    await requireRole(ctx, ["admin", "superadmin"]);
+    return await ensureGlobalSettingsForMutation(ctx);
+  },
+});
+
+export const ensureGlobalInternal = internalMutation({
+  args: {},
+  returns: settingsValidator,
+  handler: async (ctx) => {
+    return await ensureGlobalSettingsForMutation(ctx);
+  },
+});
+
 export const get = query({
   args: {},
   returns: settingsValidator,
   handler: async (ctx) => {
     await requireRole(ctx, ["admin", "superadmin"]);
-    return await getGlobalSettings(ctx);
+    return await getGlobalSettingsOrThrow(ctx);
   },
 });
 
@@ -31,7 +52,7 @@ export const getGlobalUnsafe = internalQuery({
   args: {},
   returns: settingsValidator,
   handler: async (ctx) => {
-    return await getGlobalSettings(ctx);
+    return await getGlobalSettingsOrThrow(ctx);
   },
 });
 
@@ -48,7 +69,7 @@ export const update = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, ["superadmin"]);
-    const current = await getGlobalSettings(ctx);
+    const current = await ensureGlobalSettingsForMutation(ctx);
 
     await ctx.db.patch(current._id, {
       timezone: args.timezone ?? current.timezone,

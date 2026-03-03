@@ -16,6 +16,7 @@ export async function GET() {
     return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
   try {
+    await convex.mutation("settings:ensureGlobal", {});
     const data = await convex.query("settings:get", {});
     return Response.json(data);
   } catch (error) {

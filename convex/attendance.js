@@ -9,7 +9,7 @@ import {
   buildDateKey,
   distanceMeters,
   getCurrentDbUser,
-  getGlobalSettings,
+  ensureGlobalSettingsForMutation,
   ipAllowed,
   requireRole,
 } from "./helpers";
@@ -106,7 +106,7 @@ async function processScan(ctx, actor, args) {
   }
 
   const now = Date.now();
-  const settings = await getGlobalSettings(ctx);
+  const settings = await ensureGlobalSettingsForMutation(ctx);
   const sourceDeviceId = await validateAndConsumeToken(ctx, args.token);
 
   if (

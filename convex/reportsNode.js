@@ -68,6 +68,7 @@ export const runWeeklyReport = internalAction({
     skipped: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    await ctx.runMutation(internal.settings.ensureGlobalInternal, {});
     const settings = await ctx.runQuery(internal.settings.getGlobalUnsafe, {});
     const timezone = normalizeTimezone(settings.timezone);
     const nowTs = Date.now();

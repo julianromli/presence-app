@@ -22,6 +22,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   IP_NOT_ALLOWED: 403,
   SPAM_DETECTED: 429,
   WRITE_CONFLICT: 409,
+  SETTINGS_NOT_INITIALIZED: 503,
 };
 
 function toConvexErrorData(error: unknown): ConvexErrorData | null {

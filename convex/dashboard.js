@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 
 import { query } from './_generated/server';
-import { buildDateKey, getGlobalSettings, requireRole } from './helpers';
+import { buildDateKey, getGlobalSettingsOrThrow, requireRole } from './helpers';
+import { normalizeReportStatus, toHappenedAt } from './dashboardOverviewShape';
 
 const recentActivityValidator = v.object({
   attendanceId: v.id('attendance'),
@@ -63,7 +64,7 @@ export const getOverview = query({
   handler: async (ctx) => {
     await requireRole(ctx, ['admin', 'superadmin']);
 
-    const settings = await getGlobalSettings(ctx);
+    const settings = await getGlobalSettingsOrThrow(ctx);
     const now = Date.now();
     const todayDateKey = buildDateKey(now, settings.timezone);
     const trendDateKeys = buildLast7DateKeys(now, settings.timezone);
@@ -87,70 +88,80 @@ export const getOverview = query({
       ),
     );
 
-    const userIds = [...new Set(todayRows.map((row) => String(row.userId)))];
-    const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
-    const usersById = new Map(userIds.map((id, index) => [id, users[index]]));
+    try {
+      const userIds = [...new Set(todayRows.map((row) => String(row.userId)))];
+      const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+      const usersById = new Map(userIds.map((id, index) => [id, users[index]]));
 
-    let presentToday = 0;
-    let checkedOut = 0;
-    let editedToday = 0;
-    const recentActivity = [];
+      let presentToday = 0;
+      let checkedOut = 0;
+      let editedToday = 0;
+      const recentActivity = [];
 
-    for (const row of todayRows) {
-      if (row.checkInAt !== undefined) {
-        presentToday += 1;
-      }
-      if (row.checkOutAt !== undefined) {
-        checkedOut += 1;
-      }
-      if (row.edited) {
-        editedToday += 1;
+      for (const row of todayRows) {
+        if (row.checkInAt !== undefined) {
+          presentToday += 1;
+        }
+        if (row.checkOutAt !== undefined) {
+          checkedOut += 1;
+        }
+        if (row.edited) {
+          editedToday += 1;
+        }
+
+        const status = row.checkOutAt !== undefined ? 'check-out' : 'check-in';
+        recentActivity.push({
+          attendanceId: row._id,
+          employeeName: usersById.get(String(row.userId))?.name ?? 'Unknown',
+          dateKey: row.dateKey,
+          happenedAt: toHappenedAt(row),
+          status,
+          edited: row.edited,
+        });
       }
 
-      const happenedAt = row.checkOutAt ?? row.checkInAt ?? row.updatedAt;
-      const status = row.checkOutAt !== undefined ? 'check-out' : 'check-in';
-      recentActivity.push({
-        attendanceId: row._id,
-        employeeName: usersById.get(String(row.userId))?.name ?? 'Unknown',
-        dateKey: row.dateKey,
-        happenedAt,
-        status,
-        edited: row.edited,
+      recentActivity.sort((a, b) => b.happenedAt - a.happenedAt);
+
+      const trend7d = trendDateKeys.map((dateKey, index) => {
+        const rows = trendRowsByDate[index];
+        const presentCount = rows.filter((row) => row.checkInAt !== undefined).length;
+        return {
+          dateKey,
+          presentCount,
+          attendanceRatePct: computeAttendanceRatePct(presentCount, activeEmployees.length),
+        };
       });
-    }
 
-    recentActivity.sort((a, b) => b.happenedAt - a.happenedAt);
+      const latestReport = await ctx.db.query('weekly_reports').order('desc').first();
+      const normalizedReportStatus = normalizeReportStatus(latestReport);
+      if (latestReport && !normalizedReportStatus) {
+        console.warn(
+          '[dashboard:getOverview] Ignoring weekly report with invalid status',
+          latestReport._id,
+          latestReport.status,
+        );
+      }
 
-    const trend7d = trendDateKeys.map((dateKey, index) => {
-      const rows = trendRowsByDate[index];
-      const presentCount = rows.filter((row) => row.checkInAt !== undefined).length;
       return {
-        dateKey,
-        presentCount,
-        attendanceRatePct: computeAttendanceRatePct(presentCount, activeEmployees.length),
+        cards: {
+          activeEmployees: activeEmployees.length,
+          presentToday,
+          attendanceRatePct: computeAttendanceRatePct(presentToday, activeEmployees.length),
+          checkedOut,
+          editedToday,
+        },
+        trend7d,
+        recentActivity: recentActivity.slice(0, 8),
+        reportStatus: normalizedReportStatus,
       };
-    });
-
-    const latestReport = await ctx.db.query('weekly_reports').order('desc').first();
-
-    return {
-      cards: {
-        activeEmployees: activeEmployees.length,
-        presentToday,
-        attendanceRatePct: computeAttendanceRatePct(presentToday, activeEmployees.length),
-        checkedOut,
-        editedToday,
-      },
-      trend7d,
-      recentActivity: recentActivity.slice(0, 8),
-      reportStatus: latestReport
-        ? {
-            weekKey: latestReport.weekKey,
-            status: latestReport.status,
-            generatedAt: latestReport.generatedAt,
-            lastTriggeredAt: latestReport.lastTriggeredAt,
-          }
-        : null,
-    };
+    } catch (error) {
+      console.error('[dashboard:getOverview] Failed to build payload', {
+        todayDateKey,
+        trendDateKeysCount: trendDateKeys.length,
+        todayRowsCount: todayRows.length,
+        firstRowId: todayRows[0]?._id,
+      });
+      throw error;
+    }
   },
 });
