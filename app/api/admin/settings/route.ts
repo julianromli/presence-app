@@ -1,44 +1,72 @@
-import { getConvexTokenOrNull, requireRoleApiFromDb } from '@/lib/auth';
-import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { getConvexTokenOrNull, requireRoleApiFromDb } from "@/lib/auth";
+import { convexErrorResponse } from "@/lib/api-error";
+import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function GET() {
-  const role = await requireRoleApiFromDb(['admin', 'superadmin']);
-  if ('error' in role) return role.error;
+  const role = await requireRoleApiFromDb(["admin", "superadmin"]);
+  if ("error" in role) return role.error;
 
   const token = await getConvexTokenOrNull();
   if (!token) {
-    return Response.json({ message: 'Unauthorized' }, { status: 401 });
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   const convex = getAuthedConvexHttpClient(token);
-  if (!convex) return Response.json({ message: 'Convex URL missing' }, { status: 500 });
+  if (!convex)
+    return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
-  const data = await convex.query('settings:get', {});
-  return Response.json(data);
+  try {
+    const data = await convex.query("settings:get", {});
+    return Response.json(data);
+  } catch (error) {
+    return convexErrorResponse(error, "Gagal memuat settings.");
+  }
 }
 
 export async function PATCH(req: Request) {
-  const role = await requireRoleApiFromDb(['superadmin']);
-  if ('error' in role) return role.error;
+  const role = await requireRoleApiFromDb(["superadmin"]);
+  if ("error" in role) return role.error;
 
   const token = await getConvexTokenOrNull();
   if (!token) {
-    return Response.json({ message: 'Unauthorized' }, { status: 401 });
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  let body: {
+    timezone?: string;
+    geofenceEnabled?: boolean;
+    geofenceRadiusMeters?: number;
+    geofenceLat?: number;
+    geofenceLng?: number;
+    whitelistEnabled?: boolean;
+    whitelistIps?: string[];
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json(
+      { code: "BAD_REQUEST", message: "Payload JSON tidak valid." },
+      { status: 400 },
+    );
+  }
+
   const convex = getAuthedConvexHttpClient(token);
-  if (!convex) return Response.json({ message: 'Convex URL missing' }, { status: 500 });
+  if (!convex)
+    return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
-  await convex.mutation('settings:update', {
-    timezone: body.timezone,
-    geofenceEnabled: body.geofenceEnabled,
-    geofenceRadiusMeters: body.geofenceRadiusMeters,
-    geofenceLat: body.geofenceLat,
-    geofenceLng: body.geofenceLng,
-    whitelistEnabled: body.whitelistEnabled,
-    whitelistIps: body.whitelistIps,
-  });
+  try {
+    await convex.mutation("settings:update", {
+      timezone: body.timezone,
+      geofenceEnabled: body.geofenceEnabled,
+      geofenceRadiusMeters: body.geofenceRadiusMeters,
+      geofenceLat: body.geofenceLat,
+      geofenceLng: body.geofenceLng,
+      whitelistEnabled: body.whitelistEnabled,
+      whitelistIps: body.whitelistIps,
+    });
 
-  return Response.json({ ok: true });
+    return Response.json({ ok: true });
+  } catch (error) {
+    return convexErrorResponse(error, "Gagal menyimpan settings.");
+  }
 }

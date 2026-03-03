@@ -1,30 +1,46 @@
-import { getConvexTokenOrNull, requireRoleApiFromDb } from '@/lib/auth';
-import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { getConvexTokenOrNull, requireRoleApiFromDb } from "@/lib/auth";
+import { convexErrorResponse } from "@/lib/api-error";
+import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function GET() {
-  const role = await requireRoleApiFromDb(['admin', 'superadmin']);
-  if ('error' in role) return role.error;
+  const role = await requireRoleApiFromDb(["admin", "superadmin"]);
+  if ("error" in role) return role.error;
 
   const token = await getConvexTokenOrNull();
-  if (!token) return Response.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!token)
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
 
   const convex = getAuthedConvexHttpClient(token);
-  if (!convex) return Response.json({ message: 'Convex URL missing' }, { status: 500 });
+  if (!convex)
+    return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
-  const rows = await convex.query('reports:listWeekly', {});
-  return Response.json(rows);
+  try {
+    const rows = await convex.query("reports:listWeekly", {});
+    return Response.json(rows);
+  } catch (error) {
+    return convexErrorResponse(error, "Gagal memuat daftar report mingguan.");
+  }
 }
 
 export async function POST() {
-  const role = await requireRoleApiFromDb(['admin', 'superadmin']);
-  if ('error' in role) return role.error;
+  const role = await requireRoleApiFromDb(["admin", "superadmin"]);
+  if ("error" in role) return role.error;
 
   const token = await getConvexTokenOrNull();
-  if (!token) return Response.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!token)
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
 
   const convex = getAuthedConvexHttpClient(token);
-  if (!convex) return Response.json({ message: 'Convex URL missing' }, { status: 500 });
+  if (!convex)
+    return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
-  const result = await convex.action('reports:triggerWeeklyReport', {});
-  return Response.json(result);
+  try {
+    const result = await convex.action("reports:triggerWeeklyReport", {});
+    return Response.json(result);
+  } catch (error) {
+    return convexErrorResponse(
+      error,
+      "Gagal memproses trigger report mingguan.",
+    );
+  }
 }

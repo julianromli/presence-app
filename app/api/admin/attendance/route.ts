@@ -1,5 +1,6 @@
 import { getConvexTokenOrNull, requireRoleApiFromDb } from "@/lib/auth";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { convexErrorResponse } from "@/lib/api-error";
 
 type AttendanceRow = {
   _id: string;
@@ -54,27 +55,33 @@ export async function GET(req: Request) {
   if (!convex)
     return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
-  const [rowsPage, summary] = await Promise.all([
-    convex.query<AttendancePageResponse>("attendance:listByDatePaginated", {
-      dateKey,
-      edited,
-      employeeName,
-      paginationOpts: {
-        numItems: limit,
-        cursor,
-      },
-    }),
-    convex.query<AttendanceSummary>("attendance:getSummaryByDate", { dateKey }),
-  ]);
+  try {
+    const [rowsPage, summary] = await Promise.all([
+      convex.query<AttendancePageResponse>("attendance:listByDatePaginated", {
+        dateKey,
+        edited,
+        employeeName,
+        paginationOpts: {
+          numItems: limit,
+          cursor,
+        },
+      }),
+      convex.query<AttendanceSummary>("attendance:getSummaryByDate", {
+        dateKey,
+      }),
+    ]);
 
-  return Response.json({
-    rows: rowsPage.page,
-    pageInfo: {
-      continueCursor: rowsPage.continueCursor,
-      isDone: rowsPage.isDone,
-      splitCursor: rowsPage.splitCursor ?? null,
-      pageStatus: rowsPage.pageStatus ?? null,
-    },
-    summary,
-  });
+    return Response.json({
+      rows: rowsPage.page,
+      pageInfo: {
+        continueCursor: rowsPage.continueCursor,
+        isDone: rowsPage.isDone,
+        splitCursor: rowsPage.splitCursor ?? null,
+        pageStatus: rowsPage.pageStatus ?? null,
+      },
+      summary,
+    });
+  } catch (error) {
+    return convexErrorResponse(error, "Gagal memuat data attendance.");
+  }
 }
