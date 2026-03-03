@@ -108,6 +108,12 @@ type InlineNotice = {
   text: string;
 };
 
+type AttendanceEditDraft = {
+  checkInTime: string;
+  checkOutTime: string;
+  reason: string;
+};
+
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
     case "success":
@@ -144,7 +150,13 @@ export function ReportPanel() {
   const [reportsStatus, setReportsStatus] = useState<PanelStatus>("idle");
   const [reportsError, setReportsError] = useState<ApiErrorInfo | null>(null);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
-  const [reason, setReason] = useState("Koreksi admin");
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<AttendanceEditDraft>({
+    checkInTime: "",
+    checkOutTime: "",
+    reason: "Koreksi admin",
+  });
+  const [rowActionLoading, setRowActionLoading] = useState(false);
   const [reports, setReports] = useState<WeeklyReportRow[]>([]);
   const [scanEvents, setScanEvents] = useState<ScanEventRow[]>([]);
   const [scanEventSummary, setScanEventSummary] = useState<ScanEventSummary>({
@@ -334,8 +346,48 @@ export function ReportPanel() {
     );
   };
 
-  const editRow = async (attendanceId: string) => {
-    if (!reason.trim()) {
+  const formatTimeInput = (value?: number) => {
+    if (value === undefined) return "";
+    const date = new Date(value);
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const buildTimestampFromDateKeyAndTime = (baseDateKey: string, hhmm: string) => {
+    if (!hhmm) return undefined;
+    const [hoursRaw, minutesRaw] = hhmm.split(":");
+    const hours = Number(hoursRaw);
+    const minutes = Number(minutesRaw);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+      return undefined;
+    }
+
+    const date = new Date(`${baseDateKey}T00:00:00`);
+    date.setHours(hours, minutes, 0, 0);
+    return date.getTime();
+  };
+
+  const startEditRow = (row: AttendanceRow) => {
+    setEditingRowId(row._id);
+    setEditDraft({
+      checkInTime: formatTimeInput(row.checkInAt),
+      checkOutTime: formatTimeInput(row.checkOutAt),
+      reason: "Koreksi admin",
+    });
+  };
+
+  const cancelEditRow = () => {
+    setEditingRowId(null);
+    setEditDraft({
+      checkInTime: "",
+      checkOutTime: "",
+      reason: "Koreksi admin",
+    });
+  };
+
+  const saveEditRow = async (row: AttendanceRow) => {
+    if (!editDraft.reason.trim()) {
       setNotice({
         tone: "warning",
         text: "[VALIDATION_ERROR] Alasan edit wajib diisi.",
@@ -343,10 +395,37 @@ export function ReportPanel() {
       return;
     }
 
+    const checkInAt = buildTimestampFromDateKeyAndTime(
+      row.dateKey,
+      editDraft.checkInTime,
+    );
+    const checkOutAt = buildTimestampFromDateKeyAndTime(
+      row.dateKey,
+      editDraft.checkOutTime,
+    );
+
+    if (
+      checkInAt !== undefined &&
+      checkOutAt !== undefined &&
+      checkOutAt < checkInAt
+    ) {
+      setNotice({
+        tone: "warning",
+        text: "[VALIDATION_ERROR] Jam pulang tidak boleh lebih awal dari jam datang.",
+      });
+      return;
+    }
+
+    setRowActionLoading(true);
     const res = await fetch("/api/admin/attendance/edit", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attendanceId, reason }),
+      body: JSON.stringify({
+        attendanceId: row._id,
+        checkInAt,
+        checkOutAt,
+        reason: editDraft.reason,
+      }),
     });
 
     if (res.ok) {
@@ -354,12 +433,15 @@ export function ReportPanel() {
         tone: "success",
         text: "Edit attendance tersimpan dan masuk audit log.",
       });
+      cancelEditRow();
       await loadAttendance({ append: false, cursor: null });
+      setRowActionLoading(false);
       return;
     }
 
     const error = await parseApiErrorResponse(res, "Edit attendance gagal.");
     setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
+    setRowActionLoading(false);
   };
 
   const submitDate = async (e: FormEvent) => {
@@ -458,12 +540,6 @@ export function ReportPanel() {
         </form>
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <Input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Alasan edit"
-            className="max-w-md"
-          />
           <Button variant="outline" type="button" onClick={triggerWeeklyReport}>
             Generate Report Mingguan
           </Button>
@@ -671,24 +747,83 @@ export function ReportPanel() {
                   <td className="p-3">{row.employeeName}</td>
                   <td className="p-3">{row.dateKey}</td>
                   <td className="p-3">
-                    {row.checkInAt
-                      ? new Date(row.checkInAt).toLocaleTimeString("id-ID")
-                      : "-"}
+                    {editingRowId === row._id ? (
+                      <Input
+                        type="time"
+                        value={editDraft.checkInTime}
+                        onChange={(e) =>
+                          setEditDraft((prev) => ({
+                            ...prev,
+                            checkInTime: e.target.value,
+                          }))
+                        }
+                        className="h-8 w-32"
+                      />
+                    ) : row.checkInAt ? (
+                      new Date(row.checkInAt).toLocaleTimeString("id-ID")
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="p-3">
-                    {row.checkOutAt
-                      ? new Date(row.checkOutAt).toLocaleTimeString("id-ID")
-                      : "-"}
+                    {editingRowId === row._id ? (
+                      <Input
+                        type="time"
+                        value={editDraft.checkOutTime}
+                        onChange={(e) =>
+                          setEditDraft((prev) => ({
+                            ...prev,
+                            checkOutTime: e.target.value,
+                          }))
+                        }
+                        className="h-8 w-32"
+                      />
+                    ) : row.checkOutAt ? (
+                      new Date(row.checkOutAt).toLocaleTimeString("id-ID")
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="p-3">{row.edited ? "Ya" : "Tidak"}</td>
                   <td className="p-3">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => editRow(row._id)}
-                    >
-                      Tandai Edit
-                    </Button>
+                    {editingRowId === row._id ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          value={editDraft.reason}
+                          onChange={(e) =>
+                            setEditDraft((prev) => ({
+                              ...prev,
+                              reason: e.target.value,
+                            }))
+                          }
+                          placeholder="Alasan edit"
+                          className="h-8 w-48"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => void saveEditRow(row)}
+                          disabled={rowActionLoading}
+                        >
+                          {rowActionLoading ? "Menyimpan..." : "Simpan"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={cancelEditRow}
+                          disabled={rowActionLoading}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => startEditRow(row)}
+                      >
+                        Edit
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))

@@ -28,6 +28,26 @@ export async function PATCH(req: Request) {
     );
   }
 
+  if (
+    body.checkInAt !== undefined &&
+    !Number.isFinite(body.checkInAt)
+  ) {
+    return Response.json(
+      { code: "VALIDATION_ERROR", message: "checkInAt tidak valid." },
+      { status: 400 },
+    );
+  }
+
+  if (
+    body.checkOutAt !== undefined &&
+    !Number.isFinite(body.checkOutAt)
+  ) {
+    return Response.json(
+      { code: "VALIDATION_ERROR", message: "checkOutAt tidak valid." },
+      { status: 400 },
+    );
+  }
+
   const token = await getConvexTokenOrNull();
   if (!token) {
     return Response.json({ message: "Unauthorized" }, { status: 401 });

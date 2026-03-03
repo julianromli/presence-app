@@ -552,14 +552,29 @@ export const editAttendance = mutation({
       });
     }
 
+    const nextCheckInAt = args.checkInAt ?? row.checkInAt;
+    const nextCheckOutAt = args.checkOutAt ?? row.checkOutAt;
+    if (
+      nextCheckInAt !== undefined &&
+      nextCheckOutAt !== undefined &&
+      nextCheckOutAt < nextCheckInAt
+    ) {
+      throw new ConvexError({
+        code: "VALIDATION_ERROR",
+        message: "Jam pulang tidak boleh lebih awal dari jam datang.",
+      });
+    }
+
+    const now = Date.now();
+
     await ctx.db.patch(args.attendanceId, {
-      checkInAt: args.checkInAt ?? row.checkInAt,
-      checkOutAt: args.checkOutAt ?? row.checkOutAt,
+      checkInAt: nextCheckInAt,
+      checkOutAt: nextCheckOutAt,
       edited: true,
       editedBy: actor._id,
-      editedAt: Date.now(),
+      editedAt: now,
       editReason: args.reason,
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
 
     await ctx.db.insert("audit_logs", {
@@ -568,11 +583,17 @@ export const editAttendance = mutation({
       targetType: "attendance",
       targetId: String(args.attendanceId),
       payload: {
-        checkInAt: args.checkInAt,
-        checkOutAt: args.checkOutAt,
+        before: {
+          checkInAt: row.checkInAt,
+          checkOutAt: row.checkOutAt,
+        },
+        after: {
+          checkInAt: nextCheckInAt,
+          checkOutAt: nextCheckOutAt,
+        },
         reason: args.reason,
       },
-      createdAt: Date.now(),
+      createdAt: now,
     });
 
     return null;
