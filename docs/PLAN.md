@@ -1,169 +1,206 @@
-# Implementasi Single Source Role di Convex
+# Fix Plan: Draft PR Hardening (RBAC, Pagination Correctness, Performance, UX Consistency)
 
-## Ringkasan
-Tujuan refactor adalah menjadikan **`users.role` di Convex** sebagai satu-satunya source of truth untuk authorization.  
-Keputusan yang dipakai:
-- `sync-user` **tidak pernah overwrite role**.
-- Middleware hanya cek **authenticated**.
-- Role gate dilakukan di **Server Page + API route**, dengan lookup role dari Convex.
-- User legacy tanpa row Convex akan **auto-create default `karyawan`** saat sync.
+## Summary
+This plan fixes all review findings blocking merge by:
+1. Closing admin authorization gaps in user mutations.
+2. Making `/api/admin/users` pagination behavior logically correct under filters/search.
+3. Removing unconditional full-table scans from the hot path.
+4. Fixing stale-filter reset behavior in users UI.
+5. Fixing UTC-based default date bug in report UI.
+6. Aligning geofence navigation with current superadmin-only authorization.
+7. Adding targeted tests that prove these behaviors.
 
----
-
-## Perubahan Arsitektur
-
-1. **AuthN vs AuthZ dipisah tegas**
-- Middleware: hanya autentikasi Clerk (login/no-login).
-- AuthZ role: hanya dari Convex DB (`users.role`) di server layer.
-
-2. **Source of truth role**
-- Role hanya bisa berubah lewat mutation Convex admin khusus (`users:updateRole` / endpoint manajemen role).
-- `publicMetadata.role` Clerk tidak dipakai untuk keputusan akses.
-
-3. **Sinkronisasi user**
-- `sync-user` hanya sinkron `clerkUserId`, `name`, `email`, `isActive`, timestamp.
-- Pada user baru, insert dengan role default `karyawan`.
+The plan keeps existing route URLs and core payload shapes stable unless explicitly noted.
 
 ---
 
-## Perubahan API/Interface Publik
-
-1. **`lib/auth.ts`**
-- `getCurrentSession()` diubah agar mengambil role dari Convex, bukan `sessionClaims.metadata`.
-- Tambah helper baru:
-  - `getCurrentDbUserSession()` → `{ userId, dbUser, role }` dari Convex.
-  - `requireRolePageFromDb(roles)` dan `requireRoleApiFromDb(roles)`.
-
-2. **`app/api/sync-user/route.ts`**
-- Hapus pembacaan `user.publicMetadata.role`.
-- Panggilan `users:upsertFromClerk` tidak mengirim role untuk existing user.
-- Untuk create: default role `karyawan` diputuskan di Convex.
-
-3. **`convex/users.js`**
-- `upsertFromClerk`:
-  - update existing: **jangan patch `role`**.
-  - create baru: set default `karyawan`.
-- `updateRole` tetap jadi satu-satunya mutasi role.
-
-4. **`middleware.ts`**
-- Hapus check admin/device berbasis `sessionClaims.metadata.role`.
-- Middleware hanya:
-  - allow public routes
-  - redirect signin untuk protected routes
-
-5. **Server Page guards**
-- Ganti semua penggunaan `requireRolePage(...)` ke helper berbasis DB role:
-  - `/dashboard`, `/settings`, `/device-qr` dan page protected lain.
-
-6. **API route guards**
-- Ganti semua `requireRoleApi(...)` ke DB-based guard:
-  - `/api/admin/*`, `/api/device/*`, `/api/scan`.
-
-7. **Convex hardening (defense in depth)**
-- Tambahkan guard internal role di function sensitif yang belum self-guard:
-  - `reports:listWeekly`
-  - `reports:triggerWeeklyReport`
-- Pastikan semua mutation/query sensitif validasi role via `requireRole` atau equivalent DB lookup.
+## Decisions Locked (from clarification)
+- `admin` activation scope: **only `karyawan` and `device-qr`** targets.
+- `/api/admin/users` summary behavior: **exact summary** even when `q` is active.
 
 ---
 
-## Detail Implementasi per File
+## Implementation Plan
 
-1. `middleware.ts`
-- Pertahankan route matcher publik/protected.
-- Hapus `sessionClaims` role parsing.
-- Untuk protected route: cek `userId` saja.
+## 1) Security Fix: Prevent admin lockout/DoS on privileged accounts
+### Files
+- `convex/users.js`
+- `app/api/admin/users/route.ts`
+- `components/dashboard/users-panel.tsx`
 
-2. `lib/auth.ts`
-- Tambah dependency `getConvexHttpClient`.
-- Buat util `getDbUserByClerkId(clerkUserId)` lewat Convex query/mutation aman.
-- Rework `requireRolePage` dan `requireRoleApi` agar:
-  - 401 jika belum login
-  - 403 jika DB role tidak sesuai
-  - fallback aman jika user belum tersinkron (trigger sync atau return forbidden terstruktur)
+### Changes
+1. Add explicit target-policy guard in `users:updateAdminManagedFields`:
+   - If actor is `admin`, reject updates when target role is `admin` or `superadmin`.
+   - Keep role-change permission as superadmin-only.
+   - Keep mutation idempotent.
+2. Add defensive check to forbid self-deactivation for all roles (recommended hardening).
+3. Return clear error code/message via `ConvexError`:
+   - Example code: `FORBIDDEN` with message describing target-role restriction.
+4. UI guard:
+   - In users table, hide/disable activate/deactivate action for forbidden targets when viewer is `admin`.
+   - Keep server enforcement as source of truth.
 
-3. `app/api/sync-user/route.ts`
-- Remove metadata role logic.
-- Call `users:upsertFromClerk` dengan payload profile saja.
-
-4. `convex/users.js`
-- `upsertFromClerk` patch existing: update non-role fields saja.
-- Document invariant: role immutable via sync path.
-
-5. `app/*` pages + `app/api/*` handlers
-- Replace old helpers to DB-role helpers.
-- Response message tetap konsisten (`Unauthorized` / `Forbidden`).
-
-6. `convex/reports.js`
-- Tambahkan `requireRole(ctx, ['admin','superadmin'])` untuk `listWeekly`.
-- `triggerWeeklyReport` action:
-  - validasi identity + DB role sebelum menjalankan internal action.
+### Acceptance
+- Admin cannot toggle `isActive` for admin/superadmin.
+- Superadmin can toggle all users and change roles.
+- Attempted forbidden action returns 403 and user-friendly error.
 
 ---
 
-## Edge Cases & Failure Modes
+## 2) Pagination Correctness Fix for `/api/admin/users`
+### Files
+- `convex/users.js`
+- `types/dashboard.ts` (if needed)
+- `app/api/admin/users/route.ts`
 
-1. **User belum punya row DB**
-- `sync-user` bootstrap auto-create role `karyawan`.
-- Jika endpoint sensitif diakses sebelum sync selesai: return 403/`USER_NOT_FOUND` yang eksplisit.
+### Changes
+1. Rework `users:listPaginated` to guarantee filter-first semantics:
+   - `q` is applied before page slicing semantics.
+   - No “empty first page while later pages contain matches” behavior.
+2. Cursor strategy:
+   - Keep cursor opaque string.
+   - Preserve `continueCursor` + `isDone` contract.
+3. Ensure role/isActive filters are applied in data source path (not only post-page JS filtering).
+4. Keep response shape consumed by API route:
+   - `{ rows, pageInfo, summary }` unchanged from frontend perspective.
 
-2. **Role baru diubah oleh superadmin**
-- Efek akses mengikuti DB immediately (tanpa tunggu token refresh).
-
-3. **Clerk metadata stale/berbeda**
-- Tidak mempengaruhi authorization lagi.
-
-4. **Convex unavailable**
-- Endpoint protected return 500 terstruktur, tidak fallback ke role Clerk.
-
----
-
-## Rencana Testing
-
-1. **Unit/Integration auth helper**
-- `requireRoleApiFromDb`:
-  - unauthenticated -> 401
-  - user tidak ada -> 403/404 sesuai kontrak
-  - role mismatch -> 403
-  - role match -> pass
-
-2. **Route tests**
-- `/api/admin/*`:
-  - `karyawan` ditolak 403
-  - `admin/superadmin` lolos
-- `/api/device/*`:
-  - hanya `device-qr` lolos
-- `/api/scan`:
-  - hanya `karyawan` lolos
-
-3. **Page guard tests**
-- `/dashboard` dan `/settings`:
-  - role mismatch redirect/forbidden sesuai desain.
-- `/device-qr`:
-  - non-device ditolak.
-
-4. **Sync invariants**
-- Existing user role tidak berubah walau Clerk metadata berbeda.
-- New user selalu default `karyawan`.
-
-5. **Defense in depth**
-- Panggilan langsung ke `reports:listWeekly` sebagai non-admin harus gagal.
+### Acceptance
+- Given matching users exist, first page returns matches (not empty due to post-page filtering).
+- Paging through filtered result set is deterministic and complete.
 
 ---
 
-## Acceptance Criteria
+## 3) Performance Fix: Remove unconditional full-table scans on every users request
+### Files
+- `convex/schema.js`
+- `convex/users.js`
+- (optional helper) `convex/helpers.js`
 
-1. Tidak ada lagi pembacaan `sessionClaims.metadata.role` untuk authorization.
-2. Tidak ada lagi pembacaan `publicMetadata.role` untuk menulis role DB.
-3. Semua check role sensitif berasal dari `users.role` Convex.
-4. Role change di DB langsung mempengaruhi akses tanpa bergantung refresh token.
-5. Semua endpoint admin/device/scan tetap lolos smoke test sesuai matrix role.
+### Changes
+1. Introduce aggregated metrics document/table for users counts (recommended):
+   - Store exact counts for `total`, `active`, `inactive`, and per-role splits.
+   - Update metrics transactionally in `upsertFromClerk`, `updateRole`, `updateAdminManagedFields`.
+2. Use metrics for summary when `q` is empty (O(1) read path).
+3. For `q` active, compute exact filtered summary through filtered result path only (not unconditional global scan).
+4. Add reconciliation path:
+   - One internal mutation to rebuild metrics from users table.
+   - Called manually once post-deploy or automatically if metrics doc missing/corrupt.
+
+### Acceptance
+- Default users list path no longer scans whole `users` table each request.
+- Summary remains exact under all filter combinations.
 
 ---
 
-## Asumsi & Default yang Dikunci
+## 4) UI Bug Fix: Reset uses stale filters
+### Files
+- `components/dashboard/users-panel.tsx`
 
-1. Default role user baru: `karyawan`.
-2. Role management tetap lewat mutation Convex internal (superadmin-only).
-3. Middleware tetap dipertahankan untuk authN (bukan authZ).
-4. Tidak ada sinkronisasi balik role ke Clerk metadata.
+### Changes
+1. Refactor `loadUsers` to accept explicit filter input (or an override object).
+2. Reset button flow:
+   - Build cleared filters object.
+   - Set state with that object.
+   - Call `loadUsers` with the same cleared object (no stale closure).
+3. Keep current UX behavior and labels.
+
+### Acceptance
+- Clicking Reset immediately fetches unfiltered data (single click, no second submit needed).
+
+---
+
+## 5) Timezone Fix: Report default date key should not use UTC day
+### Files
+- `components/dashboard/report-panel.tsx`
+- `lib/*` utility file for date key (new, pure function)
+- `tests/*` for date utility
+
+### Changes
+1. Replace `toISOString().slice(0,10)` default date logic with local date key generation.
+2. Extract utility function (pure, testable), e.g. `getLocalDateKey()`.
+3. Keep manual date input behavior unchanged.
+
+### Acceptance
+- Around local midnight (Asia/Jakarta), default date aligns with local calendar day.
+
+---
+
+## 6) UX/Auth Consistency: Geofence nav visibility
+### Files
+- `components/dashboard/sidebar.tsx`
+
+### Changes
+1. Hide Geofence nav entry for `admin` users (superadmin-only visibility).
+2. Keep route/API guards unchanged (still enforced server-side).
+
+### Acceptance
+- Admin no longer sees a nav link that always leads to forbidden flow.
+- Superadmin still sees and can access geofence settings.
+
+---
+
+## 7) Tests and Verification
+
+## Automated Tests to Add
+1. **RBAC target guard**
+   - Admin cannot toggle admin/superadmin.
+   - Superadmin can toggle all.
+   - Self-deactivation blocked (if implemented).
+2. **Users pagination semantics**
+   - Filter/search pagination returns expected first page and complete traversal.
+3. **Users summary exactness**
+   - Summary exact for:
+     - no filter
+     - role filter
+     - isActive filter
+     - q filter
+4. **Reset behavior helper/unit**
+   - Query construction after reset uses cleared filters.
+5. **Local date key utility**
+   - Non-UTC date boundary case.
+
+## Existing Checks
+- `npm test`
+- `npm run build`
+
+## Manual QA Matrix
+1. Admin:
+   - `/dashboard`, `/dashboard/report`, `/dashboard/users` accessible.
+   - Cannot role-change.
+   - Cannot toggle admin/superadmin status.
+   - Geofence nav hidden.
+2. Superadmin:
+   - Full access including geofence and role/status updates.
+3. Data behavior:
+   - Users filter + pagination stable.
+   - Reset immediately clears and reloads.
+   - Report default date matches local day.
+
+---
+
+## Public API / Interface Impact
+
+## No route URL changes
+- `/dashboard`, `/dashboard/report`, `/dashboard/users`, `/settings/geofence` unchanged.
+
+## `GET /api/admin/users`
+- Response top-level shape remains: `{ rows, pageInfo, summary }`.
+- Cursor remains opaque; client contract remains stable.
+- Summary remains exact (locked requirement).
+
+## `PATCH /api/admin/users`
+- Authorization behavior tightened:
+  - Admin forbidden to mutate `admin`/`superadmin` targets.
+- Error responses remain in existing API error contract style.
+
+## Types
+- Keep `types/dashboard.ts` stable unless summary metadata fields are explicitly added.
+- If adding summary metadata (e.g., `isExact`), update both API and frontend type in same change.
+
+---
+
+## Assumptions and Defaults
+1. “Admin can toggle active” is interpreted as **non-privileged targets only** (`karyawan`, `device-qr`).
+2. Summary must stay exact, not approximate.
+3. Geofence remains superadmin-only and should not be advertised in admin nav.
+4. No new user-management scope beyond these fixes (no add-user workflow in this batch).

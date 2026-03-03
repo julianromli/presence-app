@@ -25,6 +25,19 @@ describe('convexErrorResponse', () => {
     });
   });
 
+  it('maps settings-not-initialized errors to 503', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData('SETTINGS_NOT_INITIALIZED', 'Global settings belum diinisialisasi.'),
+      'fallback',
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'SETTINGS_NOT_INITIALIZED',
+      message: 'Global settings belum diinisialisasi.',
+    });
+  });
+
   it('maps forbidden text errors to 403', async () => {
     const response = convexErrorResponse(new Error('FORBIDDEN'), 'fallback');
 

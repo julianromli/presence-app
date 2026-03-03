@@ -3,7 +3,7 @@ import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function GET() {
-  const role = await requireRoleApiFromDb(["admin", "superadmin"]);
+  const role = await requireRoleApiFromDb(["superadmin"]);
   if ("error" in role) return role.error;
 
   const token = await getConvexTokenOrNull();
@@ -16,6 +16,7 @@ export async function GET() {
     return Response.json({ message: "Convex URL missing" }, { status: 500 });
 
   try {
+    await convex.mutation("settings:ensureGlobal", {});
     const data = await convex.query("settings:get", {});
     return Response.json(data);
   } catch (error) {
