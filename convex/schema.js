@@ -8,6 +8,11 @@ const role = v.union(
   v.literal("device-qr"),
 );
 
+const roleBucket = v.object({
+  total: v.number(),
+  active: v.number(),
+});
+
 export default defineSchema({
   users: defineTable({
     clerkUserId: v.string(),
@@ -27,24 +32,7 @@ export default defineSchema({
     total: v.number(),
     active: v.number(),
     inactive: v.number(),
-    byRole: v.object({
-      superadmin: v.object({
-        total: v.number(),
-        active: v.number(),
-      }),
-      admin: v.object({
-        total: v.number(),
-        active: v.number(),
-      }),
-      karyawan: v.object({
-        total: v.number(),
-        active: v.number(),
-      }),
-      "device-qr": v.object({
-        total: v.number(),
-        active: v.number(),
-      }),
-    }),
+    byRole: v.record(v.string(), roleBucket),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
 

@@ -1,4 +1,9 @@
 const ROLE_KEYS = ["superadmin", "admin", "karyawan", "device-qr"];
+const EMPTY_ROLE_COUNT = { total: 0, active: 0 };
+
+function getRoleCount(metrics, role) {
+  return metrics.byRole?.[role] ?? EMPTY_ROLE_COUNT;
+}
 
 function normalizeKeyword(q) {
   return q?.trim().toLocaleLowerCase("id-ID") ?? "";
@@ -83,9 +88,13 @@ export function buildUsersMetricsFromRows(rows, now = Date.now()) {
     } else {
       metrics.inactive += 1;
     }
-    metrics.byRole[row.role].total += 1;
+    const roleBucket = metrics.byRole[row.role];
+    if (!roleBucket) {
+      continue;
+    }
+    roleBucket.total += 1;
     if (row.isActive) {
-      metrics.byRole[row.role].active += 1;
+      roleBucket.active += 1;
     }
   }
   return metrics;
@@ -104,7 +113,7 @@ export function summarizeFromMetrics(metrics, filters) {
   }
 
   if (role && isActive === undefined) {
-    const roleCount = metrics.byRole[role];
+    const roleCount = getRoleCount(metrics, role);
     return {
       total: roleCount.total,
       active: roleCount.active,
@@ -121,7 +130,7 @@ export function summarizeFromMetrics(metrics, filters) {
     };
   }
 
-  const roleCount = metrics.byRole[role];
+  const roleCount = getRoleCount(metrics, role);
   const total = isActive ? roleCount.active : roleCount.total - roleCount.active;
   return {
     total,

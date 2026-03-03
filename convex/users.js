@@ -18,6 +18,8 @@ const roleValidator = v.union(
   v.literal("karyawan"),
   v.literal("device-qr"),
 );
+const ROLE_KEYS = ["superadmin", "admin", "karyawan", "device-qr"];
+const EMPTY_ROLE_BUCKET = { total: 0, active: 0 };
 
 const summaryValidator = v.object({
   total: v.number(),
@@ -38,7 +40,7 @@ const userRowValidator = v.object({
 });
 
 function getRoleBucket(metrics, role) {
-  return metrics.byRole[role];
+  return metrics.byRole?.[role] ?? EMPTY_ROLE_BUCKET;
 }
 
 function applyTransitionToMetrics(metrics, before, after) {
@@ -108,12 +110,9 @@ async function patchUsersMetrics(ctx, updater) {
     total: metrics.total,
     active: metrics.active,
     inactive: metrics.inactive,
-    byRole: {
-      superadmin: { ...metrics.byRole.superadmin },
-      admin: { ...metrics.byRole.admin },
-      karyawan: { ...metrics.byRole.karyawan },
-      "device-qr": { ...metrics.byRole["device-qr"] },
-    },
+    byRole: Object.fromEntries(
+      ROLE_KEYS.map((role) => [role, { ...getRoleBucket(metrics, role) }]),
+    ),
     updatedAt: Date.now(),
   };
 

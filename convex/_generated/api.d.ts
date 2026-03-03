@@ -18,6 +18,8 @@ import type * as reports from "../reports.js";
 import type * as reportsNode from "../reportsNode.js";
 import type * as settings from "../settings.js";
 import type * as users from "../users.js";
+import type * as usersList from "../usersList.js";
+import type * as usersPolicy from "../usersPolicy.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +38,8 @@ declare const fullApi: ApiFromModules<{
   reportsNode: typeof reportsNode;
   settings: typeof settings;
   users: typeof users;
+  usersList: typeof usersList;
+  usersPolicy: typeof usersPolicy;
 }>;
 
 /**
