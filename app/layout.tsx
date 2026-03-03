@@ -34,7 +34,10 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="id" suppressHydrationWarning>
-        <body className={`min-h-screen ${geist.variable} ${geistMono.variable} antialiased`}>
+        <body
+          suppressHydrationWarning
+          className={`min-h-screen ${geist.variable} ${geistMono.variable} antialiased`}
+        >
           <ConvexClientProvider>
             <ThemeProvider
               attribute="class"
