@@ -13,7 +13,7 @@ async function sha256Hex(input) {
 
 async function issueToken(ctx, deviceUserId) {
   const issuedAt = Date.now();
-  const ttlMs = 5000;
+  const ttlMs = 20000;
   const expiresAt = issuedAt + ttlMs;
   const nonce = crypto.randomUUID().replaceAll('-', '');
   const rawToken = crypto.randomUUID().replaceAll('-', '') + nonce;

@@ -90,7 +90,7 @@ export function DeviceQrPanel() {
         <p className="text-tagline text-xs font-semibold">MODE DEVICE-QR</p>
         <h1 className="mt-2 text-3xl font-bold">QR Absensi Dinamis</h1>
         <p className="text-muted-foreground mt-2 text-sm">
-          Token otomatis refresh tiap 5 detik. Hanya scan token aktif yang akan diterima.
+          Token refresh tiap 5 detik dengan masa berlaku 20 detik. Hanya scan token aktif yang diterima.
         </p>
 
         <div className="mx-auto mt-6 w-full max-w-sm rounded-2xl border bg-white p-4">
@@ -145,7 +145,7 @@ export function DeviceQrPanel() {
             </p>
           ) : (
             <p className="mt-3 text-xs text-zinc-500">
-              Gunakan hanya untuk fallback manual. Token berubah sangat cepat (sekitar 5 detik).
+              Gunakan hanya untuk fallback manual. Token berubah tiap 5 detik dan kedaluwarsa sekitar 20 detik.
             </p>
           )}
         </div>

@@ -21,24 +21,32 @@ type LocationPayload = {
   accuracyMeters?: number;
 };
 
-function getLocationPayload(): Promise<LocationPayload> {
+function getLocationPayload(timeoutMs = 1500): Promise<LocationPayload> {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       resolve({});
       return;
     }
 
+    const timeout = setTimeout(() => {
+      resolve({});
+    }, timeoutMs);
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        clearTimeout(timeout);
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracyMeters: position.coords.accuracy,
         });
       },
-      () => resolve({}),
+      () => {
+        clearTimeout(timeout);
+        resolve({});
+      },
       {
-        timeout: 7000,
+        timeout: timeoutMs,
         enableHighAccuracy: true,
       },
     );
@@ -49,6 +57,8 @@ export function ScanPanel() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastScanRef = useRef<{ token: string; at: number } | null>(null);
+  const lastSubmittedRef = useRef<{ token: string; at: number } | null>(null);
+  const autoPauseUntilRef = useRef(0);
   const loadingRef = useRef(false);
   const [token, setToken] = useState('');
   const [result, setResult] = useState<string>('');
@@ -69,10 +79,25 @@ export function ScanPanel() {
     'unknown' | 'granted' | 'denied' | 'prompt' | 'unavailable'
   >('unknown');
   const [cameraError, setCameraError] = useState('none');
+  const [autoPauseSecondsLeft, setAutoPauseSecondsLeft] = useState(0);
+  const [lastSubmitLatencyMs, setLastSubmitLatencyMs] = useState<number | null>(null);
+  const [lastRejectCode, setLastRejectCode] = useState<string>('none');
 
   useEffect(() => {
     loadingRef.current = loading;
   }, [loading]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const seconds = Math.max(
+        0,
+        Math.ceil((autoPauseUntilRef.current - Date.now()) / 1000),
+      );
+      setAutoPauseSecondsLeft(seconds);
+    }, 250);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -173,6 +198,7 @@ export function ScanPanel() {
 
           detectorTimer = setInterval(async () => {
             if (!mounted || loadingRef.current || !videoRef.current) return;
+            if (Date.now() < autoPauseUntilRef.current) return;
             try {
               const barcodes = await detector.detect(videoRef.current);
               const rawValue = barcodes[0]?.rawValue?.trim();
@@ -217,6 +243,7 @@ export function ScanPanel() {
           (result) => {
             const rawValue = result?.getText()?.trim();
             if (!rawValue || loadingRef.current) return;
+            if (Date.now() < autoPauseUntilRef.current) return;
 
             const now = Date.now();
             const last = lastScanRef.current;
@@ -250,17 +277,12 @@ export function ScanPanel() {
     };
   }, []);
 
-  const submitScan = async (value: string) => {
-    setLoading(true);
-    setResult('');
-
-    const location = await getLocationPayload();
-    const idempotencyKey =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
-
-    const res = await fetch('/api/scan', {
+  const sendScan = async (
+    value: string,
+    location: LocationPayload,
+    idempotencyKey: string,
+  ) => {
+    return await fetch('/api/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -269,16 +291,61 @@ export function ScanPanel() {
         idempotencyKey,
       }),
     });
+  };
 
-    const data = (await res.json()) as Partial<ScanResponse> & {
+  const buildIdempotencyKey = () =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+
+  const submitScan = async (value: string, source: 'auto' | 'manual') => {
+    setLoading(true);
+    setResult('');
+    setLastSubmitLatencyMs(null);
+    setLastRejectCode('none');
+    lastSubmittedRef.current = { token: value, at: Date.now() };
+
+    const start = Date.now();
+    let res = await sendScan(value, {}, buildIdempotencyKey());
+    let data = (await res.json()) as Partial<ScanResponse> & {
       code?: string;
       message?: string;
     };
 
+    if (
+      !res.ok &&
+      data.code === 'GEOFENCE_COORD_REQUIRED'
+    ) {
+      const location = await getLocationPayload(2000);
+      if (
+        location.latitude !== undefined &&
+        location.longitude !== undefined
+      ) {
+        res = await sendScan(value, location, buildIdempotencyKey());
+        data = (await res.json()) as Partial<ScanResponse> & {
+          code?: string;
+          message?: string;
+        };
+      }
+    }
+
     if (!res.ok) {
+      const errorCode = data.code ?? 'SCAN_FAILED';
+      setLastRejectCode(errorCode);
       setResult(`[${data.code ?? 'SCAN_FAILED'}] ${data.message ?? 'Scan gagal'}`);
+      if (source === 'auto') {
+        autoPauseUntilRef.current =
+          Date.now() +
+          (errorCode === 'TOKEN_EXPIRED' ? 6000 : 3000);
+      }
       setLoading(false);
       return;
+    }
+
+    setLastSubmitLatencyMs(Date.now() - start);
+    if (source === 'auto') {
+      const pauseSeconds = Math.max(5, data.policy?.cooldownSeconds ?? 30);
+      autoPauseUntilRef.current = Date.now() + pauseSeconds * 1000;
     }
 
     setResult(
@@ -293,15 +360,23 @@ export function ScanPanel() {
     if (!token || loading) {
       return;
     }
+    const lastSubmitted = lastSubmittedRef.current;
+    if (
+      lastSubmitted &&
+      lastSubmitted.token === token &&
+      Date.now() - lastSubmitted.at < 60_000
+    ) {
+      return;
+    }
 
-    void submitScan(token);
+    void submitScan(token, 'auto');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!token || loading) return;
-    await submitScan(token);
+    await submitScan(token, 'manual');
   };
 
   return (
@@ -345,6 +420,9 @@ export function ScanPanel() {
               <p>Permission camera: {cameraPermission}</p>
               <p>Camera error: {cameraError}</p>
               <p>State: {scannerState}</p>
+              <p>Auto-pause: {autoPauseSecondsLeft > 0 ? `${autoPauseSecondsLeft}s` : 'none'}</p>
+              <p>Last submit latency: {lastSubmitLatencyMs ?? '-'} ms</p>
+              <p>Last reject code: {lastRejectCode}</p>
             </div>
           </div>
         </div>
