@@ -16,6 +16,26 @@ type SettingsPayload = {
   whitelistIps: string[];
 };
 
+type NoticeTone = 'info' | 'success' | 'warning' | 'error';
+
+type InlineNotice = {
+  tone: NoticeTone;
+  text: string;
+};
+
+function noticeClass(tone: NoticeTone) {
+  switch (tone) {
+    case 'success':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+    case 'warning':
+      return 'border-amber-200 bg-amber-50 text-amber-900';
+    case 'error':
+      return 'border-red-200 bg-red-50 text-red-900';
+    default:
+      return 'border-blue-200 bg-blue-50 text-blue-900';
+  }
+}
+
 export function GeofencePanel() {
   const [data, setData] = useState<SettingsPayload>({
     timezone: 'Asia/Jakarta',
@@ -27,21 +47,24 @@ export function GeofencePanel() {
     whitelistIps: [],
   });
   const [ipText, setIpText] = useState('');
-  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       const res = await fetch('/api/admin/settings', { cache: 'no-store' });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat data geofence.');
-        setMessage(`[${parsed.code}] ${parsed.message}`);
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        setInitialLoading(false);
         return;
       }
 
       const payload = (await res.json()) as SettingsPayload;
       setData(payload);
       setIpText((payload.whitelistIps ?? []).join(', '));
+      setInitialLoading(false);
     };
 
     void load();
@@ -50,7 +73,7 @@ export function GeofencePanel() {
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    setMessage('');
+    setNotice({ tone: 'info', text: 'Menyimpan pengaturan geofence...' });
 
     const whitelistIps = ipText
       .split(',')
@@ -65,20 +88,43 @@ export function GeofencePanel() {
 
     if (!res.ok) {
       const parsed = await parseApiErrorResponse(res, 'Gagal menyimpan pengaturan geofence.');
-      setMessage(`[${parsed.code}] ${parsed.message}`);
+      setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
       setLoading(false);
       return;
     }
 
     setLoading(false);
-    setMessage('Pengaturan geofence berhasil disimpan.');
+    setNotice({ tone: 'success', text: 'Pengaturan geofence berhasil disimpan.' });
   };
+
+  if (initialLoading) {
+    return (
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={save} className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
+          Pengaturan geofence
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Atur area absensi, whitelist jaringan, dan kontrol validasi scan sesuai kebijakan kantor.
+        </p>
+        {notice ? (
+          <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
+            {notice.text}
+          </div>
+        ) : null}
+      </section>
+
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">Lokasi Geofence</h2>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900">Lokasi geofence</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 sm:col-span-2">
               <span className="text-sm font-medium text-slate-700">Timezone</span>
@@ -130,8 +176,8 @@ export function GeofencePanel() {
           </div>
         </article>
 
-        <article className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">Aturan Tambahan</h2>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900">Aturan tambahan</h2>
           <div className="mt-4 space-y-4">
             <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
               <div>
@@ -169,13 +215,11 @@ export function GeofencePanel() {
         </article>
       </section>
 
-      <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
-        <Button type="submit" disabled={loading}>
+      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur md:bottom-3">
+        <Button type="submit" disabled={loading} className="min-w-40">
           {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
         </Button>
       </div>
-
-      {message ? <p className="text-sm text-slate-600">{message}</p> : null}
     </form>
   );
 }

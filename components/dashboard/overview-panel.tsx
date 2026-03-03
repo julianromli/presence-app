@@ -11,6 +11,28 @@ import type { DashboardOverviewPayload } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
 
+function summaryCard(
+  label: string,
+  value: number,
+  tone: 'default' | 'success' = 'default',
+  suffix = '',
+) {
+  const toneClass =
+    tone === 'success'
+      ? 'bg-emerald-50 border-emerald-200'
+      : 'bg-white border-slate-200';
+
+  return (
+    <article className={`rounded-xl border p-4 ${toneClass}`}>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">
+        {value}
+        {suffix}
+      </p>
+    </article>
+  );
+}
+
 function dayLabelFromDateKey(dateKey: string) {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   return date.toLocaleDateString('id-ID', { weekday: 'short' });
@@ -109,37 +131,28 @@ export function OverviewPanel() {
 
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
+          Ringkasan operasional
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Pantau status kehadiran, tren 7 hari, dan aktivitas terbaru dalam satu tampilan.
+        </p>
+      </section>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Karyawan Aktif</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.activeEmployees}</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Hadir Hari Ini</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.presentToday}</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Rasio Kehadiran</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.attendanceRatePct}%</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Sudah Check-out</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.checkedOut}</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Edit Hari Ini</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.editedToday}</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Device QR Online</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{payload.cards.deviceQrOnline}</p>
-        </article>
+        {summaryCard('Karyawan aktif', payload.cards.activeEmployees)}
+        {summaryCard('Hadir hari ini', payload.cards.presentToday, 'success')}
+        {summaryCard('Rasio kehadiran', payload.cards.attendanceRatePct, 'default', '%')}
+        {summaryCard('Sudah check-out', payload.cards.checkedOut)}
+        {summaryCard('Edit hari ini', payload.cards.editedToday)}
+        {summaryCard('Device QR online', payload.cards.deviceQrOnline, 'success')}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <section className="rounded-xl border border-slate-200 bg-white p-6 xl:col-span-2">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-slate-900">Tren Kehadiran 7 Hari</h2>
+            <h2 className="text-base font-semibold tracking-tight text-slate-900">Tren kehadiran 7 hari</h2>
             <Button type="button" variant="ghost" size="sm" onClick={() => void loadOverview()}>
               <RefreshCw className="mr-1 h-3.5 w-3.5" />
               Refresh
@@ -155,7 +168,7 @@ export function OverviewPanel() {
                   </div>
                   <div className="text-center">
                     <p className="text-xs font-medium text-slate-700">{dayLabelFromDateKey(point.dateKey)}</p>
-                    <p className="text-[10px] text-slate-500">{point.attendanceRatePct}%</p>
+                    <p className="text-[10px] tabular-nums text-slate-500">{point.attendanceRatePct}%</p>
                   </div>
                 </div>
               );
@@ -163,9 +176,9 @@ export function OverviewPanel() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-slate-900">Aktivitas Terkini</h2>
+            <h2 className="text-base font-semibold tracking-tight text-slate-900">Aktivitas terkini</h2>
             <p className="text-xs text-slate-500">{filteredActivity.length} item</p>
           </div>
 
@@ -214,19 +227,19 @@ export function OverviewPanel() {
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <article className="rounded-xl border border-slate-200 bg-white p-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500">
             <Users className="h-4 w-4" />
-            <p className="text-xs font-semibold uppercase tracking-wide">Sumber KPI</p>
+            <p className="text-xs font-semibold tracking-wide">Sumber KPI</p>
           </div>
           <p className="mt-2 text-sm text-slate-700">
             Semua angka diambil dari data attendance dan users terkini pada Convex.
           </p>
         </article>
-        <article className="rounded-xl border border-slate-200 bg-white p-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500">
             <Activity className="h-4 w-4" />
-            <p className="text-xs font-semibold uppercase tracking-wide">Status Report Mingguan</p>
+            <p className="text-xs font-semibold tracking-wide">Status report mingguan</p>
           </div>
           {payload.reportStatus ? (
             <div className="mt-2 text-sm text-slate-700">

@@ -15,6 +15,25 @@ import {
 import type { AdminUsersPage, AdminUserRow } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
+type NoticeTone = 'info' | 'success' | 'warning' | 'error';
+
+type InlineNotice = {
+  tone: NoticeTone;
+  text: string;
+};
+
+function noticeClass(tone: NoticeTone) {
+  switch (tone) {
+    case 'success':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+    case 'warning':
+      return 'border-amber-200 bg-amber-50 text-amber-900';
+    case 'error':
+      return 'border-red-200 bg-red-50 text-red-900';
+    default:
+      return 'border-blue-200 bg-blue-50 text-blue-900';
+  }
+}
 
 type UsersPanelProps = {
   viewerRole: 'admin' | 'superadmin';
@@ -33,7 +52,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
   const [isLastPage, setIsLastPage] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
-  const [notice, setNotice] = useState<string>('');
+  const [notice, setNotice] = useState<InlineNotice | null>(null);
 
   const hasFilters = useMemo(
     () => filters.q.trim().length > 0 || filters.role !== 'all' || filters.isActive !== 'all',
@@ -126,32 +145,41 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
 
     if (!res.ok) {
       const parsed = await parseApiErrorResponse(res, 'Gagal mengubah data user.');
-      setNotice(`[${parsed.code}] ${parsed.message}`);
+      setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
       return;
     }
 
-    setNotice('Perubahan data user berhasil disimpan.');
+    setNotice({ tone: 'success', text: 'Perubahan data user berhasil disimpan.' });
     await loadUsers({ append: false, cursor: null });
   };
 
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
+          Manajemen karyawan
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Kelola role, status aktif, dan pencarian akun operasional dalam satu tabel terpusat.
+        </p>
+      </section>
+
       <section className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Total User</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{summary.total}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{summary.total}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Aktif</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{summary.active}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{summary.active}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Non-aktif</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{summary.inactive}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{summary.inactive}</p>
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="sticky top-16 z-10 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <form onSubmit={handleFilterSubmit} className="grid gap-3 md:grid-cols-[1fr_180px_160px_auto]">
           <label className="space-y-1">
             <span className="text-sm font-medium text-slate-700">Cari User</span>
@@ -217,13 +245,17 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
             </Button>
           </div>
         </form>
-        {notice ? <p className="mt-3 text-sm text-slate-600">{notice}</p> : null}
+        {notice ? (
+          <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
+            {notice.text}
+          </div>
+        ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 text-sm text-slate-700">
               <tr>
                 <th className="px-4 py-3 text-left">Nama</th>
                 <th className="px-4 py-3 text-left">Email</th>
@@ -281,7 +313,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                           <option value="device-qr">device-qr</option>
                         </select>
                       ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
                           {row.role}
                         </span>
                       )}
