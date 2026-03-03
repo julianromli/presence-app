@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type AttendanceRow = {
   _id: string;
@@ -19,10 +19,33 @@ type WeeklyReportRow = {
   weekKey: string;
   startDate: string;
   endDate: string;
-  status: 'pending' | 'success' | 'failed';
+  status: "pending" | "success" | "failed";
   generatedAt?: number;
   fileName?: string;
   errorMessage?: string;
+};
+
+type AttendanceSummary = {
+  total: number;
+  checkedIn: number;
+  checkedOut: number;
+  edited: number;
+};
+
+type AttendanceListResponse = {
+  rows: AttendanceRow[];
+  pageInfo: {
+    continueCursor: string;
+    isDone: boolean;
+    splitCursor: string | null;
+    pageStatus: "SplitRecommended" | "SplitRequired" | null;
+  };
+  summary: AttendanceSummary;
+};
+
+type LoadAttendanceOptions = {
+  append: boolean;
+  cursor: string | null;
 };
 
 function todayDateKey() {
@@ -32,45 +55,94 @@ function todayDateKey() {
 export function DashboardPanel() {
   const [dateKey, setDateKey] = useState(() => todayDateKey());
   const [rows, setRows] = useState<AttendanceRow[]>([]);
-  const [message, setMessage] = useState('');
-  const [reason, setReason] = useState('Koreksi admin');
-  const [reportStatus, setReportStatus] = useState('');
+  const [summary, setSummary] = useState<AttendanceSummary>({
+    total: 0,
+    checkedIn: 0,
+    checkedOut: 0,
+    edited: 0,
+  });
+  const [employeeName, setEmployeeName] = useState("");
+  const [editedFilter, setEditedFilter] = useState<"all" | "true" | "false">(
+    "all",
+  );
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLastPage, setIsLastPage] = useState(true);
+  const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
+  const [message, setMessage] = useState("");
+  const [reason, setReason] = useState("Koreksi admin");
+  const [reportStatus, setReportStatus] = useState("");
   const [reports, setReports] = useState<WeeklyReportRow[]>([]);
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const checkedIn = rows.filter((r) => r.checkInAt).length;
-    const checkedOut = rows.filter((r) => r.checkOutAt).length;
-    const edited = rows.filter((r) => r.edited).length;
-
-    return { total, checkedIn, checkedOut, edited };
-  }, [rows]);
-
-  const loadAttendance = async () => {
-    const res = await fetch(`/api/admin/attendance?dateKey=${encodeURIComponent(dateKey)}`, {
-      cache: 'no-store',
+  const buildAttendanceParams = (cursor: string | null) => {
+    const params = new URLSearchParams({
+      dateKey,
+      limit: "25",
     });
 
+    if (cursor) {
+      params.set("cursor", cursor);
+    }
+
+    const query = employeeName.trim();
+    if (query.length > 0) {
+      params.set("q", query);
+    }
+
+    if (editedFilter !== "all") {
+      params.set("edited", editedFilter);
+    }
+
+    return params.toString();
+  };
+
+  const loadAttendance = async (
+    opts: LoadAttendanceOptions = { append: false, cursor: null },
+  ) => {
+    setIsLoadingAttendance(true);
+
+    const res = await fetch(
+      `/api/admin/attendance?${buildAttendanceParams(opts.cursor)}`,
+      {
+        cache: "no-store",
+      },
+    );
+
     if (!res.ok) {
-      setMessage('Gagal memuat data absensi.');
+      setMessage("Gagal memuat data absensi.");
+      setIsLoadingAttendance(false);
       return;
     }
 
-    const data = await res.json();
-    setRows(data);
-    setMessage(`Data ${dateKey} dimuat (${data.length} baris).`);
+    const data = (await res.json()) as AttendanceListResponse;
+    setRows((prev) => (opts.append ? [...prev, ...data.rows] : data.rows));
+    setSummary(data.summary);
+    setNextCursor(data.pageInfo.isDone ? null : data.pageInfo.continueCursor);
+    setIsLastPage(data.pageInfo.isDone);
+    setMessage(
+      `Data ${dateKey} dimuat (${data.rows.length} baris ${opts.append ? "tambahan" : "halaman awal"}).`,
+    );
+    setIsLoadingAttendance(false);
+  };
+
+  const loadMoreAttendance = async () => {
+    if (!nextCursor || isLastPage || isLoadingAttendance) {
+      return;
+    }
+    await loadAttendance({ append: true, cursor: nextCursor });
   };
 
   const triggerWeeklyReport = async () => {
-    setReportStatus('Memproses report...');
-    const res = await fetch('/api/admin/reports', { method: 'POST' });
+    setReportStatus("Memproses report...");
+    const res = await fetch("/api/admin/reports", { method: "POST" });
     const data = await res.json();
-    setReportStatus(`Report ${data.weekKey ?? '-'} status: ${data.status ?? 'unknown'}`);
+    setReportStatus(
+      `Report ${data.weekKey ?? "-"} status: ${data.status ?? "unknown"}`,
+    );
     await loadReports();
   };
 
   const loadReports = async () => {
-    const res = await fetch('/api/admin/reports', { cache: 'no-store' });
+    const res = await fetch("/api/admin/reports", { cache: "no-store" });
     if (!res.ok) {
       return;
     }
@@ -79,28 +151,30 @@ export function DashboardPanel() {
   };
 
   const downloadReport = (reportId: string) => {
-    window.location.assign(`/api/admin/reports/download?reportId=${encodeURIComponent(reportId)}`);
+    window.location.assign(
+      `/api/admin/reports/download?reportId=${encodeURIComponent(reportId)}`,
+    );
   };
 
   const editRow = async (attendanceId: string) => {
-    const res = await fetch('/api/admin/attendance/edit', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/api/admin/attendance/edit", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ attendanceId, reason }),
     });
 
     if (res.ok) {
-      setMessage('Edit attendance tersimpan dan masuk audit log.');
-      await loadAttendance();
+      setMessage("Edit attendance tersimpan dan masuk audit log.");
+      await loadAttendance({ append: false, cursor: null });
       return;
     }
 
-    setMessage('Edit attendance gagal.');
+    setMessage("Edit attendance gagal.");
   };
 
   const submitDate = async (e: FormEvent) => {
     e.preventDefault();
-    await loadAttendance();
+    await loadAttendance({ append: false, cursor: null });
   };
 
   useEffect(() => {
@@ -108,7 +182,7 @@ export function DashboardPanel() {
   }, []);
 
   useEffect(() => {
-    if (!reports.some((report) => report.status === 'pending')) {
+    if (!reports.some((report) => report.status === "pending")) {
       return;
     }
 
@@ -124,29 +198,62 @@ export function DashboardPanel() {
       <section className="grid gap-4 md:grid-cols-4">
         <div className="rounded-xl border p-4">
           <p className="text-muted-foreground text-xs">Total Data</p>
-          <p className="mt-2 text-2xl font-bold">{stats.total}</p>
+          <p className="mt-2 text-2xl font-bold">{summary.total}</p>
         </div>
         <div className="rounded-xl border p-4">
           <p className="text-muted-foreground text-xs">Check-In</p>
-          <p className="mt-2 text-2xl font-bold">{stats.checkedIn}</p>
+          <p className="mt-2 text-2xl font-bold">{summary.checkedIn}</p>
         </div>
         <div className="rounded-xl border p-4">
           <p className="text-muted-foreground text-xs">Check-Out</p>
-          <p className="mt-2 text-2xl font-bold">{stats.checkedOut}</p>
+          <p className="mt-2 text-2xl font-bold">{summary.checkedOut}</p>
         </div>
         <div className="rounded-xl border p-4">
           <p className="text-muted-foreground text-xs">Edited</p>
-          <p className="mt-2 text-2xl font-bold">{stats.edited}</p>
+          <p className="mt-2 text-2xl font-bold">{summary.edited}</p>
         </div>
       </section>
 
       <section className="rounded-xl border p-4">
         <form onSubmit={submitDate} className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium">Tanggal (dateKey)</label>
-            <Input value={dateKey} onChange={(e) => setDateKey(e.target.value)} />
+            <label className="mb-1 block text-sm font-medium">
+              Tanggal (dateKey)
+            </label>
+            <Input
+              value={dateKey}
+              onChange={(e) => setDateKey(e.target.value)}
+            />
           </div>
-          <Button type="submit">Muat Data</Button>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Nama Karyawan
+            </label>
+            <Input
+              value={employeeName}
+              onChange={(e) => setEmployeeName(e.target.value)}
+              placeholder="Cari nama"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Status Edited
+            </label>
+            <select
+              className="bg-background border-input h-10 rounded-md border px-3 text-sm"
+              value={editedFilter}
+              onChange={(e) =>
+                setEditedFilter(e.target.value as "all" | "true" | "false")
+              }
+            >
+              <option value="all">Semua</option>
+              <option value="true">Edited</option>
+              <option value="false">Belum Edited</option>
+            </select>
+          </div>
+          <Button type="submit" disabled={isLoadingAttendance}>
+            {isLoadingAttendance ? "Memuat..." : "Muat Data"}
+          </Button>
         </form>
 
         <div className="mt-4 flex flex-wrap gap-3">
@@ -182,11 +289,23 @@ export function DashboardPanel() {
               <tr key={row._id} className="border-t">
                 <td className="p-3">{row.employeeName}</td>
                 <td className="p-3">{row.dateKey}</td>
-                <td className="p-3">{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString('id-ID') : '-'}</td>
-                <td className="p-3">{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString('id-ID') : '-'}</td>
-                <td className="p-3">{row.edited ? 'Ya' : 'Tidak'}</td>
                 <td className="p-3">
-                  <Button size="sm" variant="outline" onClick={() => editRow(row._id)}>
+                  {row.checkInAt
+                    ? new Date(row.checkInAt).toLocaleTimeString("id-ID")
+                    : "-"}
+                </td>
+                <td className="p-3">
+                  {row.checkOutAt
+                    ? new Date(row.checkOutAt).toLocaleTimeString("id-ID")
+                    : "-"}
+                </td>
+                <td className="p-3">{row.edited ? "Ya" : "Tidak"}</td>
+                <td className="p-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => editRow(row._id)}
+                  >
                     Tandai Edit
                   </Button>
                 </td>
@@ -201,6 +320,18 @@ export function DashboardPanel() {
             ) : null}
           </tbody>
         </table>
+        {!isLastPage ? (
+          <div className="border-t p-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={loadMoreAttendance}
+              disabled={isLoadingAttendance}
+            >
+              {isLoadingAttendance ? "Memuat..." : "Muat Lagi"}
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       <section className="overflow-x-auto rounded-xl border">
@@ -227,16 +358,20 @@ export function DashboardPanel() {
                 </td>
                 <td className="p-3">{report.status}</td>
                 <td className="p-3 max-w-[360px] truncate">
-                  {report.status === 'failed' ? (report.errorMessage ?? '-') : '-'}
+                  {report.status === "failed"
+                    ? (report.errorMessage ?? "-")
+                    : "-"}
                 </td>
                 <td className="p-3">
-                  {report.generatedAt ? new Date(report.generatedAt).toLocaleString('id-ID') : '-'}
+                  {report.generatedAt
+                    ? new Date(report.generatedAt).toLocaleString("id-ID")
+                    : "-"}
                 </td>
                 <td className="p-3">
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={report.status !== 'success'}
+                    disabled={report.status !== "success"}
                     onClick={() => downloadReport(report._id)}
                   >
                     Unduh
