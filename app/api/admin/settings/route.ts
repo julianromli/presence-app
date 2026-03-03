@@ -3,7 +3,7 @@ import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function GET() {
-  const role = await requireRoleApiFromDb(["admin", "superadmin"]);
+  const role = await requireRoleApiFromDb(["superadmin"]);
   if ("error" in role) return role.error;
 
   const token = await getConvexTokenOrNull();

@@ -2,19 +2,20 @@ import './globals.css';
 
 import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-
-import Banner from '@/components/layout/banner';
-import { Footer } from '@/components/layout/footer';
-import Navbar from '@/components/layout/navbar';
+import { Geist, Geist_Mono } from 'next/font/google';
 import { ConvexClientProvider } from '@/components/providers/convex-client-provider';
 import { UserSyncBootstrap } from '@/components/providers/user-sync-bootstrap';
 import { ThemeProvider } from '@/components/theme-provider';
 
-const inter = Inter({
+const geist = Geist({
   subsets: ['latin'],
-  weight: ['400', '500', '700'],
-  variable: '--font-inter',
+  variable: '--font-geist',
+  display: 'swap',
+});
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
   display: 'swap',
 });
 
@@ -33,7 +34,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="id" suppressHydrationWarning>
-        <body className={`min-h-screen ${inter.variable} antialiased`}>
+        <body className={`min-h-screen ${geist.variable} ${geistMono.variable} antialiased`}>
           <ConvexClientProvider>
             <ThemeProvider
               attribute="class"
@@ -42,10 +43,7 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               <UserSyncBootstrap />
-              <Banner />
-              <Navbar />
               <main>{children}</main>
-              <Footer />
             </ThemeProvider>
           </ConvexClientProvider>
         </body>

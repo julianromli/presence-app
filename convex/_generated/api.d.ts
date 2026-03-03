@@ -10,8 +10,10 @@
 
 import type * as attendance from "../attendance.js";
 import type * as crons from "../crons.js";
+import type * as dashboard from "../dashboard.js";
 import type * as helpers from "../helpers.js";
 import type * as qrTokens from "../qrTokens.js";
+import type * as reportIdempotency from "../reportIdempotency.js";
 import type * as reports from "../reports.js";
 import type * as reportsNode from "../reportsNode.js";
 import type * as settings from "../settings.js";
@@ -26,8 +28,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   crons: typeof crons;
+  dashboard: typeof dashboard;
   helpers: typeof helpers;
   qrTokens: typeof qrTokens;
+  reportIdempotency: typeof reportIdempotency;
   reports: typeof reports;
   reportsNode: typeof reportsNode;
   settings: typeof settings;
