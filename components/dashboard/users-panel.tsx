@@ -6,6 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
+import {
+  buildUsersQueryString,
+  DEFAULT_USERS_FILTERS,
+  resolveUsersFilters,
+  type UsersPanelFilters,
+} from '@/lib/users-filters';
 import type { AdminUsersPage, AdminUserRow } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
@@ -14,38 +20,8 @@ type UsersPanelProps = {
   viewerRole: 'admin' | 'superadmin';
 };
 
-type QueryFilters = {
-  q: string;
-  role: 'all' | 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
-  isActive: 'all' | 'true' | 'false';
-};
-
-function buildQueryString(filters: QueryFilters, cursor: string | null) {
-  const params = new URLSearchParams({ limit: '20' });
-  if (cursor) {
-    params.set('cursor', cursor);
-  }
-
-  const q = filters.q.trim();
-  if (q.length > 0) {
-    params.set('q', q);
-  }
-  if (filters.role !== 'all') {
-    params.set('role', filters.role);
-  }
-  if (filters.isActive !== 'all') {
-    params.set('isActive', filters.isActive);
-  }
-
-  return params.toString();
-}
-
 export function UsersPanel({ viewerRole }: UsersPanelProps) {
-  const [filters, setFilters] = useState<QueryFilters>({
-    q: '',
-    role: 'all',
-    isActive: 'all',
-  });
+  const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [summary, setSummary] = useState<AdminUsersPage['summary']>({
@@ -64,14 +40,21 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
     [filters],
   );
 
-  const loadUsers = async (opts: { append: boolean; cursor: string | null } = { append: false, cursor: null }) => {
+  const loadUsers = async (
+    opts: { append: boolean; cursor: string | null; filtersOverride?: UsersPanelFilters } = {
+      append: false,
+      cursor: null,
+    },
+  ) => {
+    const activeFilters = resolveUsersFilters(filters, opts.filtersOverride);
+
     if (!opts.append) {
       setStatus('loading');
       setError(null);
     }
     setLoading(true);
 
-    const res = await fetch(`/api/admin/users?${buildQueryString(filters, opts.cursor)}`, {
+    const res = await fetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
       cache: 'no-store',
     });
 
@@ -160,7 +143,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
               onChange={(event) =>
                 setFilters((prev) => ({
                   ...prev,
-                  role: event.target.value as QueryFilters['role'],
+                  role: event.target.value as UsersPanelFilters['role'],
                 }))
               }
             >
@@ -180,7 +163,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
               onChange={(event) =>
                 setFilters((prev) => ({
                   ...prev,
-                  isActive: event.target.value as QueryFilters['isActive'],
+                  isActive: event.target.value as UsersPanelFilters['isActive'],
                 }))
               }
             >
@@ -198,8 +181,9 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
               type="button"
               variant="outline"
               onClick={() => {
-                setFilters({ q: '', role: 'all', isActive: 'all' });
-                void loadUsers({ append: false, cursor: null });
+                const resetFilters = { ...DEFAULT_USERS_FILTERS };
+                setFilters(resetFilters);
+                void loadUsers({ append: false, cursor: null, filtersOverride: resetFilters });
               }}
             >
               Reset
@@ -243,7 +227,10 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+              rows.map((row) => {
+                const canToggleStatus =
+                  viewerRole === 'superadmin' || (row.role !== 'admin' && row.role !== 'superadmin');
+                return (
                   <tr key={row._id} className="border-t border-slate-100">
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{row.name}</p>
@@ -288,6 +275,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                         type="button"
                         variant="outline"
                         size="sm"
+                        disabled={!canToggleStatus}
                         onClick={() =>
                           void updateUser({
                             userId: row._id,
@@ -299,7 +287,8 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                       </Button>
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>

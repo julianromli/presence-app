@@ -33,6 +33,10 @@ function isActive(pathname: string, href: string) {
 
 export function DashboardSidebar({ role, name, email }: SidebarProps) {
   const pathname = usePathname();
+  const visibleNavItems =
+    role === 'superadmin'
+      ? navItems
+      : navItems.filter((item) => item.href !== '/settings/geofence');
 
   return (
     <aside className="hidden w-64 border-r border-slate-200 bg-white md:flex md:flex-col">
@@ -44,7 +48,7 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-6">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
           return (

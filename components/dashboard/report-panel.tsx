@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
+import { getLocalDateKey } from "@/lib/date-key";
 
 type AttendanceRow = {
   _id: string;
@@ -73,10 +74,6 @@ type InlineNotice = {
   text: string;
 };
 
-function todayDateKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
     case "success":
@@ -91,7 +88,7 @@ function noticeClass(tone: NoticeTone) {
 }
 
 export function ReportPanel() {
-  const [dateKey, setDateKey] = useState(() => todayDateKey());
+  const [dateKey, setDateKey] = useState(() => getLocalDateKey());
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary>({
     total: 0,

@@ -19,7 +19,34 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_clerk_user_id", ["clerkUserId"])
-    .index("by_role_and_active", ["role", "isActive"]),
+    .index("by_role_and_active", ["role", "isActive"])
+    .index("by_active", ["isActive"]),
+
+  users_metrics: defineTable({
+    key: v.literal("global"),
+    total: v.number(),
+    active: v.number(),
+    inactive: v.number(),
+    byRole: v.object({
+      superadmin: v.object({
+        total: v.number(),
+        active: v.number(),
+      }),
+      admin: v.object({
+        total: v.number(),
+        active: v.number(),
+      }),
+      karyawan: v.object({
+        total: v.number(),
+        active: v.number(),
+      }),
+      "device-qr": v.object({
+        total: v.number(),
+        active: v.number(),
+      }),
+    }),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
 
   attendance: defineTable({
     userId: v.id("users"),
