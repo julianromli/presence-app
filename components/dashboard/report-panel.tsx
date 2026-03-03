@@ -151,6 +151,7 @@ export function ReportPanel() {
   const [reportsError, setReportsError] = useState<ApiErrorInfo | null>(null);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [confirmSaveRowId, setConfirmSaveRowId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<AttendanceEditDraft>({
     checkInTime: "",
     checkOutTime: "",
@@ -370,6 +371,7 @@ export function ReportPanel() {
 
   const startEditRow = (row: AttendanceRow) => {
     setEditingRowId(row._id);
+    setConfirmSaveRowId(null);
     setEditDraft({
       checkInTime: formatTimeInput(row.checkInAt),
       checkOutTime: formatTimeInput(row.checkOutAt),
@@ -379,6 +381,7 @@ export function ReportPanel() {
 
   const cancelEditRow = () => {
     setEditingRowId(null);
+    setConfirmSaveRowId(null);
     setEditDraft({
       checkInTime: "",
       checkOutTime: "",
@@ -433,6 +436,7 @@ export function ReportPanel() {
         tone: "success",
         text: "Edit attendance tersimpan dan masuk audit log.",
       });
+      setConfirmSaveRowId(null);
       cancelEditRow();
       await loadAttendance({ append: false, cursor: null });
       setRowActionLoading(false);
@@ -801,10 +805,10 @@ export function ReportPanel() {
                         />
                         <Button
                           size="sm"
-                          onClick={() => void saveEditRow(row)}
+                          onClick={() => setConfirmSaveRowId(row._id)}
                           disabled={rowActionLoading}
                         >
-                          {rowActionLoading ? "Menyimpan..." : "Simpan"}
+                          Simpan
                         </Button>
                         <Button
                           size="sm"
@@ -814,6 +818,28 @@ export function ReportPanel() {
                         >
                           Batal
                         </Button>
+                        {confirmSaveRowId === row._id ? (
+                          <div className="mt-2 w-full rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                            <p>Yakin simpan perubahan jam attendance ini?</p>
+                            <div className="mt-2 flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => void saveEditRow(row)}
+                                disabled={rowActionLoading}
+                              >
+                                {rowActionLoading ? "Menyimpan..." : "Ya, Simpan"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setConfirmSaveRowId(null)}
+                                disabled={rowActionLoading}
+                              >
+                                Tidak
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
                       <Button
