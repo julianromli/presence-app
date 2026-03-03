@@ -3,7 +3,13 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 type ScanResponse = {
   status: 'check-in' | 'check-out';
@@ -82,6 +88,7 @@ export function ScanPanel() {
   const [autoPauseSecondsLeft, setAutoPauseSecondsLeft] = useState(0);
   const [lastSubmitLatencyMs, setLastSubmitLatencyMs] = useState<number | null>(null);
   const [lastRejectCode, setLastRejectCode] = useState<string>('none');
+  const [debugOpen, setDebugOpen] = useState(false);
 
   useEffect(() => {
     loadingRef.current = loading;
@@ -379,17 +386,37 @@ export function ScanPanel() {
     await submitScan(token, 'manual');
   };
 
-  return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-bold">Scan QR Absensi</h1>
-      <p className="text-muted-foreground mt-2 text-sm">
-        Arahkan kamera HP ke QR kantor. Jika kamera tidak tersedia, gunakan input token manual.
-      </p>
+  const hasScannerIssue = scannerState !== 'ready' || cameraPermission === 'denied';
+  const statusTone = hasScannerIssue
+    ? 'border-rose-200 bg-rose-50 text-rose-700'
+    : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  const statusLabel = hasScannerIssue ? 'Perlu perhatian' : 'Siap scan';
+  const scannerInfoText =
+    scannerState === 'unsupported'
+      ? 'Scanner kamera tidak didukung browser ini.'
+      : scannerState === 'blocked'
+        ? 'Izin kamera ditolak atau kamera tidak tersedia.'
+        : 'Menyiapkan kamera...';
+  const resultTone = result.startsWith('[')
+    ? 'border-rose-200 bg-rose-50 text-rose-700'
+    : 'border-emerald-200 bg-emerald-50 text-emerald-700';
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border p-4">
-          <p className="mb-2 text-sm font-medium">Kamera Scanner</p>
-          <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-dashed bg-black">
+  return (
+    <div className="container py-8 md:py-10">
+      <div className="mx-auto max-w-2xl space-y-5">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">Scan QR Absensi</h1>
+          <p className="text-sm text-zinc-600">
+            Arahkan kamera HP ke QR kantor. Jika kamera tidak tersedia, gunakan input token manual.
+          </p>
+          <div className={cn('inline-flex rounded-full border px-3 py-1 text-xs font-medium', statusTone)}>
+            Status: {statusLabel}
+          </div>
+        </div>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-sm font-medium text-zinc-900">Kamera Scanner</p>
+          <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-zinc-200 bg-black">
             <video
               ref={videoRef}
               className={`h-full w-full object-cover transition-opacity ${
@@ -400,49 +427,69 @@ export function ScanPanel() {
               autoPlay
             />
             {scannerState !== 'ready' ? (
-              <div className="absolute inset-0 grid place-items-center text-center text-sm text-zinc-500">
-                {scannerState === 'unsupported'
-                  ? 'Scanner kamera tidak didukung browser ini.'
-                  : scannerState === 'blocked'
-                    ? 'Izin kamera ditolak atau kamera tidak tersedia.'
-                    : 'Menyiapkan kamera...'}
+              <div className="absolute inset-0 grid place-items-center px-6 text-center text-sm text-zinc-300">
+                {scannerInfoText}
               </div>
             ) : null}
           </div>
-          <div className="mt-3 rounded-md border bg-zinc-50 p-3 text-xs text-zinc-600">
-            <p className="font-semibold text-zinc-700">Diagnostik Scanner</p>
-            <div className="mt-1 space-y-1">
-              <p>Engine aktif: {scannerEngine}</p>
-              <p>Secure context: {runtimeInfo.secureContext ? 'yes' : 'no'}</p>
-              <p>mediaDevices: {runtimeInfo.hasMediaDevices ? 'yes' : 'no'}</p>
-              <p>getUserMedia: {runtimeInfo.hasGetUserMedia ? 'yes' : 'no'}</p>
-              <p>BarcodeDetector: {runtimeInfo.hasBarcodeDetector ? 'yes' : 'no'}</p>
-              <p>Permission camera: {cameraPermission}</p>
-              <p>Camera error: {cameraError}</p>
-              <p>State: {scannerState}</p>
-              <p>Auto-pause: {autoPauseSecondsLeft > 0 ? `${autoPauseSecondsLeft}s` : 'none'}</p>
-              <p>Last submit latency: {lastSubmitLatencyMs ?? '-'} ms</p>
-              <p>Last reject code: {lastRejectCode}</p>
-            </div>
-          </div>
-        </div>
 
-        <div className="rounded-xl border p-4">
-          <p className="mb-2 text-sm font-medium">Fallback Manual</p>
+          {autoPauseSecondsLeft > 0 ? (
+            <p className="mt-3 text-xs text-zinc-500">
+              Scanner jeda otomatis {autoPauseSecondsLeft}s untuk mencegah scan ganda.
+            </p>
+          ) : null}
+
+          <Collapsible
+            open={debugOpen}
+            onOpenChange={setDebugOpen}
+            className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50/70"
+          >
+            <CollapsibleTrigger className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-700">
+              {debugOpen ? 'Sembunyikan diagnostik' : 'Lihat diagnostik scanner'}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="border-t border-zinc-200 px-3 py-3">
+              <div className="space-y-1 text-xs text-zinc-600">
+                <p>Engine aktif: {scannerEngine}</p>
+                <p>Secure context: {runtimeInfo.secureContext ? 'yes' : 'no'}</p>
+                <p>mediaDevices: {runtimeInfo.hasMediaDevices ? 'yes' : 'no'}</p>
+                <p>getUserMedia: {runtimeInfo.hasGetUserMedia ? 'yes' : 'no'}</p>
+                <p>BarcodeDetector: {runtimeInfo.hasBarcodeDetector ? 'yes' : 'no'}</p>
+                <p>Permission camera: {cameraPermission}</p>
+                <p>Camera error: {cameraError}</p>
+                <p>State: {scannerState}</p>
+                <p>Last submit latency: {lastSubmitLatencyMs ?? '-'} ms</p>
+                <p>Last reject code: {lastRejectCode}</p>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-sm font-medium text-zinc-900">Fallback Manual</p>
           <form onSubmit={onSubmit} className="space-y-3">
-            <Input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Token QR"
-              required
-            />
-            <Button type="submit" disabled={loading || !token}>
+            <div className="space-y-1">
+              <label htmlFor="qr-token" className="text-xs font-medium text-zinc-600">
+                Token QR
+              </label>
+              <Input
+                id="qr-token"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Tempel token QR di sini"
+                required
+              />
+            </div>
+            <Button type="submit" disabled={loading || !token} className="w-full sm:w-auto">
               {loading ? 'Memproses...' : 'Scan Sekarang'}
             </Button>
           </form>
 
-          {result ? <p className="mt-4 text-sm">Hasil: {result}</p> : null}
-        </div>
+          {result ? (
+            <div className={cn('mt-4 rounded-lg border px-3 py-2 text-sm', resultTone)}>
+              Hasil: {result}
+            </div>
+          ) : null}
+        </section>
       </div>
     </div>
   );
