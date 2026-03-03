@@ -1,6 +1,6 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -214,13 +214,13 @@ export default function MetafiPricingHero() {
                       {plan.features.map((f) => (
                         <li key={f} className="flex items-start gap-3">
                           <Check
+                            weight="regular"
                             className={cn(
                               'mt-0.5 size-4 shrink-0',
                               plan.highlight
                                 ? 'text-primary-foreground'
                                 : 'text-tagline',
                             )}
-                            strokeWidth={2.5}
                           />
                           <span
                             className={cn(
@@ -263,3 +263,4 @@ export default function MetafiPricingHero() {
     </section>
   );
 }
+

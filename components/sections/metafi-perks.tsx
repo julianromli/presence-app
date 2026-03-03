@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle } from '@phosphor-icons/react/dist/ssr';
 import Image from 'next/image';
 
 type MetafiPerksProps = {
@@ -59,7 +59,7 @@ export default function MetafiPerks({
             <ul className="mt-6 space-y-4">
               {perks.map((p) => (
                 <li key={p} className="flex items-start gap-3">
-                  <CheckCircle2 className="text-success mt-0.5 h-5 w-5" />
+                  <CheckCircle weight="regular" className="text-success mt-0.5 h-5 w-5" />
                   <span className="text-foreground/90 text-base">{p}</span>
                 </li>
               ))}
@@ -70,3 +70,4 @@ export default function MetafiPerks({
     </section>
   );
 }
+

@@ -1,4 +1,4 @@
-import { Facebook, Linkedin, Twitter } from 'lucide-react';
+import { FacebookLogo, LinkedinLogo, XLogo } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 
 const columns = [
@@ -30,9 +30,9 @@ const columns = [
 ];
 
 const socials = [
-  { Icon: Linkedin, href: 'https://linkedin.com' },
-  { Icon: Twitter, href: 'https://twitter.com' },
-  { Icon: Facebook, href: 'https://facebook.com' },
+  { Icon: LinkedinLogo, href: 'https://linkedin.com' },
+  { Icon: XLogo, href: 'https://twitter.com' },
+  { Icon: FacebookLogo, href: 'https://facebook.com' },
 ];
 
 export const Footer = () => {
@@ -84,7 +84,7 @@ export const Footer = () => {
                 aria-label={href}
                 className="text-muted-foreground hover:text-primary-foreground transition-colors"
               >
-                <Icon className="h-5 w-5" />
+                <Icon weight="regular" className="h-5 w-5" />
               </Link>
             ))}
           </div>
@@ -93,3 +93,4 @@ export const Footer = () => {
     </footer>
   );
 };
+

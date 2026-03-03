@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 
 type Job = {
@@ -80,6 +80,7 @@ export default function MetafiJobOpenings({
                 </div>
 
                 <ArrowUpRight
+                  weight="regular"
                   className="text-logo-gray mt-1 h-5 w-5 flex-shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
                   aria-hidden
                 />
@@ -102,3 +103,4 @@ export default function MetafiJobOpenings({
     </section>
   );
 }
+

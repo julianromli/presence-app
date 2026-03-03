@@ -5,14 +5,14 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { FormEvent, useMemo, useState } from 'react';
 import {
-  BarChart3,
-  ChevronsUpDown,
-  LayoutDashboard,
-  MapPinned,
-  Search,
+  CaretUpDown,
+  ChartBar,
+  MagnifyingGlass,
+  MapPinArea,
   ShieldCheck,
-  Users,
-} from 'lucide-react';
+  SquaresFour,
+  UsersThree,
+} from '@phosphor-icons/react/dist/ssr';
 
 type SidebarProps = {
   role: string;
@@ -23,16 +23,16 @@ type SidebarProps = {
 type NavItem = {
   href: string;
   label: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string; weight?: 'regular' }>;
 };
 
 const mainMenuItems: NavItem[] = [
-  { href: '/dashboard', label: 'Ringkasan', icon: LayoutDashboard },
-  { href: '/dashboard/report', label: 'Laporan', icon: BarChart3 },
-  { href: '/dashboard/users', label: 'Karyawan', icon: Users },
+  { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
+  { href: '/dashboard/report', label: 'Laporan', icon: ChartBar },
+  { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree },
 ];
 
-const recordItems: NavItem[] = [{ href: '/settings/geofence', label: 'Geofence', icon: MapPinned }];
+const recordItems: NavItem[] = [{ href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }];
 
 function isActive(pathname: string, href: string) {
   if (href === '/dashboard') {
@@ -82,7 +82,10 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
             active ? 'bg-indigo-500' : 'bg-transparent group-hover:bg-slate-300'
           }`}
         />
-        <Icon className={`h-5 w-5 ${active ? 'text-indigo-500' : 'text-slate-400 group-hover:text-slate-600'}`} />
+        <Icon
+          weight="regular"
+          className={`h-5 w-5 ${active ? 'text-indigo-500' : 'text-slate-400 group-hover:text-slate-600'}`}
+        />
         <span className="tracking-[-0.01em]">{item.label}</span>
       </Link>
     );
@@ -103,7 +106,7 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
             className="rounded-lg border border-slate-300 bg-white p-2 text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
             aria-label="Sidebar options"
           >
-            <ChevronsUpDown className="h-4 w-4" />
+            <CaretUpDown weight="regular" className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -111,7 +114,10 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
       <div className="border-y border-slate-300 px-5 py-5">
         <form onSubmit={handleSubmit}>
           <label className="relative block">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <MagnifyingGlass
+              weight="regular"
+              className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+            />
             <input
               value={searchValue}
               onChange={(event) => setSearchValue(event.target.value)}
@@ -146,7 +152,7 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
             <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
             <p className="truncate text-xs text-slate-500">{email}</p>
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-              <ShieldCheck className="h-3 w-3" />
+              <ShieldCheck weight="regular" className="h-3 w-3" />
               {role}
             </span>
           </div>
@@ -155,3 +161,4 @@ export function DashboardSidebar({ role, name, email }: SidebarProps) {
     </aside>
   );
 }
+

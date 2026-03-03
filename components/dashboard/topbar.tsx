@@ -1,7 +1,7 @@
 'use client';
 
 import { UserButton } from '@clerk/nextjs';
-import { ChevronDown, Download, Grid2X2, RefreshCw } from 'lucide-react';
+import { ArrowsClockwise, CaretDown, DownloadSimple, SquaresFour } from '@phosphor-icons/react/dist/ssr';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -161,7 +161,10 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
               disabled={busy !== 'none'}
               className="inline-flex items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-base text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <RefreshCw className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`} />
+              <ArrowsClockwise
+                weight="regular"
+                className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`}
+              />
               <span>
                 Last updated:{' '}
                 {lastUpdatedAt.toLocaleDateString('en-US', {
@@ -179,7 +182,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
                 className="h-11 rounded-xl border-slate-300 bg-white px-4 text-base font-medium text-slate-600 hover:bg-slate-50"
                 onClick={openSettings}
               >
-                <Grid2X2 className="mr-2 h-4 w-4" />
+                <SquaresFour weight="regular" className="mr-2 h-4 w-4" />
                 View setting
               </Button>
 
@@ -191,9 +194,9 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
                   onClick={() => setMenuOpen((prev) => !prev)}
                   disabled={busy !== 'none'}
                 >
-                  <Download className="mr-2 h-4 w-4" />
+                  <DownloadSimple weight="regular" className="mr-2 h-4 w-4" />
                   Import/Export
-                  <ChevronDown className="ml-2 h-4 w-4" />
+                  <CaretDown weight="regular" className="ml-2 h-4 w-4" />
                 </Button>
 
                 {menuOpen ? (
@@ -243,3 +246,4 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     </header>
   );
 }
+

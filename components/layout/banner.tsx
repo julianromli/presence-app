@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { X } from '@phosphor-icons/react/dist/ssr';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ const Banner = () => {
           )}
           aria-label="Close banner"
         >
-          <X className="size-3.5" />
+          <X weight="regular" className="size-3.5" />
         </button>
       </div>
     </div>
@@ -42,3 +42,4 @@ const Banner = () => {
 };
 
 export default Banner;
+

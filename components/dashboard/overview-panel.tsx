@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, CheckCircle2, Clock3, RefreshCw, Users } from 'lucide-react';
+import { ArrowsClockwise, CheckCircle, Clock, Pulse, UsersThree } from '@phosphor-icons/react/dist/ssr';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -165,7 +165,7 @@ export function OverviewPanel() {
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-base font-semibold tracking-tight text-slate-900">Tren kehadiran 7 hari</h2>
             <Button type="button" variant="ghost" size="sm" onClick={() => void loadOverview()}>
-              <RefreshCw className="mr-1 h-3.5 w-3.5" />
+              <ArrowsClockwise weight="regular" className="mr-1 h-3.5 w-3.5" />
               Refresh
             </Button>
           </div>
@@ -220,12 +220,12 @@ export function OverviewPanel() {
                     </p>
                     {item.edited ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                        <Clock3 className="h-3 w-3" />
+                        <Clock weight="regular" className="h-3 w-3" />
                         Edited
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                        <CheckCircle2 className="h-3 w-3" />
+                        <CheckCircle weight="regular" className="h-3 w-3" />
                         Normal
                       </span>
                     )}
@@ -240,7 +240,7 @@ export function OverviewPanel() {
       <section className="grid gap-4 sm:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500">
-            <Users className="h-4 w-4" />
+            <UsersThree weight="regular" className="h-4 w-4" />
             <p className="text-xs font-semibold tracking-wide">Sumber KPI</p>
           </div>
           <p className="mt-2 text-sm text-slate-700">
@@ -249,7 +249,7 @@ export function OverviewPanel() {
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500">
-            <Activity className="h-4 w-4" />
+            <Pulse weight="regular" className="h-4 w-4" />
             <p className="text-xs font-semibold tracking-wide">Status report mingguan</p>
           </div>
           {payload.reportStatus ? (
@@ -272,3 +272,4 @@ export function OverviewPanel() {
     </div>
   );
 }
+

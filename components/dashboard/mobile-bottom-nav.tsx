@@ -1,7 +1,7 @@
 'use client';
 
 import { SignOutButton } from '@clerk/nextjs';
-import { BarChart3, LayoutDashboard, MapPinned, UserRound, Users } from 'lucide-react';
+import { ChartBar, MapPinArea, SquaresFour, UserCircle, UsersThree } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -18,13 +18,13 @@ type MobileBottomNavProps = {
 type NavItem = {
   href: string;
   label: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof SquaresFour;
 };
 
 const baseItems: NavItem[] = [
-  { href: '/dashboard', label: 'Ringkasan', icon: LayoutDashboard },
-  { href: '/dashboard/report', label: 'Laporan', icon: BarChart3 },
-  { href: '/dashboard/users', label: 'Karyawan', icon: Users },
+  { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
+  { href: '/dashboard/report', label: 'Laporan', icon: ChartBar },
+  { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -39,7 +39,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
   const [accountOpen, setAccountOpen] = useState(false);
   const items =
     role === 'superadmin'
-      ? [...baseItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinned }]
+      ? [...baseItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }]
       : baseItems;
 
   return (
@@ -58,7 +58,10 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
                     active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
                   )}
                 >
-                  <Icon className={cn('h-4 w-4', active ? 'text-indigo-500' : 'text-slate-400')} />
+                  <Icon
+                    weight="regular"
+                    className={cn('h-4 w-4', active ? 'text-indigo-500' : 'text-slate-400')}
+                  />
                   {item.label}
                 </Link>
               </li>
@@ -74,7 +77,10 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
                   accountOpen ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
                 )}
               >
-                <UserRound className={cn('h-4 w-4', accountOpen ? 'text-indigo-500' : 'text-slate-400')} />
+                <UserCircle
+                  weight="regular"
+                  className={cn('h-4 w-4', accountOpen ? 'text-indigo-500' : 'text-slate-400')}
+                />
                 Akun
               </button>
             </li>
@@ -107,3 +113,4 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
     </>
   );
 }
+

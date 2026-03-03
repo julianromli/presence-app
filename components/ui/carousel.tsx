@@ -3,7 +3,7 @@
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from 'embla-carousel-react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react/dist/ssr';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -216,7 +216,7 @@ const CarouselPrevious = React.forwardRef<
       onClick={scrollPrev}
       {...props}
     >
-      <ChevronLeft className="size-4" />
+      <CaretLeft weight="regular" className="size-4" />
       <span className="sr-only">Previous slide</span>
     </Button>
   );
@@ -245,7 +245,7 @@ const CarouselNext = React.forwardRef<
       onClick={scrollNext}
       {...props}
     >
-      <ChevronRight className="size-4" />
+      <CaretRight weight="regular" className="size-4" />
       <span className="sr-only">Next slide</span>
     </Button>
   );
@@ -260,3 +260,4 @@ export {
   CarouselNext,
   CarouselPrevious,
 };
+

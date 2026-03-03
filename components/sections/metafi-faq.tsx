@@ -1,6 +1,6 @@
 'use client';
 
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus } from '@phosphor-icons/react/dist/ssr';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 type QA = { question: string; answer: string };
@@ -108,9 +108,9 @@ function FaqItem({
           aria-hidden
         >
           {open ? (
-            <Minus className="size-3" strokeWidth={2} />
+            <Minus weight="regular" className="size-3" />
           ) : (
-            <Plus className="size-3" strokeWidth={2} />
+            <Plus weight="regular" className="size-3" />
           )}
         </span>
       </button>
@@ -174,3 +174,4 @@ export default function MetafiFaq() {
     </section>
   );
 }
+
