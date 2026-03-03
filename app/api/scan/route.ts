@@ -1,35 +1,47 @@
-import { getConvexTokenOrNull, requireRoleApiFromDb } from '@/lib/auth';
-import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { getConvexTokenOrNull, requireRoleApiFromDb } from "@/lib/auth";
+import { convexErrorResponse } from "@/lib/api-error";
+import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function POST(req: Request) {
-  const roleResult = await requireRoleApiFromDb(['karyawan']);
-  if ('error' in roleResult) {
+  const roleResult = await requireRoleApiFromDb(["karyawan"]);
+  if ("error" in roleResult) {
     return roleResult.error;
   }
 
-  const body = (await req.json()) as {
+  let body: {
     token?: string;
     latitude?: number;
     longitude?: number;
   };
-
-  if (!body.token) {
-    return Response.json({ message: 'Token wajib diisi' }, { status: 400 });
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json(
+      { code: "BAD_REQUEST", message: "Payload JSON tidak valid." },
+      { status: 400 },
+    );
   }
 
-  const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  if (!body.token) {
+    return Response.json(
+      { code: "VALIDATION_ERROR", message: "Token wajib diisi" },
+      { status: 400 },
+    );
+  }
+
+  const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const token = await getConvexTokenOrNull();
   if (!token) {
-    return Response.json({ message: 'Unauthorized' }, { status: 401 });
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   const convex = getAuthedConvexHttpClient(token);
   if (!convex) {
-    return Response.json({ message: 'Convex URL missing' }, { status: 500 });
+    return Response.json({ message: "Convex URL missing" }, { status: 500 });
   }
 
   try {
-    const response = await convex.mutation('attendance:recordScan', {
+    const response = await convex.mutation("attendance:recordScan", {
       token: body.token,
       ipAddress,
       latitude: body.latitude,
@@ -38,11 +50,6 @@ export async function POST(req: Request) {
 
     return Response.json(response);
   } catch (error) {
-    return Response.json(
-      {
-        message: error instanceof Error ? error.message : 'Scan gagal',
-      },
-      { status: 400 },
-    );
+    return convexErrorResponse(error, "Scan gagal diproses.");
   }
 }
