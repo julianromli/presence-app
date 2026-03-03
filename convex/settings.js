@@ -1,26 +1,36 @@
-import { v } from 'convex/values';
+import { v } from "convex/values";
 
-import { mutation, query } from './_generated/server';
-import { getGlobalSettings, requireRole } from './helpers';
+import { internalQuery, mutation, query } from "./_generated/server";
+import { getGlobalSettings, requireRole } from "./helpers";
+
+const settingsValidator = v.object({
+  key: v.literal("global"),
+  timezone: v.string(),
+  geofenceEnabled: v.boolean(),
+  geofenceRadiusMeters: v.number(),
+  geofenceLat: v.optional(v.number()),
+  geofenceLng: v.optional(v.number()),
+  whitelistEnabled: v.boolean(),
+  whitelistIps: v.array(v.string()),
+  updatedBy: v.optional(v.id("users")),
+  updatedAt: v.number(),
+  _id: v.id("settings"),
+  _creationTime: v.number(),
+});
 
 export const get = query({
   args: {},
-  returns: v.object({
-    key: v.literal('global'),
-    timezone: v.string(),
-    geofenceEnabled: v.boolean(),
-    geofenceRadiusMeters: v.number(),
-    geofenceLat: v.optional(v.number()),
-    geofenceLng: v.optional(v.number()),
-    whitelistEnabled: v.boolean(),
-    whitelistIps: v.array(v.string()),
-    updatedBy: v.optional(v.id('users')),
-    updatedAt: v.number(),
-    _id: v.id('settings'),
-    _creationTime: v.number(),
-  }),
+  returns: settingsValidator,
   handler: async (ctx) => {
-    await requireRole(ctx, ['admin', 'superadmin']);
+    await requireRole(ctx, ["admin", "superadmin"]);
+    return await getGlobalSettings(ctx);
+  },
+});
+
+export const getGlobalUnsafe = internalQuery({
+  args: {},
+  returns: settingsValidator,
+  handler: async (ctx) => {
     return await getGlobalSettings(ctx);
   },
 });
@@ -37,7 +47,7 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const actor = await requireRole(ctx, ['superadmin']);
+    const actor = await requireRole(ctx, ["superadmin"]);
     const current = await getGlobalSettings(ctx);
 
     await ctx.db.patch(current._id, {
@@ -53,10 +63,10 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
-    await ctx.db.insert('audit_logs', {
+    await ctx.db.insert("audit_logs", {
       actorUserId: actor._id,
-      action: 'settings.updated',
-      targetType: 'settings',
+      action: "settings.updated",
+      targetType: "settings",
       targetId: String(current._id),
       payload: args,
       createdAt: Date.now(),

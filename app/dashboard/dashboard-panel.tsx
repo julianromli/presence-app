@@ -25,6 +25,12 @@ type WeeklyReportRow = {
   errorMessage?: string;
 };
 
+type WeeklyTriggerResponse = {
+  weekKey: string;
+  status: "pending" | "success" | "failed";
+  skipped: boolean;
+};
+
 type AttendanceSummary = {
   total: number;
   checkedIn: number;
@@ -134,10 +140,16 @@ export function DashboardPanel() {
   const triggerWeeklyReport = async () => {
     setReportStatus("Memproses report...");
     const res = await fetch("/api/admin/reports", { method: "POST" });
-    const data = await res.json();
-    setReportStatus(
-      `Report ${data.weekKey ?? "-"} status: ${data.status ?? "unknown"}`,
-    );
+    const data = (await res.json()) as WeeklyTriggerResponse;
+    if (data.skipped) {
+      setReportStatus(
+        `Report ${data.weekKey ?? "-"} dilewati (status existing: ${data.status ?? "unknown"}).`,
+      );
+    } else {
+      setReportStatus(
+        `Report ${data.weekKey ?? "-"} status: ${data.status ?? "unknown"}`,
+      );
+    }
     await loadReports();
   };
 

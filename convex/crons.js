@@ -1,14 +1,16 @@
-import { cronJobs } from 'convex/server';
+import { cronJobs } from "convex/server";
 
-import { internal } from './_generated/api';
+import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
 crons.cron(
-  'weekly_presence_report',
-  '0 1 * * 1',
+  "weekly_presence_report",
+  "0 1 * * 1",
   internal.reportsNode.runWeeklyReport,
-  {},
+  {
+    triggerSource: "cron",
+  },
 );
 
 export default crons;
