@@ -60,42 +60,77 @@ function buildLast7DateKeys(now, timezone) {
 }
 
 export const getOverview = query({
-  args: {},
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: overviewValidator,
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     await requireRole(ctx, ['admin', 'superadmin']);
 
-    const settings = await getGlobalSettingsOrThrow(ctx);
+    const settings = await getGlobalSettingsOrThrow(ctx, args.workspaceId);
     const now = Date.now();
     const todayDateKey = buildDateKey(now, settings.timezone);
     const trendDateKeys = buildLast7DateKeys(now, settings.timezone);
 
-    const activeEmployees = await ctx.db
-      .query('users')
-      .withIndex('by_role_and_active', (q) => q.eq('role', 'karyawan').eq('isActive', true))
-      .collect();
-    const onlineWindowStart = now - 60_000;
-    const onlineDeviceRows = await ctx.db
-      .query('device_heartbeats')
-      .withIndex('by_last_seen_at', (q) => q.gte('lastSeenAt', onlineWindowStart))
-      .collect();
+    const activeEmployeeIds = args.workspaceId
+      ? (
+          await ctx.db
+            .query('workspace_members')
+            .withIndex('by_workspace_role_active', (q) =>
+              q.eq('workspaceId', args.workspaceId).eq('role', 'karyawan').eq('isActive', true),
+            )
+            .collect()
+        ).map((item) => String(item.userId))
+      : (
+          await ctx.db
+            .query('users')
+            .withIndex('by_role_and_active', (q) => q.eq('role', 'karyawan').eq('isActive', true))
+            .collect()
+        ).map((item) => String(item._id));
 
-    const todayRows = await ctx.db
-      .query('attendance')
-      .withIndex('by_date_and_user', (q) => q.eq('dateKey', todayDateKey))
-      .collect();
+    const onlineWindowStart = now - 60_000;
+    const onlineDeviceRows = args.workspaceId
+      ? (
+          await ctx.db
+            .query('device_heartbeats')
+            .withIndex('by_workspace_device_user_id', (q) => q.eq('workspaceId', args.workspaceId))
+            .collect()
+        ).filter((row) => row.lastSeenAt >= onlineWindowStart)
+      : await ctx.db
+          .query('device_heartbeats')
+          .withIndex('by_last_seen_at', (q) => q.gte('lastSeenAt', onlineWindowStart))
+          .collect();
+
+    const todayRows = args.workspaceId
+      ? await ctx.db
+          .query('attendance')
+          .withIndex('by_workspace_and_date_user', (q) =>
+            q.eq('workspaceId', args.workspaceId).eq('dateKey', todayDateKey),
+          )
+          .collect()
+      : await ctx.db
+          .query('attendance')
+          .withIndex('by_date_and_user', (q) => q.eq('dateKey', todayDateKey))
+          .collect();
 
     const trendRowsByDate = await Promise.all(
       trendDateKeys.map((dateKey) =>
-        ctx.db
-          .query('attendance')
-          .withIndex('by_date_and_user', (q) => q.eq('dateKey', dateKey))
-          .collect(),
+        args.workspaceId
+          ? ctx.db
+              .query('attendance')
+              .withIndex('by_workspace_and_date_user', (q) =>
+                q.eq('workspaceId', args.workspaceId).eq('dateKey', dateKey),
+              )
+              .collect()
+          : ctx.db
+              .query('attendance')
+              .withIndex('by_date_and_user', (q) => q.eq('dateKey', dateKey))
+              .collect(),
       ),
     );
 
     try {
-      const userIds = [...new Set(todayRows.map((row) => String(row.userId)))];
+      const userIds = [...new Set(todayRows.map((row) => String(row.userId))), ...activeEmployeeIds];
       const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
       const usersById = new Map(userIds.map((id, index) => [id, users[index]]));
 
@@ -134,11 +169,17 @@ export const getOverview = query({
         return {
           dateKey,
           presentCount,
-          attendanceRatePct: computeAttendanceRatePct(presentCount, activeEmployees.length),
+          attendanceRatePct: computeAttendanceRatePct(presentCount, activeEmployeeIds.length),
         };
       });
 
-      const latestReport = await ctx.db.query('weekly_reports').order('desc').first();
+      const latestReport = args.workspaceId
+        ? await ctx.db
+            .query('weekly_reports')
+            .withIndex('by_workspace_week_key', (q) => q.eq('workspaceId', args.workspaceId))
+            .order('desc')
+            .first()
+        : await ctx.db.query('weekly_reports').order('desc').first();
       const normalizedReportStatus = normalizeReportStatus(latestReport);
       if (latestReport && !normalizedReportStatus) {
         console.warn(
@@ -150,9 +191,9 @@ export const getOverview = query({
 
       return {
         cards: {
-          activeEmployees: activeEmployees.length,
+          activeEmployees: activeEmployeeIds.length,
           presentToday,
-          attendanceRatePct: computeAttendanceRatePct(presentToday, activeEmployees.length),
+          attendanceRatePct: computeAttendanceRatePct(presentToday, activeEmployeeIds.length),
           checkedOut,
           editedToday,
           deviceQrOnline: onlineDeviceRows.length,

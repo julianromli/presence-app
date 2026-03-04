@@ -10,6 +10,10 @@ import type { DashboardOverviewPayload } from '@/types/dashboard';
 export async function GET(req: Request) {
   const workspaceContext = requireWorkspaceApiContextForMigration(req);
   if ('error' in workspaceContext) return workspaceContext.error;
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === 'default-global'
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const role = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in role) return role.error;
@@ -25,8 +29,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    await convex.mutation('settings:ensureGlobal', {});
-    const payload = await convex.query<DashboardOverviewPayload>('dashboard:getOverview', {});
+    await convex.mutation('settings:ensureGlobal', { workspaceId });
+    const payload = await convex.query<DashboardOverviewPayload>('dashboard:getOverview', {
+      workspaceId,
+    });
     return Response.json(payload);
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {

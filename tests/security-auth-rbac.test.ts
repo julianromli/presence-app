@@ -179,8 +179,8 @@ describe('security auth and rbac routes', () => {
     const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
 
     expect(response.status).toBe(200);
-    expect(mocks.mutation).toHaveBeenCalledWith('settings:ensureGlobal', {});
-    expect(mocks.query).toHaveBeenCalledWith('settings:get', {});
+    expect(mocks.mutation).toHaveBeenCalledWith('settings:ensureGlobal', { workspaceId: undefined });
+    expect(mocks.query).toHaveBeenCalledWith('settings:get', { workspaceId: undefined });
   });
 
   it('updates settings via PATCH for superadmin', async () => {
@@ -207,6 +207,7 @@ describe('security auth and rbac routes', () => {
 
     expect(response.status).toBe(200);
     expect(mutation).toHaveBeenCalledWith('settings:update', {
+      workspaceId: undefined,
       timezone: 'Asia/Jakarta',
       geofenceEnabled: true,
       geofenceRadiusMeters: 150,

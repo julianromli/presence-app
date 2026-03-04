@@ -26,41 +26,50 @@ const settingsValidator = v.object({
 });
 
 export const ensureGlobal = mutation({
-  args: {},
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: settingsValidator,
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["admin", "superadmin"]);
-    return await ensureGlobalSettingsForMutation(ctx);
+    return await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
   },
 });
 
 export const ensureGlobalInternal = internalMutation({
-  args: {},
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: settingsValidator,
-  handler: async (ctx) => {
-    return await ensureGlobalSettingsForMutation(ctx);
+  handler: async (ctx, args) => {
+    return await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
   },
 });
 
 export const get = query({
-  args: {},
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: settingsValidator,
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["admin", "superadmin"]);
-    return await getGlobalSettingsOrThrow(ctx);
+    return await getGlobalSettingsOrThrow(ctx, args.workspaceId);
   },
 });
 
 export const getGlobalUnsafe = internalQuery({
-  args: {},
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: settingsValidator,
-  handler: async (ctx) => {
-    return await getGlobalSettingsOrThrow(ctx);
+  handler: async (ctx, args) => {
+    return await getGlobalSettingsOrThrow(ctx, args.workspaceId);
   },
 });
 
 export const update = mutation({
   args: {
+    workspaceId: v.optional(v.id("workspaces")),
     timezone: v.optional(v.string()),
     geofenceEnabled: v.optional(v.boolean()),
     geofenceRadiusMeters: v.optional(v.number()),
@@ -75,7 +84,7 @@ export const update = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, ["superadmin"]);
-    const current = await ensureGlobalSettingsForMutation(ctx);
+    const current = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
 
     await ctx.db.patch(current._id, {
       timezone: args.timezone ?? current.timezone,
@@ -102,6 +111,7 @@ export const update = mutation({
       targetType: "settings",
       targetId: String(current._id),
       payload: args,
+      workspaceId: current.workspaceId,
       createdAt: Date.now(),
     });
 

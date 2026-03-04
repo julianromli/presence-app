@@ -69,9 +69,10 @@ export function buildDateKey(ts, timezone) {
   return formatter.format(new Date(ts));
 }
 
-function buildDefaultGlobalSettings(now = Date.now()) {
+function buildDefaultGlobalSettings(now = Date.now(), workspaceId = undefined) {
   return {
     key: 'global',
+    workspaceId,
     timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
     geofenceRadiusMeters: 100,
@@ -87,15 +88,19 @@ function buildDefaultGlobalSettings(now = Date.now()) {
   };
 }
 
-export async function getGlobalSettingsOrNull(ctx) {
-  return await ctx.db
-    .query('settings')
-    .withIndex('by_key', (q) => q.eq('key', 'global'))
-    .unique();
+export async function getGlobalSettingsOrNull(ctx, workspaceId = undefined) {
+  if (workspaceId) {
+    return await ctx.db
+      .query('settings')
+      .withIndex('by_workspace', (q) => q.eq('workspaceId', workspaceId))
+      .unique();
+  }
+
+  return await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'global')).unique();
 }
 
-export async function getGlobalSettingsOrThrow(ctx) {
-  const existing = await getGlobalSettingsOrNull(ctx);
+export async function getGlobalSettingsOrThrow(ctx, workspaceId = undefined) {
+  const existing = await getGlobalSettingsOrNull(ctx, workspaceId);
   if (existing) {
     return existing;
   }
@@ -106,8 +111,8 @@ export async function getGlobalSettingsOrThrow(ctx) {
   });
 }
 
-export async function ensureGlobalSettingsForMutation(ctx) {
-  const existing = await getGlobalSettingsOrNull(ctx);
+export async function ensureGlobalSettingsForMutation(ctx, workspaceId = undefined) {
+  const existing = await getGlobalSettingsOrNull(ctx, workspaceId);
   if (existing) {
     const patch = {};
 
@@ -132,7 +137,7 @@ export async function ensureGlobalSettingsForMutation(ctx) {
     return existing;
   }
 
-  const _id = await ctx.db.insert('settings', buildDefaultGlobalSettings());
+  const _id = await ctx.db.insert('settings', buildDefaultGlobalSettings(Date.now(), workspaceId));
   const created = await ctx.db.get(_id);
   if (!created) {
     throw new ConvexError({
@@ -165,3 +170,6 @@ export function distanceMeters(lat1, lng1, lat2, lng2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return earthRadius * c;
 }
+    if (workspaceId && existing.workspaceId === undefined) {
+      patch.workspaceId = workspaceId;
+    }

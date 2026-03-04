@@ -9,6 +9,10 @@ import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 export async function GET(req: Request) {
   const workspaceContext = requireWorkspaceApiContextForMigration(req);
   if ("error" in workspaceContext) return workspaceContext.error;
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === "default-global"
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const role = await requireRoleApiFromDb(["superadmin"]);
   if ("error" in role) return role.error;
@@ -29,8 +33,8 @@ export async function GET(req: Request) {
     );
 
   try {
-    await convex.mutation("settings:ensureGlobal", {});
-    const data = await convex.query("settings:get", {});
+    await convex.mutation("settings:ensureGlobal", { workspaceId });
+    const data = await convex.query("settings:get", { workspaceId });
     return Response.json(data);
   } catch (error) {
     return convexErrorResponse(error, "Gagal memuat settings.");
@@ -40,6 +44,10 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   const workspaceContext = requireWorkspaceApiContextForMigration(req);
   if ("error" in workspaceContext) return workspaceContext.error;
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === "default-global"
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const role = await requireRoleApiFromDb(["superadmin"]);
   if ("error" in role) return role.error;
@@ -82,6 +90,7 @@ export async function PATCH(req: Request) {
 
   try {
     await convex.mutation("settings:update", {
+      workspaceId,
       timezone: body.timezone,
       geofenceEnabled: body.geofenceEnabled,
       geofenceRadiusMeters: body.geofenceRadiusMeters,
