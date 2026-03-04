@@ -130,7 +130,7 @@ describe('security auth and rbac routes', () => {
       roleResult: { error: denied },
     });
 
-    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
+    const response = await GET(new Request('http://localhost/api/device/qr-token', { method: 'GET' }));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ code: 'FORBIDDEN', message: 'Forbidden' });
@@ -140,7 +140,7 @@ describe('security auth and rbac routes', () => {
   it('allows /api/device/qr-token for device-qr role', async () => {
     const { GET, mocks } = await setupDeviceQrTokenRoute();
 
-    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
+    const response = await GET(new Request('http://localhost/api/device/qr-token', { method: 'GET' }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ token: 'issued-token', expiresAt: 12345 });
@@ -163,7 +163,7 @@ describe('security auth and rbac routes', () => {
   it('returns 401 on /api/admin/settings when convex token is missing', async () => {
     const { GET, mocks } = await setupAdminSettingsRoute({ convexToken: null });
 
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
@@ -176,7 +176,7 @@ describe('security auth and rbac routes', () => {
   it('loads settings for superadmin using ensureGlobal + get', async () => {
     const { GET, mocks } = await setupAdminSettingsRoute();
 
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
 
     expect(response.status).toBe(200);
     expect(mocks.mutation).toHaveBeenCalledWith('settings:ensureGlobal', {});

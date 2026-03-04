@@ -1,9 +1,17 @@
-import { requireRoleApiFromDb } from '@/lib/auth';
-import { getConvexTokenOrNull } from '@/lib/auth';
+import {
+  getConvexTokenOrNull,
+  requireRoleApiFromDb,
+  requireWorkspaceApiContextForMigration,
+} from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
 import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 
 export async function POST(req: Request) {
+  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  if ('error' in workspaceContext) {
+    return workspaceContext.error;
+  }
+
   const result = await requireRoleApiFromDb(['device-qr']);
   if ('error' in result) {
     return result.error;

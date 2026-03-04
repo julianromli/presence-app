@@ -22,10 +22,14 @@ async function setupScanRoute(options: ScanRouteSetupOptions = {}) {
       })),
   );
   const getAuthedConvexHttpClient = vi.fn(() => ({ mutation }));
+  const requireWorkspaceApiContextForMigration = vi.fn(() => ({
+    workspace: { workspaceId: 'default-global' },
+  }));
 
   vi.doMock('@/lib/auth', () => ({
     requireRoleApiFromDb,
     getConvexTokenOrNull,
+    requireWorkspaceApiContextForMigration,
   }));
   vi.doMock('@/lib/convex-http', () => ({
     getAuthedConvexHttpClient,
