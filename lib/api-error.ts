@@ -24,6 +24,12 @@ const STATUS_BY_CODE: Record<string, number> = {
   DEVICE_HEARTBEAT_STALE: 403,
   WRITE_CONFLICT: 409,
   SETTINGS_NOT_INITIALIZED: 503,
+  WORKSPACE_REQUIRED: 400,
+  WORKSPACE_INVALID: 400,
+  CODE_NOT_FOUND: 400,
+  CODE_INACTIVE: 400,
+  CODE_EXPIRED: 400,
+  ALREADY_MEMBER: 409,
 };
 
 function toConvexErrorData(error: unknown): ConvexErrorData | null {
