@@ -23,10 +23,21 @@ export type DbUserSession = {
   _creationTime: number;
 };
 
+export type WorkspaceApiContext = {
+  workspaceId: string;
+};
+
 function forbiddenResponse() {
   return new Response(
     JSON.stringify({ code: "FORBIDDEN", message: "Forbidden" }),
     { status: 403 },
+  );
+}
+
+function badRequestResponse(code: string, message: string) {
+  return new Response(
+    JSON.stringify({ code, message }),
+    { status: 400 },
   );
 }
 
@@ -44,6 +55,35 @@ export async function getConvexTokenOrNull() {
   }
 
   return (await session.getToken({ template: "convex" })) ?? null;
+}
+
+export function getWorkspaceIdFromRequest(request: Request) {
+  const raw = request.headers.get("x-workspace-id");
+  if (!raw) {
+    return null;
+  }
+  const workspaceId = raw.trim();
+  if (!workspaceId) {
+    return null;
+  }
+  return workspaceId;
+}
+
+export function requireWorkspaceApiContext(request: Request) {
+  const workspaceId = getWorkspaceIdFromRequest(request);
+  if (!workspaceId) {
+    return {
+      error: badRequestResponse("WORKSPACE_REQUIRED", "Missing x-workspace-id header"),
+    };
+  }
+
+  if (!/^[A-Za-z0-9_-]{6,128}$/.test(workspaceId)) {
+    return {
+      error: badRequestResponse("WORKSPACE_INVALID", "Invalid x-workspace-id header"),
+    };
+  }
+
+  return { workspace: { workspaceId } as WorkspaceApiContext };
 }
 
 async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {
