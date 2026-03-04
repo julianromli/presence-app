@@ -11,6 +11,10 @@ export async function POST(req: Request) {
   if ("error" in workspaceContext) {
     return workspaceContext.error;
   }
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === "default-global"
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const roleResult = await requireRoleApiFromDb(["karyawan"]);
   if ("error" in roleResult) {
@@ -59,6 +63,7 @@ export async function POST(req: Request) {
 
   try {
     const response = await convex.mutation("attendance:recordScan", {
+      workspaceId,
       token: body.token,
       ipAddress,
       latitude: body.latitude,

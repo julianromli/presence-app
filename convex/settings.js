@@ -9,6 +9,7 @@ import {
 
 const settingsValidator = v.object({
   key: v.literal("global"),
+  workspaceId: v.optional(v.id("workspaces")),
   timezone: v.string(),
   geofenceEnabled: v.boolean(),
   geofenceRadiusMeters: v.number(),

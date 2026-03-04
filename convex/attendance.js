@@ -24,6 +24,7 @@ import { isDeviceHeartbeatFresh } from "./deviceHeartbeatPolicy";
 const attendanceWithEmployeeValidator = v.object({
   _id: v.id("attendance"),
   _creationTime: v.number(),
+  workspaceId: v.optional(v.id("workspaces")),
   userId: v.id("users"),
   dateKey: v.string(),
   checkInAt: v.optional(v.number()),
@@ -67,6 +68,7 @@ const attendanceSummaryValidator = v.object({
 const scanEventValidator = v.object({
   _id: v.id("scan_events"),
   _creationTime: v.number(),
+  workspaceId: v.optional(v.id("workspaces")),
   actorUserId: v.id("users"),
   actorName: v.string(),
   actorEmail: v.string(),
@@ -119,6 +121,7 @@ async function enrichRowsWithEmployeeName(ctx, rows) {
 async function writeScanEvent(ctx, payload) {
   await ctx.db.insert("scan_events", {
     ...payload,
+    workspaceId: payload.workspaceId,
     createdAt: payload.scannedAt,
   });
 }
@@ -191,7 +194,11 @@ async function processScan(ctx, actor, args, runtime) {
       )
       .unique();
 
-    if (existingEvent && now - existingEvent.scannedAt <= 60_000) {
+    if (
+      existingEvent &&
+      now - existingEvent.scannedAt <= 60_000 &&
+      (!runtime.workspaceId || existingEvent.workspaceId === runtime.workspaceId)
+    ) {
       if (existingEvent.resultStatus === "accepted" && existingEvent.attendanceStatus) {
         return {
           status: existingEvent.attendanceStatus,
@@ -240,13 +247,22 @@ async function processScan(ctx, actor, args, runtime) {
       );
     }
   }
-
-  const existing = await ctx.db
-    .query("attendance")
-    .withIndex("by_user_and_date", (q) =>
-      q.eq("userId", actor._id).eq("dateKey", dateKey),
-    )
-    .unique();
+  const existing = runtime.workspaceId
+    ? await ctx.db
+        .query("attendance")
+        .withIndex("by_workspace_user_date", (q) =>
+          q
+            .eq("workspaceId", runtime.workspaceId)
+            .eq("userId", actor._id)
+            .eq("dateKey", dateKey),
+        )
+        .unique()
+    : await ctx.db
+        .query("attendance")
+        .withIndex("by_user_and_date", (q) =>
+          q.eq("userId", actor._id).eq("dateKey", dateKey),
+        )
+        .unique();
 
   const cooldownMs = settings.scanCooldownSeconds * 1000;
   if (existing?.lastScanAt && now - existing.lastScanAt < cooldownMs) {
@@ -255,6 +271,7 @@ async function processScan(ctx, actor, args, runtime) {
 
   if (!existing) {
     await ctx.db.insert("attendance", {
+      workspaceId: runtime.workspaceId,
       userId: actor._id,
       dateKey,
       checkInAt: now,
@@ -304,14 +321,24 @@ async function processScan(ctx, actor, args, runtime) {
 }
 
 export const listByDate = query({
-  args: { dateKey: v.string() },
+  args: {
+    dateKey: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: v.array(attendanceWithEmployeeValidator),
   handler: async (ctx, args) => {
     await requireRole(ctx, ["admin", "superadmin"]);
-    const rows = await ctx.db
-      .query("attendance")
-      .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
-      .collect();
+    const rows = args.workspaceId
+      ? await ctx.db
+          .query("attendance")
+          .withIndex("by_workspace_and_date_user", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("dateKey", args.dateKey),
+          )
+          .collect()
+      : await ctx.db
+          .query("attendance")
+          .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
+          .collect();
     return await enrichRowsWithEmployeeName(ctx, rows);
   },
 });
@@ -319,6 +346,7 @@ export const listByDate = query({
 export const listByDatePaginated = query({
   args: {
     dateKey: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
     edited: v.optional(v.boolean()),
     employeeName: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
@@ -328,15 +356,21 @@ export const listByDatePaginated = query({
     await requireRole(ctx, ["admin", "superadmin"]);
 
     const attendanceQuery =
-      args.edited === undefined
+      args.workspaceId !== undefined
         ? ctx.db
             .query("attendance")
-            .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
-        : ctx.db
-            .query("attendance")
-            .withIndex("by_date_and_edited", (q) =>
-              q.eq("dateKey", args.dateKey).eq("edited", args.edited),
-            );
+            .withIndex("by_workspace_and_date_user", (q) =>
+              q.eq("workspaceId", args.workspaceId).eq("dateKey", args.dateKey),
+            )
+        : args.edited === undefined
+          ? ctx.db
+              .query("attendance")
+              .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
+          : ctx.db
+              .query("attendance")
+              .withIndex("by_date_and_edited", (q) =>
+                q.eq("dateKey", args.dateKey).eq("edited", args.edited),
+              );
 
     const hasEmployeeNameFilter = Boolean(args.employeeName?.trim().length);
 
@@ -360,7 +394,18 @@ export const listByDatePaginated = query({
     });
 
     const summaryRows =
-      args.edited === undefined
+      args.workspaceId !== undefined
+        ? (
+            await ctx.db
+              .query("attendance")
+              .withIndex("by_workspace_and_date_user", (q) =>
+                q.eq("workspaceId", args.workspaceId).eq("dateKey", args.dateKey),
+              )
+              .collect()
+          ).filter((row) =>
+            args.edited === undefined ? true : row.edited === args.edited,
+          )
+        : args.edited === undefined
         ? await ctx.db
             .query("attendance")
             .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
@@ -383,15 +428,25 @@ export const listByDatePaginated = query({
 });
 
 export const getSummaryByDate = query({
-  args: { dateKey: v.string() },
+  args: {
+    dateKey: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
+  },
   returns: attendanceSummaryValidator,
   handler: async (ctx, args) => {
     await requireRole(ctx, ["admin", "superadmin"]);
 
-    const rows = await ctx.db
-      .query("attendance")
-      .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
-      .collect();
+    const rows = args.workspaceId
+      ? await ctx.db
+          .query("attendance")
+          .withIndex("by_workspace_and_date_user", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("dateKey", args.dateKey),
+          )
+          .collect()
+      : await ctx.db
+          .query("attendance")
+          .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
+          .collect();
 
     return summarizeAttendanceRows(rows);
   },
@@ -401,15 +456,28 @@ export const listByDateRangeUnsafe = internalQuery({
   args: {
     startDateKey: v.string(),
     endDateKey: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
   },
   returns: v.array(attendanceWithEmployeeValidator),
   handler: async (ctx, args) => {
-    const rows = await ctx.db
-      .query("attendance")
-      .withIndex("by_date_and_user", (q) =>
-        q.gte("dateKey", args.startDateKey).lte("dateKey", args.endDateKey),
-      )
-      .collect();
+    const rows =
+      args.workspaceId === undefined
+        ? await ctx.db
+            .query("attendance")
+            .withIndex("by_date_and_user", (q) =>
+              q.gte("dateKey", args.startDateKey).lte("dateKey", args.endDateKey),
+            )
+            .collect()
+        : (
+            await ctx.db
+              .query("attendance")
+              .withIndex("by_workspace_and_date_user", (q) =>
+                q.eq("workspaceId", args.workspaceId),
+              )
+              .collect()
+          ).filter(
+            (row) => row.dateKey >= args.startDateKey && row.dateKey <= args.endDateKey,
+          );
     return await enrichRowsWithEmployeeName(ctx, rows);
   },
 });
@@ -422,6 +490,7 @@ export const recordScan = mutation({
     longitude: v.optional(v.number()),
     accuracyMeters: v.optional(v.number()),
     idempotencyKey: v.optional(v.string()),
+    workspaceId: v.optional(v.id("workspaces")),
   },
   returns: v.object({
     status: v.union(v.literal("check-in"), v.literal("check-out")),
@@ -435,7 +504,7 @@ export const recordScan = mutation({
   handler: async (ctx, args) => {
     const actor = await getCurrentDbUser(ctx);
     const now = Date.now();
-    const settings = await ensureGlobalSettingsForMutation(ctx);
+    const settings = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
     const dateKey = buildDateKey(now, settings.timezone);
     const idempotencyKey = args.idempotencyKey?.trim() || "";
 
@@ -447,11 +516,12 @@ export const recordScan = mutation({
           ...args,
           idempotencyKey,
         },
-        { settings, now, dateKey },
+        { settings, now, dateKey, workspaceId: args.workspaceId },
       );
 
       await writeScanEvent(ctx, {
         actorUserId: actor._id,
+        workspaceId: args.workspaceId,
         deviceUserId: result.sourceDeviceId,
         dateKey: result.dateKey,
         resultStatus: "accepted",
@@ -487,6 +557,7 @@ export const recordScan = mutation({
 
       await writeScanEvent(ctx, {
         actorUserId: actor._id,
+        workspaceId: args.workspaceId,
         deviceUserId: undefined,
         dateKey,
         resultStatus: "rejected",
@@ -509,6 +580,7 @@ export const recordScan = mutation({
 export const listScanEventsByDate = query({
   args: {
     dateKey: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
     status: v.optional(v.union(v.literal("accepted"), v.literal("rejected"))),
     limit: v.optional(v.number()),
   },
@@ -520,11 +592,19 @@ export const listScanEventsByDate = query({
     await requireRole(ctx, ["admin", "superadmin"]);
     const limit = Math.min(Math.max(Math.trunc(args.limit ?? 60), 1), 200);
 
-    const baseRows = await ctx.db
-      .query("scan_events")
-      .withIndex("by_date_and_status", (q) => q.eq("dateKey", args.dateKey))
-      .order("desc")
-      .take(500);
+    const baseRows = args.workspaceId
+      ? await ctx.db
+          .query("scan_events")
+          .withIndex("by_workspace_date_status", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("dateKey", args.dateKey),
+          )
+          .order("desc")
+          .take(500)
+      : await ctx.db
+          .query("scan_events")
+          .withIndex("by_date_and_status", (q) => q.eq("dateKey", args.dateKey))
+          .order("desc")
+          .take(500);
 
     const filtered =
       args.status === undefined
@@ -571,6 +651,7 @@ export const editAttendance = mutation({
     checkInAt: v.optional(v.number()),
     checkOutAt: v.optional(v.number()),
     reason: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -581,6 +662,12 @@ export const editAttendance = mutation({
       throw new ConvexError({
         code: "NOT_FOUND",
         message: "Data absensi tidak ditemukan",
+      });
+    }
+    if (args.workspaceId && row.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "Data absensi bukan milik workspace aktif.",
       });
     }
 
@@ -614,6 +701,7 @@ export const editAttendance = mutation({
       action: "attendance.edited",
       targetType: "attendance",
       targetId: String(args.attendanceId),
+      workspaceId: row.workspaceId,
       payload: {
         before: {
           checkInAt: row.checkInAt,
