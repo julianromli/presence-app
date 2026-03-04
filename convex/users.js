@@ -239,6 +239,7 @@ export const upsertFromClerk = mutation({
 
 export const listPaginated = query({
   args: {
+    workspaceId: v.optional(v.id("workspaces")),
     q: v.optional(v.string()),
     role: v.optional(roleValidator),
     isActive: v.optional(v.boolean()),
@@ -250,6 +251,61 @@ export const listPaginated = query({
   }),
   handler: async (ctx, args) => {
     await requireRole(ctx, ["admin", "superadmin"]);
+
+    if (args.workspaceId !== undefined) {
+      const memberships = await ctx.db
+        .query("workspace_members")
+        .withIndex("by_workspace_role_active", (q) =>
+          q.eq("workspaceId", args.workspaceId),
+        )
+        .collect();
+
+      const scopedMemberships = memberships.filter((membership) => {
+        if (args.role !== undefined && membership.role !== args.role) {
+          return false;
+        }
+        if (args.isActive !== undefined && membership.isActive !== args.isActive) {
+          return false;
+        }
+        return true;
+      });
+
+      const userIds = [...new Set(scopedMemberships.map((item) => String(item.userId)))];
+      const userDocs = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+      const userById = new Map(userIds.map((id, idx) => [id, userDocs[idx]]));
+
+      const rows = scopedMemberships
+        .map((membership) => {
+          const user = userById.get(String(membership.userId));
+          if (!user) {
+            return null;
+          }
+          return {
+            _id: user._id,
+            _creationTime: user._creationTime,
+            clerkUserId: user.clerkUserId,
+            name: user.name,
+            email: user.email,
+            role: membership.role,
+            isActive: membership.isActive,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+          };
+        })
+        .filter((item) => item !== null);
+
+      const filteredRows = filterUsers(rows, {
+        q: args.q,
+        role: args.role,
+        isActive: args.isActive,
+      });
+      const rowsPage = paginateFilteredRows(filteredRows, args.paginationOpts);
+
+      return {
+        rowsPage,
+        summary: summarizeUsers(filteredRows),
+      };
+    }
 
     const hasSearch = args.q?.trim().length;
     const queryBuilder = buildUsersQueryBuilder(ctx, args).order("desc");
@@ -304,6 +360,7 @@ export const listPaginated = query({
 
 export const updateAdminManagedFields = mutation({
   args: {
+    workspaceId: v.optional(v.id("workspaces")),
     userId: v.id("users"),
     role: v.optional(roleValidator),
     isActive: v.optional(v.boolean()),
@@ -311,6 +368,101 @@ export const updateAdminManagedFields = mutation({
   returns: userRowValidator,
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, ["admin", "superadmin"]);
+
+    if (args.workspaceId !== undefined) {
+      const targetUser = await ctx.db.get(args.userId);
+      if (!targetUser) {
+        throw new ConvexError({
+          code: "NOT_FOUND",
+          message: "User tidak ditemukan.",
+        });
+      }
+
+      const membership = await ctx.db
+        .query("workspace_members")
+        .withIndex("by_workspace_and_user", (q) =>
+          q.eq("workspaceId", args.workspaceId).eq("userId", args.userId),
+        )
+        .unique();
+
+      if (!membership) {
+        throw new ConvexError({
+          code: "NOT_FOUND",
+          message: "Membership workspace tidak ditemukan.",
+        });
+      }
+
+      if (args.role !== undefined && actor.role !== "superadmin") {
+        throw new ConvexError({
+          code: "FORBIDDEN",
+          message: "Hanya superadmin yang dapat mengubah role.",
+        });
+      }
+
+      if (args.role === undefined && args.isActive === undefined) {
+        throw new ConvexError({
+          code: "VALIDATION_ERROR",
+          message: "Tidak ada field yang diubah.",
+        });
+      }
+
+      assertAdminManagedTargetPolicy(actor.role, membership.role, args.isActive);
+      assertSelfDeactivate(actor._id, membership.userId, args.isActive);
+
+      const nextRole = args.role ?? membership.role;
+      const nextActive = args.isActive ?? membership.isActive;
+      const roleChanged = nextRole !== membership.role;
+      const activeChanged = nextActive !== membership.isActive;
+      if (!roleChanged && !activeChanged) {
+        return {
+          _id: targetUser._id,
+          _creationTime: targetUser._creationTime,
+          clerkUserId: targetUser.clerkUserId,
+          name: targetUser.name,
+          email: targetUser.email,
+          role: membership.role,
+          isActive: membership.isActive,
+          createdAt: targetUser.createdAt,
+          updatedAt: targetUser.updatedAt,
+        };
+      }
+
+      const now = Date.now();
+      const patch = { updatedAt: now };
+      if (roleChanged) {
+        patch.role = nextRole;
+      }
+      if (activeChanged) {
+        patch.isActive = nextActive;
+      }
+      await ctx.db.patch(membership._id, patch);
+
+      await ctx.db.insert("audit_logs", {
+        actorUserId: actor._id,
+        workspaceId: args.workspaceId,
+        action: "workspace_members.admin_managed_fields.updated",
+        targetType: "workspace_members",
+        targetId: String(membership._id),
+        payload: {
+          role: roleChanged ? nextRole : undefined,
+          isActive: activeChanged ? nextActive : undefined,
+        },
+        createdAt: now,
+      });
+
+      return {
+        _id: targetUser._id,
+        _creationTime: targetUser._creationTime,
+        clerkUserId: targetUser.clerkUserId,
+        name: targetUser.name,
+        email: targetUser.email,
+        role: nextRole,
+        isActive: nextActive,
+        createdAt: targetUser.createdAt,
+        updatedAt: targetUser.updatedAt,
+      };
+    }
+
     const target = await ctx.db.get(args.userId);
 
     if (!target) {

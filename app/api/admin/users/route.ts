@@ -41,6 +41,10 @@ export async function GET(req: Request) {
   if ('error' in workspaceContext) {
     return workspaceContext.error;
   }
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === 'default-global'
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const role = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in role) return role.error;
@@ -73,6 +77,7 @@ export async function GET(req: Request) {
       };
       summary: AdminUsersPage['summary'];
     }>('users:listPaginated', {
+      workspaceId,
       q: query.q,
       role: query.role,
       isActive: query.isActive,
@@ -105,6 +110,10 @@ export async function PATCH(req: Request) {
   if ('error' in workspaceContext) {
     return workspaceContext.error;
   }
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === 'default-global'
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const roleCheck = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in roleCheck) return roleCheck.error;
@@ -141,6 +150,7 @@ export async function PATCH(req: Request) {
 
   try {
     await convex.mutation('users:updateAdminManagedFields', {
+      workspaceId,
       userId: payload.userId,
       role: payload.role,
       isActive: payload.isActive,
