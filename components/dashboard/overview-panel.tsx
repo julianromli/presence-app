@@ -68,25 +68,12 @@ export function OverviewPanel() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const nextPayload = await fetchOverviewPayload();
-        if (cancelled) return;
-        setPayload(nextPayload);
-        setStatus(nextPayload.recentActivity.length === 0 ? 'empty' : 'success');
-      } catch (parsedError) {
-        if (cancelled) return;
-        setError(parsedError as ApiErrorInfo);
-        setStatus('error');
-      }
-    };
+    const frameId = requestAnimationFrame(() => {
+      void loadOverview();
+    });
 
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return () => cancelAnimationFrame(frameId);
+  }, [loadOverview]);
 
   useEffect(() => {
     const handleRefresh = () => {
@@ -272,4 +259,3 @@ export function OverviewPanel() {
     </div>
   );
 }
-

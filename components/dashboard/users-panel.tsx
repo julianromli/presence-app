@@ -41,7 +41,8 @@ type UsersPanelProps = {
 
 export function UsersPanel({ viewerRole }: UsersPanelProps) {
   const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
-  const [status, setStatus] = useState<PanelStatus>('loading');
+  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
+  const [status, setStatus] = useState<PanelStatus>('idle');
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [summary, setSummary] = useState<AdminUsersPage['summary']>({
     total: 0,
@@ -55,96 +56,89 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
   const [notice, setNotice] = useState<InlineNotice | null>(null);
 
   const hasFilters = useMemo(
-    () => filters.q.trim().length > 0 || filters.role !== 'all' || filters.isActive !== 'all',
-    [filters],
+    () =>
+      appliedFilters.q.trim().length > 0 ||
+      appliedFilters.role !== 'all' ||
+      appliedFilters.isActive !== 'all',
+    [appliedFilters],
   );
 
-  const loadUsers = useCallback(async (
-    opts: { append: boolean; cursor: string | null; filtersOverride?: UsersPanelFilters } = {
-      append: false,
-      cursor: null,
-    },
-  ) => {
-    const activeFilters = resolveUsersFilters(filters, opts.filtersOverride);
+  const loadUsers = useCallback(
+    async (
+      opts: {
+        append: boolean;
+        cursor: string | null;
+        activeFilters?: UsersPanelFilters;
+      } = {
+        append: false,
+        cursor: null,
+      },
+    ) => {
+      const activeFilters = resolveUsersFilters(DEFAULT_USERS_FILTERS, opts.activeFilters);
 
-    if (!opts.append) {
-      setStatus('loading');
-      setError(null);
-    }
-    setLoading(true);
+      if (!opts.append) {
+        setStatus('loading');
+        setError(null);
+      }
+      setLoading(true);
 
-    const res = await fetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      const parsed = await parseApiErrorResponse(res, 'Gagal memuat data user.');
-      setError(parsed);
-      setStatus('error');
-      setLoading(false);
-      return;
-    }
-
-    const data = (await res.json()) as AdminUsersPage;
-    let mergedCount = 0;
-
-    setRows((prev) => {
-      const nextRows = opts.append ? [...prev, ...data.rows] : data.rows;
-      mergedCount = nextRows.length;
-      return nextRows;
-    });
-    setSummary(data.summary);
-    setNextCursor(data.pageInfo.isDone ? null : data.pageInfo.continueCursor);
-    setIsLastPage(data.pageInfo.isDone);
-    setStatus(mergedCount === 0 ? 'empty' : 'success');
-    setLoading(false);
-  }, [filters]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      const res = await fetch(`/api/admin/users?${buildUsersQueryString(DEFAULT_USERS_FILTERS, null)}`, {
+      const res = await fetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
         cache: 'no-store',
       });
 
-      if (cancelled) return;
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat data user.');
-        if (cancelled) return;
         setError(parsed);
         setStatus('error');
+        setLoading(false);
         return;
       }
 
       const data = (await res.json()) as AdminUsersPage;
-      if (cancelled) return;
-      setRows(data.rows);
+      let mergedCount = 0;
+
+      setRows((prev) => {
+        const nextRows = opts.append ? [...prev, ...data.rows] : data.rows;
+        mergedCount = nextRows.length;
+        return nextRows;
+      });
       setSummary(data.summary);
       setNextCursor(data.pageInfo.isDone ? null : data.pageInfo.continueCursor);
       setIsLastPage(data.pageInfo.isDone);
-      setStatus(data.rows.length === 0 ? 'empty' : 'success');
-    };
+      setStatus(mergedCount === 0 ? 'empty' : 'success');
+      setLoading(false);
+    },
+    [],
+  );
 
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => {
+      void loadUsers({
+        append: false,
+        cursor: null,
+        activeFilters: DEFAULT_USERS_FILTERS,
+      });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [loadUsers]);
 
   useEffect(() => {
     const handleRefresh = () => {
-      void loadUsers({ append: false, cursor: null });
+      void loadUsers({ append: false, cursor: null, activeFilters: appliedFilters });
     };
 
     window.addEventListener('dashboard:refresh', handleRefresh as EventListener);
     return () => {
       window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
     };
-  }, [loadUsers]);
+  }, [loadUsers, appliedFilters]);
 
   const handleFilterSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    await loadUsers({ append: false, cursor: null });
+    const nextFilters = resolveUsersFilters(filters);
+    setAppliedFilters(nextFilters);
+    await loadUsers({ append: false, cursor: null, activeFilters: nextFilters });
   };
 
   const updateUser = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
@@ -161,7 +155,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
     }
 
     setNotice({ tone: 'success', text: 'Perubahan data user berhasil disimpan.' });
-    await loadUsers({ append: false, cursor: null });
+    await loadUsers({ append: false, cursor: null, activeFilters: appliedFilters });
   };
 
   return (
@@ -249,7 +243,8 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
               onClick={() => {
                 const resetFilters = { ...DEFAULT_USERS_FILTERS };
                 setFilters(resetFilters);
-                void loadUsers({ append: false, cursor: null, filtersOverride: resetFilters });
+                setAppliedFilters(resetFilters);
+                void loadUsers({ append: false, cursor: null, activeFilters: resetFilters });
               }}
             >
               Reset
@@ -297,68 +292,68 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                   </td>
                 </tr>
               ) : (
-              rows.map((row) => {
-                const canToggleStatus =
-                  viewerRole === 'superadmin' || (row.role !== 'admin' && row.role !== 'superadmin');
-                return (
-                  <tr key={row._id} className="border-t border-slate-100">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{row.name}</p>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{row.email}</td>
-                    <td className="px-4 py-3">
-                      {viewerRole === 'superadmin' ? (
-                        <select
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs"
-                          value={row.role}
-                          onChange={(event) =>
+                rows.map((row) => {
+                  const canToggleStatus =
+                    viewerRole === 'superadmin' || (row.role !== 'admin' && row.role !== 'superadmin');
+                  return (
+                    <tr key={row._id} className="border-t border-slate-100">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-900">{row.name}</p>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{row.email}</td>
+                      <td className="px-4 py-3">
+                        {viewerRole === 'superadmin' ? (
+                          <select
+                            className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs"
+                            value={row.role}
+                            onChange={(event) =>
+                              void updateUser({
+                                userId: row._id,
+                                role: event.target.value as AdminUserRow['role'],
+                              })
+                            }
+                          >
+                            <option value="superadmin">superadmin</option>
+                            <option value="admin">admin</option>
+                            <option value="karyawan">karyawan</option>
+                            <option value="device-qr">device-qr</option>
+                          </select>
+                        ) : (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
+                            {row.role}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${
+                            row.isActive
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-rose-50 text-rose-700'
+                          }`}
+                        >
+                          {row.isActive ? 'Aktif' : 'Non-aktif'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!canToggleStatus}
+                          onClick={() =>
                             void updateUser({
                               userId: row._id,
-                              role: event.target.value as AdminUserRow['role'],
+                              isActive: !row.isActive,
                             })
                           }
                         >
-                          <option value="superadmin">superadmin</option>
-                          <option value="admin">admin</option>
-                          <option value="karyawan">karyawan</option>
-                          <option value="device-qr">device-qr</option>
-                        </select>
-                      ) : (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
-                          {row.role}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          row.isActive
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-rose-50 text-rose-700'
-                        }`}
-                      >
-                        {row.isActive ? 'Aktif' : 'Non-aktif'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={!canToggleStatus}
-                        onClick={() =>
-                          void updateUser({
-                            userId: row._id,
-                            isActive: !row.isActive,
-                          })
-                        }
-                      >
-                        {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })
+                          {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -369,7 +364,13 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => void loadUsers({ append: true, cursor: nextCursor })}
+              onClick={() =>
+                void loadUsers({
+                  append: true,
+                  cursor: nextCursor,
+                  activeFilters: appliedFilters,
+                })
+              }
               disabled={loading || !nextCursor}
             >
               {loading ? 'Memuat...' : 'Muat Lagi'}
