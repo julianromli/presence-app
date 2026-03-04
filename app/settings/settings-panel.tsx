@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { workspaceFetch } from '@/lib/workspace-client';
 
 type SettingsPayload = {
   timezone: string;
@@ -36,7 +37,7 @@ export function SettingsPanel() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+      const res = await workspaceFetch('/api/admin/settings', { cache: 'no-store' });
       if (!res.ok) return;
       const payload = await res.json();
       setData({
@@ -65,7 +66,7 @@ export function SettingsPanel() {
       .map((ip) => ip.trim())
       .filter(Boolean);
 
-    const res = await fetch('/api/admin/settings', {
+    const res = await workspaceFetch('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, whitelistIps }),

@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseApiErrorResponse } from '@/lib/client-error';
+import { workspaceFetch } from '@/lib/workspace-client';
 
 type SettingsPayload = {
   timezone: string;
@@ -53,7 +54,7 @@ export function GeofencePanel() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+      const res = await workspaceFetch('/api/admin/settings', { cache: 'no-store' });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat data geofence.');
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
@@ -80,7 +81,7 @@ export function GeofencePanel() {
       .map((ip) => ip.trim())
       .filter(Boolean);
 
-    const res = await fetch('/api/admin/settings', {
+    const res = await workspaceFetch('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, whitelistIps }),

@@ -9,6 +9,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { workspaceFetch } from '@/lib/workspace-client';
 import { cn } from '@/lib/utils';
 
 type ScanResponse = {
@@ -289,7 +290,7 @@ export function ScanPanel() {
     location: LocationPayload,
     idempotencyKey: string,
   ) => {
-    return await fetch('/api/scan', {
+    return await workspaceFetch('/api/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

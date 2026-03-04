@@ -12,6 +12,7 @@ import {
   resolveUsersFilters,
   type UsersPanelFilters,
 } from '@/lib/users-filters';
+import { workspaceFetch } from '@/lib/workspace-client';
 import type { AdminUsersPage, AdminUserRow } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
@@ -82,7 +83,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
       }
       setLoading(true);
 
-      const res = await fetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
+      const res = await workspaceFetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
         cache: 'no-store',
       });
 
@@ -142,7 +143,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
   };
 
   const updateUser = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
-    const res = await fetch('/api/admin/users', {
+    const res = await workspaceFetch('/api/admin/users', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

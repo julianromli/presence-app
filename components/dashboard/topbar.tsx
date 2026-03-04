@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { parseApiErrorResponse } from '@/lib/client-error';
+import { setActiveWorkspaceIdInBrowser, workspaceFetch } from '@/lib/workspace-client';
 
 const titleByPathname: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -87,7 +88,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     const loadMemberships = async () => {
       setWorkspaceLoading(true);
       try {
-        const res = await fetch('/api/workspaces/memberships', { cache: 'no-store' });
+        const res = await workspaceFetch('/api/workspaces/memberships', { cache: 'no-store' });
         if (!res.ok) {
           return;
         }
@@ -119,7 +120,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     setBusy('refresh');
     setNotice(null);
     try {
-      const res = await fetch('/api/admin/dashboard/overview', { cache: 'no-store' });
+      const res = await workspaceFetch('/api/admin/dashboard/overview', { cache: 'no-store' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal menyegarkan data dashboard.');
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
@@ -141,7 +142,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     setWorkspaceSwitching(true);
     setNotice(null);
     try {
-      const res = await fetch('/api/workspaces/active', {
+      const res = await workspaceFetch('/api/workspaces/active', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ workspaceId: nextWorkspaceId }),
@@ -153,6 +154,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       }
 
       setActiveWorkspaceId(nextWorkspaceId);
+      setActiveWorkspaceIdInBrowser(nextWorkspaceId);
       window.dispatchEvent(
         new CustomEvent('workspace:changed', {
           detail: { workspaceId: nextWorkspaceId },
@@ -176,7 +178,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     setBusy('report');
     setNotice(null);
     try {
-      const res = await fetch('/api/admin/reports', { method: 'POST' });
+      const res = await workspaceFetch('/api/admin/reports', { method: 'POST' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal memproses trigger report mingguan.');
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
@@ -195,7 +197,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     setBusy('export');
     setNotice(null);
     try {
-      const res = await fetch('/api/admin/reports', { cache: 'no-store' });
+      const res = await workspaceFetch('/api/admin/reports', { cache: 'no-store' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal memuat daftar report mingguan.');
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });

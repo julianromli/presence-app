@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
+import { workspaceFetch } from '@/lib/workspace-client';
 import type { DashboardOverviewPayload } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
@@ -39,7 +40,7 @@ function dayLabelFromDateKey(dateKey: string) {
 }
 
 async function fetchOverviewPayload() {
-  const res = await fetch('/api/admin/dashboard/overview', { cache: 'no-store' });
+  const res = await workspaceFetch('/api/admin/dashboard/overview', { cache: 'no-store' });
   if (!res.ok) {
     const parsed = await parseApiErrorResponse(res, 'Gagal memuat ringkasan dashboard.');
     throw parsed;

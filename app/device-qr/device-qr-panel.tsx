@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { workspaceFetch } from '@/lib/workspace-client';
 
 type DeviceQrTokenResponse = {
   token: string;
@@ -27,7 +28,7 @@ export function DeviceQrPanel() {
     let active = true;
 
     const loadToken = async () => {
-      const res = await fetch('/api/device/qr-token', { cache: 'no-store' });
+      const res = await workspaceFetch('/api/device/qr-token', { cache: 'no-store' });
       if (!res.ok) return;
       const data = (await res.json()) as DeviceQrTokenResponse;
       if (!active) return;
@@ -71,7 +72,7 @@ export function DeviceQrPanel() {
   useEffect(() => {
     let mounted = true;
     const sendHeartbeat = async () => {
-      const res = await fetch('/api/device/ping', { method: 'POST' });
+      const res = await workspaceFetch('/api/device/ping', { method: 'POST' });
       if (!mounted) return;
       setHeartbeat(res.ok ? 'ok' : 'error');
     };

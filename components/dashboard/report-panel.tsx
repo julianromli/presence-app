@@ -13,6 +13,7 @@ import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
 import { getLocalDateKey } from "@/lib/date-key";
 import { cn } from "@/lib/utils";
+import { workspaceFetch } from "@/lib/workspace-client";
 
 type AttendanceRow = {
   _id: string;
@@ -261,7 +262,7 @@ export function ReportPanel() {
       setIsLoadingAttendance(true);
 
       try {
-        const res = await fetch(
+        const res = await workspaceFetch(
           `/api/admin/attendance?${buildAttendanceParams(opts.cursor)}`,
           {
             cache: "no-store",
@@ -317,7 +318,7 @@ export function ReportPanel() {
       setReportsError(null);
     }
 
-    const res = await fetch("/api/admin/reports", { cache: "no-store" });
+    const res = await workspaceFetch("/api/admin/reports", { cache: "no-store" });
     if (!res.ok) {
       const error = await parseApiErrorResponse(
         res,
@@ -339,7 +340,7 @@ export function ReportPanel() {
 
   const loadScanEvents = useCallback(async () => {
     setScanEventsStatus("loading");
-    const res = await fetch(
+    const res = await workspaceFetch(
       `/api/admin/attendance/scan-events?dateKey=${encodeURIComponent(dateKey)}&limit=50`,
       { cache: "no-store" },
     );
@@ -356,7 +357,7 @@ export function ReportPanel() {
 
   const loadDeviceHeartbeat = useCallback(async () => {
     setDeviceStatus("loading");
-    const res = await fetch("/api/admin/device/heartbeat", {
+    const res = await workspaceFetch("/api/admin/device/heartbeat", {
       cache: "no-store",
     });
     if (!res.ok) {
@@ -371,7 +372,7 @@ export function ReportPanel() {
 
   const triggerWeeklyReport = async () => {
     setNotice({ tone: "info", text: "Memproses report mingguan..." });
-    const res = await fetch("/api/admin/reports", { method: "POST" });
+    const res = await workspaceFetch("/api/admin/reports", { method: "POST" });
     if (!res.ok) {
       const error = await parseApiErrorResponse(
         res,
@@ -475,7 +476,7 @@ export function ReportPanel() {
     }
 
     setRowActionLoading(true);
-    const res = await fetch("/api/admin/attendance/edit", {
+    const res = await workspaceFetch("/api/admin/attendance/edit", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
