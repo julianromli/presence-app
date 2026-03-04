@@ -1,7 +1,11 @@
 import { ConvexError } from 'convex/values';
 
 import type { AppRole } from '@/lib/auth';
-import { getConvexTokenOrNull, requireRoleApiFromDb } from '@/lib/auth';
+import {
+  getConvexTokenOrNull,
+  requireRoleApiFromDb,
+  requireWorkspaceApiContextForMigration,
+} from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
 import { normalizeUsersListQuery, parseUsersPatchBody } from '@/lib/admin-users';
 import { getAuthedConvexHttpClient } from '@/lib/convex-http';
@@ -33,6 +37,11 @@ function responseFromParserError(error: unknown) {
 }
 
 export async function GET(req: Request) {
+  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  if ('error' in workspaceContext) {
+    return workspaceContext.error;
+  }
+
   const role = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in role) return role.error;
 
@@ -92,6 +101,11 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  if ('error' in workspaceContext) {
+    return workspaceContext.error;
+  }
+
   const roleCheck = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in roleCheck) return roleCheck.error;
   if (!roleCheck.session.role) {

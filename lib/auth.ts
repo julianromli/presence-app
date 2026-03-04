@@ -86,6 +86,25 @@ export function requireWorkspaceApiContext(request: Request) {
   return { workspace: { workspaceId } as WorkspaceApiContext };
 }
 
+export function requireWorkspaceApiContextForMigration(request: Request) {
+  const fromHeader = getWorkspaceIdFromRequest(request);
+  if (fromHeader) {
+    if (!/^[A-Za-z0-9_-]{6,128}$/.test(fromHeader)) {
+      return {
+        error: badRequestResponse("WORKSPACE_INVALID", "Invalid x-workspace-id header"),
+      };
+    }
+    return { workspace: { workspaceId: fromHeader } as WorkspaceApiContext };
+  }
+
+  const fallbackWorkspaceId =
+    process.env.DEFAULT_WORKSPACE_ID ??
+    process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID ??
+    "default-global";
+
+  return { workspace: { workspaceId: fallbackWorkspaceId } as WorkspaceApiContext };
+}
+
 async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {
   const token = await getConvexTokenOrNull();
   if (!token) {
