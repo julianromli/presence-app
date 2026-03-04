@@ -11,6 +11,10 @@ import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 export async function GET(req: Request) {
   const workspaceContext = requireWorkspaceApiContextForMigration(req);
   if ("error" in workspaceContext) return workspaceContext.error;
+  const workspaceId =
+    workspaceContext.workspace.workspaceId === "default-global"
+      ? undefined
+      : workspaceContext.workspace.workspaceId;
 
   const role = await requireRoleApiFromDb(["admin", "superadmin"]);
   if ("error" in role) return role.error;
@@ -42,6 +46,7 @@ export async function GET(req: Request) {
       "reports:getDownloadUrl",
       {
         reportId,
+        workspaceId,
       },
     );
 

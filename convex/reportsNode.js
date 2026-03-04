@@ -57,6 +57,7 @@ export const runWeeklyReport = internalAction({
   args: {
     triggerSource: v.union(v.literal("manual"), v.literal("cron")),
     triggeredBy: v.optional(v.id("users")),
+    workspaceId: v.optional(v.id("workspaces")),
   },
   returns: v.object({
     weekKey: v.string(),
@@ -68,8 +69,12 @@ export const runWeeklyReport = internalAction({
     skipped: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await ctx.runMutation(internal.settings.ensureGlobalInternal, {});
-    const settings = await ctx.runQuery(internal.settings.getGlobalUnsafe, {});
+    await ctx.runMutation(internal.settings.ensureGlobalInternal, {
+      workspaceId: args.workspaceId,
+    });
+    const settings = await ctx.runQuery(internal.settings.getGlobalUnsafe, {
+      workspaceId: args.workspaceId,
+    });
     const timezone = normalizeTimezone(settings.timezone);
     const nowTs = Date.now();
     const { mondayKey, sundayKey } = getWeekRangeDateKeys(nowTs, timezone);
@@ -83,6 +88,7 @@ export const runWeeklyReport = internalAction({
       endDate,
       triggerSource: args.triggerSource,
       triggeredBy: args.triggeredBy,
+      workspaceId: args.workspaceId,
     });
 
     if (!begin.runGeneration) {
@@ -95,6 +101,7 @@ export const runWeeklyReport = internalAction({
         {
           startDateKey: startDate,
           endDateKey: endDate,
+          workspaceId: args.workspaceId,
         },
       );
 
@@ -139,6 +146,7 @@ export const runWeeklyReport = internalAction({
         durationMs: Math.max(0, finishedAt - begin.startedAt),
         triggerSource: args.triggerSource,
         triggeredBy: args.triggeredBy,
+        workspaceId: args.workspaceId,
         lastTriggeredAt: finishedAt,
         attempts: begin.attempts,
       });
@@ -157,6 +165,7 @@ export const runWeeklyReport = internalAction({
         durationMs: Math.max(0, finishedAt - begin.startedAt),
         triggerSource: args.triggerSource,
         triggeredBy: args.triggeredBy,
+        workspaceId: args.workspaceId,
         lastTriggeredAt: finishedAt,
         attempts: begin.attempts,
       });
