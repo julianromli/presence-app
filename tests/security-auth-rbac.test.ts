@@ -20,10 +20,14 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   );
   const mutation = options.convexClient?.mutation ?? vi.fn(async () => ({ token: 'issued-token', expiresAt: 12345 }));
   const getAuthedConvexHttpClient = vi.fn(() => (options.convexClient === null ? null : { mutation }));
+  const requireWorkspaceApiContextForMigration = vi.fn(() => ({
+    workspace: { workspaceId: 'default-global' },
+  }));
 
   vi.doMock('@/lib/auth', () => ({
     requireRoleApiFromDb,
     getConvexTokenOrNull,
+    requireWorkspaceApiContextForMigration,
   }));
   vi.doMock('@/lib/convex-http', () => ({
     getAuthedConvexHttpClient,
@@ -77,10 +81,14 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
           mutation,
         },
   );
+  const requireWorkspaceApiContextForMigration = vi.fn(() => ({
+    workspace: { workspaceId: 'default-global' },
+  }));
 
   vi.doMock('@/lib/auth', () => ({
     requireRoleApiFromDb,
     getConvexTokenOrNull,
+    requireWorkspaceApiContextForMigration,
   }));
   vi.doMock('@/lib/convex-http', () => ({
     getAuthedConvexHttpClient,
@@ -122,7 +130,7 @@ describe('security auth and rbac routes', () => {
       roleResult: { error: denied },
     });
 
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ code: 'FORBIDDEN', message: 'Forbidden' });
@@ -132,7 +140,7 @@ describe('security auth and rbac routes', () => {
   it('allows /api/device/qr-token for device-qr role', async () => {
     const { GET, mocks } = await setupDeviceQrTokenRoute();
 
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ token: 'issued-token', expiresAt: 12345 });
@@ -145,7 +153,7 @@ describe('security auth and rbac routes', () => {
       roleResult: { error: denied },
     });
 
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/admin/settings', { method: 'GET' }));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ code: 'FORBIDDEN', message: 'Forbidden' });
