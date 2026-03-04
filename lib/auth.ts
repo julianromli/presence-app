@@ -138,6 +138,37 @@ export async function requireRolePageFromDb(roles: AppRole[]) {
   return current;
 }
 
+export async function requireWorkspaceOnboardingPage() {
+  const session = await auth();
+  if (!session.userId) {
+    redirect("/sign-in");
+  }
+
+  const token = await getConvexTokenOrNull();
+  if (!token) {
+    return null;
+  }
+
+  const convex = getAuthedConvexHttpClient(token);
+  if (!convex) {
+    return null;
+  }
+
+  try {
+    const onboardingState = await convex.query<{
+      hasActiveMembership: boolean;
+    }>("workspaces:myOnboardingState", {});
+
+    if (!onboardingState.hasActiveMembership) {
+      redirect("/onboarding/workspace");
+    }
+
+    return onboardingState;
+  } catch {
+    return null;
+  }
+}
+
 export async function requireRoleApiFromDb(roles: AppRole[]) {
   const clerkSession = await auth();
   if (!clerkSession.userId) {
