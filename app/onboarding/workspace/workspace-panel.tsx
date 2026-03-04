@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  setActiveWorkspaceIdInBrowser,
+  workspaceFetch,
+} from "@/lib/workspace-client";
 
 type OnboardingState = {
   hasActiveMembership: boolean;
@@ -33,7 +37,7 @@ export function OnboardingWorkspacePanel() {
     let cancelled = false;
     const load = async () => {
       try {
-        const response = await fetch("/api/workspaces/onboarding", {
+        const response = await workspaceFetch("/api/workspaces/onboarding", {
           method: "GET",
           cache: "no-store",
         });
@@ -70,7 +74,7 @@ export function OnboardingWorkspacePanel() {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch("/api/workspaces/create", {
+      const response = await workspaceFetch("/api/workspaces/create", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: workspaceName }),
@@ -82,6 +86,18 @@ export function OnboardingWorkspacePanel() {
         return;
       }
 
+      const payload = (await response.json()) as { workspaceId: string };
+      const selectResponse = await workspaceFetch("/api/workspaces/active", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspaceId: payload.workspaceId }),
+      });
+      if (!selectResponse.ok) {
+        setError("Workspace berhasil dibuat, tapi gagal set workspace aktif.");
+        return;
+      }
+
+      setActiveWorkspaceIdInBrowser(payload.workspaceId);
       router.replace("/dashboard");
     } catch {
       setError("Gagal membuat workspace.");
@@ -94,7 +110,7 @@ export function OnboardingWorkspacePanel() {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch("/api/workspaces/join", {
+      const response = await workspaceFetch("/api/workspaces/join", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ code: invitationCode }),
@@ -106,6 +122,18 @@ export function OnboardingWorkspacePanel() {
         return;
       }
 
+      const payload = (await response.json()) as { workspaceId: string };
+      const selectResponse = await workspaceFetch("/api/workspaces/active", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspaceId: payload.workspaceId }),
+      });
+      if (!selectResponse.ok) {
+        setError("Berhasil join, tapi gagal set workspace aktif.");
+        return;
+      }
+
+      setActiveWorkspaceIdInBrowser(payload.workspaceId);
       router.replace("/dashboard");
     } catch {
       setError("Gagal bergabung ke workspace.");
