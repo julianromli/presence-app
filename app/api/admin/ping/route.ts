@@ -1,6 +1,14 @@
-import { requireRoleApiFromDb } from '@/lib/auth';
+import {
+  requireRoleApiFromDb,
+  requireWorkspaceApiContextForMigration,
+} from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  if ('error' in workspaceContext) {
+    return workspaceContext.error;
+  }
+
   const result = await requireRoleApiFromDb(['admin', 'superadmin']);
   if ('error' in result) {
     return result.error;
