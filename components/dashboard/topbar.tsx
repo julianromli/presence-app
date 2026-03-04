@@ -36,6 +36,20 @@ type WeeklyReportRow = {
   status: 'pending' | 'success' | 'failed';
 };
 
+type WorkspaceMembership = {
+  workspace: {
+    _id: string;
+    name: string;
+    slug: string;
+  };
+  role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
+};
+
+type WorkspaceMembershipsResponse = {
+  memberships: WorkspaceMembership[];
+  activeWorkspaceId: string | null;
+};
+
 export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -43,6 +57,10 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
   const [busy, setBusy] = useState<'none' | 'refresh' | 'report' | 'export'>('none');
   const [notice, setNotice] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(false);
+  const [memberships, setMemberships] = useState<WorkspaceMembership[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const initials = useMemo(() => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(), [name]);
 
@@ -64,6 +82,35 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
     setMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadMemberships = async () => {
+      setWorkspaceLoading(true);
+      try {
+        const res = await fetch('/api/workspaces/memberships', { cache: 'no-store' });
+        if (!res.ok) {
+          return;
+        }
+
+        const payload = (await res.json()) as WorkspaceMembershipsResponse;
+        if (cancelled) {
+          return;
+        }
+        setMemberships(payload.memberships);
+        setActiveWorkspaceId(payload.activeWorkspaceId);
+      } finally {
+        if (!cancelled) {
+          setWorkspaceLoading(false);
+        }
+      }
+    };
+
+    void loadMemberships();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const dispatchRefresh = () => {
     window.dispatchEvent(new CustomEvent('dashboard:refresh'));
   };
@@ -83,6 +130,40 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       setNotice({ tone: 'success', text: 'Dashboard berhasil diperbarui.' });
     } finally {
       setBusy('none');
+    }
+  };
+
+  const handleWorkspaceChange = async (nextWorkspaceId: string) => {
+    if (!nextWorkspaceId || nextWorkspaceId === activeWorkspaceId) {
+      return;
+    }
+
+    setWorkspaceSwitching(true);
+    setNotice(null);
+    try {
+      const res = await fetch('/api/workspaces/active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workspaceId: nextWorkspaceId }),
+      });
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(res, 'Gagal mengganti workspace aktif.');
+        setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
+        return;
+      }
+
+      setActiveWorkspaceId(nextWorkspaceId);
+      window.dispatchEvent(
+        new CustomEvent('workspace:changed', {
+          detail: { workspaceId: nextWorkspaceId },
+        }),
+      );
+      setLastUpdatedAt(new Date());
+      dispatchRefresh();
+      router.refresh();
+      setNotice({ tone: 'success', text: 'Workspace aktif berhasil diganti.' });
+    } finally {
+      setWorkspaceSwitching(false);
     }
   };
 
@@ -155,6 +236,31 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       <div className="px-4 py-4 md:px-6">
         <div className="mx-auto w-full max-w-[1400px]">
           <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-[280px] items-center gap-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-slate-500" htmlFor="workspace-switcher">
+                Workspace
+              </label>
+              <select
+                id="workspace-switcher"
+                className="h-10 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                value={activeWorkspaceId ?? ''}
+                onChange={(event) => void handleWorkspaceChange(event.target.value)}
+                disabled={workspaceLoading || workspaceSwitching || memberships.length === 0}
+              >
+                {memberships.length === 0 ? (
+                  <option value="">
+                    {workspaceLoading ? 'Memuat workspace...' : 'Tidak ada workspace'}
+                  </option>
+                ) : (
+                  memberships.map((item) => (
+                    <option key={item.workspace._id} value={item.workspace._id}>
+                      {item.workspace.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
             <button
               type="button"
               onClick={() => void refreshDashboard()}
