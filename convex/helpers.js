@@ -24,12 +24,39 @@ export async function getCurrentDbUser(ctx) {
 
   return user;
 }
+
+export async function requireIdentityUser(ctx) {
+  return await getCurrentDbUser(ctx);
+}
+
 export async function requireRole(ctx, allowedRoles) {
   const user = await getCurrentDbUser(ctx);
   if (!allowedRoles.includes(user.role)) {
     throw new ConvexError({ code: 'FORBIDDEN', message: 'Role not allowed' });
   }
   return user;
+}
+
+export async function requireWorkspaceMember(ctx, workspaceId) {
+  const user = await requireIdentityUser(ctx);
+  const membership = await ctx.db
+    .query('workspace_members')
+    .withIndex('by_workspace_and_user', (q) => q.eq('workspaceId', workspaceId).eq('userId', user._id))
+    .unique();
+
+  if (!membership || !membership.isActive) {
+    throw new ConvexError({ code: 'FORBIDDEN', message: 'Workspace membership required' });
+  }
+
+  return { user, membership };
+}
+
+export async function requireWorkspaceRole(ctx, workspaceId, allowedRoles) {
+  const { user, membership } = await requireWorkspaceMember(ctx, workspaceId);
+  if (!allowedRoles.includes(membership.role)) {
+    throw new ConvexError({ code: 'FORBIDDEN', message: 'Workspace role not allowed' });
+  }
+  return { user, membership };
 }
 
 export function buildDateKey(ts, timezone) {
