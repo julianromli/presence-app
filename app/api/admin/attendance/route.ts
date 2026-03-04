@@ -1,4 +1,8 @@
-import { getConvexTokenOrNull, requireRoleApiFromDb } from "@/lib/auth";
+import {
+  getConvexTokenOrNull,
+  requireRoleApiFromDb,
+  requireWorkspaceApiContextForMigration,
+} from "@/lib/auth";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import { convexErrorResponse } from "@/lib/api-error";
 
@@ -30,6 +34,9 @@ type AttendanceSummary = {
 };
 
 export async function GET(req: Request) {
+  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  if ("error" in workspaceContext) return workspaceContext.error;
+
   const role = await requireRoleApiFromDb(["admin", "superadmin"]);
   if ("error" in role) return role.error;
 
