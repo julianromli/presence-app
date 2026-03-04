@@ -22,6 +22,7 @@ import type * as settings from "../settings.js";
 import type * as users from "../users.js";
 import type * as usersList from "../usersList.js";
 import type * as usersPolicy from "../usersPolicy.js";
+import type * as workspaces from "../workspaces.js";
 
 import type {
   ApiFromModules,
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   usersList: typeof usersList;
   usersPolicy: typeof usersPolicy;
+  workspaces: typeof workspaces;
 }>;
 
 /**
