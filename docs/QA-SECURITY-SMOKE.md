@@ -1,56 +1,52 @@
 # QA Security Smoke Checklist
 
-Tanggal acuan: 4 Maret 2026  
-Tujuan: verifikasi cepat auth/RBAC dan guardrail scan sebelum rilis.
+Tanggal acuan: **March 5, 2026**
 
 ## Prasyarat
-- App jalan di lokal (`npm run dev`).
-- Akun role tersedia: `superadmin`, `admin`, `karyawan`, `device-qr`.
-- Endpoint diuji lewat browser app atau API client.
+- App jalan lokal (`npm run dev`)
+- Role tersedia: `superadmin`, `admin`, `karyawan`, `device-qr`
+- Data settings global sudah ada
 
-## Matrix Endpoint dan Ekspektasi
+## Matrix Endpoint Inti
 
 | Endpoint | Unauthenticated | Superadmin | Admin | Karyawan | Device-QR |
 |---|---:|---:|---:|---:|---:|
-| `GET /api/device/qr-token` | `401` | `403` | `403` | `403` | `200` |
-| `POST /api/scan` | `401` | `403` | `403` | `200`* | `403` |
-| `GET /api/admin/settings` | `401` | `200` | `403` | `403` | `403` |
-| `PATCH /api/admin/settings` | `401` | `200` | `403` | `403` | `403` |
+| `GET /api/device/qr-token` | 401 | 403 | 403 | 403 | 200 |
+| `POST /api/device/ping` | 401 | 403 | 403 | 403 | 200 |
+| `POST /api/scan` | 401 | 403 | 403 | 200* | 403 |
+| `GET /api/admin/settings` | 401 | 200 | 403 | 403 | 403 |
+| `PATCH /api/admin/settings` | 401 | 200 | 403 | 403 | 403 |
 
-`*` untuk payload valid + token valid.
+`*` untuk payload valid + token valid + policy lolos.
 
-## Checklist Wajib
+## Skenario Wajib
 
-1. Validasi role guard `device-qr`:
-- Login sebagai `device-qr`.
-- `GET /api/device/qr-token` harus `200` dan payload token keluar.
-- Login selain `device-qr` harus `403`.
+1. **QR Hybrid Policy**
+- Token QR refresh sekitar setiap 5 detik.
+- Token masih valid hingga 20 detik sejak issue.
+- Token replay harus ditolak (`TOKEN_REPLAY`).
 
-2. Validasi role guard scan:
-- Login sebagai `karyawan`, kirim `POST /api/scan` dengan payload valid harus `200`.
-- Login role lain kirim request yang sama harus `403`.
+2. **Role Guard**
+- `device-qr` bisa `GET /api/device/qr-token`.
+- role selain `device-qr` harus `403`.
+- `karyawan` saja yang bisa scan.
 
-3. Validasi payload error scan:
-- Sebagai `karyawan`, kirim payload tanpa `token`.
-- Ekspektasi `400` dengan `code: VALIDATION_ERROR`.
+3. **Validation & Error Contract**
+- Payload scan tanpa token -> `400` + `{ code, message }`.
+- Semua non-2xx response dari endpoint admin/device/scan harus punya `code` dan `message`.
 
-4. Token expiry:
-- Gunakan token QR yang sudah lewat TTL.
-- Ekspektasi reject dengan `code: TOKEN_EXPIRED`.
+4. **Heartbeat Enforcement**
+- Set `enforceDeviceHeartbeat=false`: scan normal.
+- Set `enforceDeviceHeartbeat=true`:
+  - device heartbeat fresh: scan diterima.
+  - device heartbeat stale/tidak ada: reject `DEVICE_HEARTBEAT_STALE`.
 
-5. Replay token:
-- Pakai token yang sama dua kali.
-- Request kedua harus reject dengan `code: TOKEN_REPLAY`.
+5. **Policy Reject**
+- Token expired -> `TOKEN_EXPIRED`.
+- Spam scan dalam cooldown -> `SPAM_DETECTED`.
+- Geofence/IP reject sesuai policy aktif.
 
-6. Anti-spam:
-- Lakukan scan berturut-turut dalam window 30 detik.
-- Ekspektasi reject dengan `code: SPAM_DETECTED`.
-
-7. Settings superadmin-only:
-- `GET` dan `PATCH /api/admin/settings` sukses hanya untuk `superadmin`.
-- Role lain harus `403`.
-
-## Catatan Lulus
-- Tidak ada bypass role pada endpoint sensitif.
-- Semua reject reason utama (`TOKEN_EXPIRED`, `TOKEN_REPLAY`, `SPAM_DETECTED`) muncul sesuai skenario.
-- Tidak ada error 500 untuk skenario invalid yang harusnya ditangani.
+## Kriteria Lulus
+- Tidak ada bypass RBAC.
+- Semua reject utama menghasilkan `code` yang benar.
+- Tidak ada error 500 pada skenario invalid yang seharusnya tertangani.

@@ -107,7 +107,10 @@ describe('scan route guardrails', () => {
     );
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ message: 'Unauthorized' });
+    await expect(response.json()).resolves.toEqual({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthorized',
+    });
   });
 
   it('forwards first ip from x-forwarded-for to attendance mutation', async () => {

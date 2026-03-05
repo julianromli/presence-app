@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
     'out/**',
     'build/**',
     'next-env.d.ts',
+    'convex/_generated/**',
     'template/**',
     'components/ui/shadow-root-host.tsx',
   ]),

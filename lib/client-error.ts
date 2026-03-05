@@ -24,6 +24,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   NOT_FOUND: 'Data yang diminta tidak ditemukan.',
   WRITE_CONFLICT: 'Terjadi konflik data. Silakan coba lagi.',
   SPAM_DETECTED: 'Aksi terlalu cepat. Tunggu sebentar lalu coba lagi.',
+  DEVICE_HEARTBEAT_STALE: 'Perangkat QR sedang offline. Minta petugas menyegarkan perangkat QR.',
   INTERNAL_ERROR: 'Terjadi gangguan sistem. Coba lagi beberapa saat.',
 };
 

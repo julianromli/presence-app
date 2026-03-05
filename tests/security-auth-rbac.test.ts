@@ -158,7 +158,10 @@ describe('security auth and rbac routes', () => {
     const response = await GET();
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ message: 'Unauthorized' });
+    await expect(response.json()).resolves.toEqual({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthorized',
+    });
     expect(mocks.query).not.toHaveBeenCalled();
   });
 

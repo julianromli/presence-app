@@ -38,6 +38,19 @@ describe('convexErrorResponse', () => {
     });
   });
 
+  it('maps device heartbeat stale errors to 403', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData('DEVICE_HEARTBEAT_STALE', 'Perangkat QR offline'),
+      'fallback',
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'DEVICE_HEARTBEAT_STALE',
+      message: 'Perangkat QR offline',
+    });
+  });
+
   it('maps forbidden text errors to 403', async () => {
     const response = convexErrorResponse(new Error('FORBIDDEN'), 'fallback');
 

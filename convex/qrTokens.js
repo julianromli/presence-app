@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { internalMutation, mutation } from './_generated/server';
 import { requireRole } from './helpers';
+import { QR_TOKEN_ROTATION_INTERVAL_MS, QR_TOKEN_TTL_MS } from './qrPolicy';
 
 async function sha256Hex(input) {
   const bytes = new TextEncoder().encode(input);
@@ -13,7 +14,7 @@ async function sha256Hex(input) {
 
 async function issueToken(ctx, deviceUserId) {
   const issuedAt = Date.now();
-  const ttlMs = 20000;
+  const ttlMs = QR_TOKEN_TTL_MS;
   const expiresAt = issuedAt + ttlMs;
   const nonce = crypto.randomUUID().replaceAll('-', '');
   const rawToken = crypto.randomUUID().replaceAll('-', '') + nonce;
@@ -33,6 +34,7 @@ async function issueToken(ctx, deviceUserId) {
     issuedAt,
     expiresAt,
     ttlMs,
+    rotationIntervalMs: QR_TOKEN_ROTATION_INTERVAL_MS,
     serverTime: issuedAt,
   };
 }
@@ -44,6 +46,7 @@ export const issue = mutation({
     expiresAt: v.number(),
     issuedAt: v.number(),
     ttlMs: v.number(),
+    rotationIntervalMs: v.number(),
     serverTime: v.number(),
   }),
   handler: async (ctx) => {

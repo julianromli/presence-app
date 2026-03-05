@@ -2,11 +2,23 @@
 
 import { useEffect, useState } from 'react';
 
+type DeviceQrTokenResponse = {
+  token: string;
+  expiresAt: number;
+  ttlMs?: number;
+  rotationIntervalMs?: number;
+};
+
+const DEFAULT_ROTATION_INTERVAL_MS = 5_000;
+const DEFAULT_TTL_MS = 20_000;
+
 export function DeviceQrPanel() {
   const [token, setToken] = useState('');
   const [expiresAt, setExpiresAt] = useState(0);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [rotationIntervalMs, setRotationIntervalMs] = useState(DEFAULT_ROTATION_INTERVAL_MS);
+  const [ttlMs, setTtlMs] = useState(DEFAULT_TTL_MS);
   const [heartbeat, setHeartbeat] = useState<'idle' | 'ok' | 'error'>('idle');
   const [showToken, setShowToken] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -17,22 +29,32 @@ export function DeviceQrPanel() {
     const loadToken = async () => {
       const res = await fetch('/api/device/qr-token', { cache: 'no-store' });
       if (!res.ok) return;
-      const data = await res.json();
+      const data = (await res.json()) as DeviceQrTokenResponse;
       if (!active) return;
       setToken(data.token);
       setExpiresAt(data.expiresAt);
+      setRotationIntervalMs(
+        Number.isFinite(data.rotationIntervalMs)
+          ? Math.max(1_000, Math.trunc(data.rotationIntervalMs as number))
+          : DEFAULT_ROTATION_INTERVAL_MS,
+      );
+      setTtlMs(
+        Number.isFinite(data.ttlMs)
+          ? Math.max(1_000, Math.trunc(data.ttlMs as number))
+          : DEFAULT_TTL_MS,
+      );
     };
 
     void loadToken();
     const interval = setInterval(() => {
       void loadToken();
-    }, 5000);
+    }, rotationIntervalMs);
 
     return () => {
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [rotationIntervalMs]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -90,7 +112,8 @@ export function DeviceQrPanel() {
         <p className="text-tagline text-xs font-semibold">MODE DEVICE-QR</p>
         <h1 className="mt-2 text-3xl font-bold">QR Absensi Dinamis</h1>
         <p className="text-muted-foreground mt-2 text-sm">
-          Token refresh tiap 5 detik dengan masa berlaku 20 detik. Hanya scan token aktif yang diterima.
+          Token refresh tiap {Math.round(rotationIntervalMs / 1000)} detik dengan masa berlaku{' '}
+          {Math.round(ttlMs / 1000)} detik. Hanya scan token aktif yang diterima.
         </p>
 
         <div className="mx-auto mt-6 w-full max-w-sm rounded-2xl border bg-white p-4">
@@ -145,7 +168,9 @@ export function DeviceQrPanel() {
             </p>
           ) : (
             <p className="mt-3 text-xs text-zinc-500">
-              Gunakan hanya untuk fallback manual. Token berubah tiap 5 detik dan kedaluwarsa sekitar 20 detik.
+              Gunakan hanya untuk fallback manual. Token berubah tiap{' '}
+              {Math.round(rotationIntervalMs / 1000)} detik dan kedaluwarsa sekitar{' '}
+              {Math.round(ttlMs / 1000)} detik.
             </p>
           )}
         </div>

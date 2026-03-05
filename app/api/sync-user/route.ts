@@ -6,17 +6,23 @@ import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 export async function POST() {
   const { userId } = await auth();
   if (!userId) {
-    return Response.json({ message: 'Unauthorized' }, { status: 401 });
+    return Response.json(
+      { code: 'UNAUTHENTICATED', message: 'Unauthorized' },
+      { status: 401 },
+    );
   }
 
   const user = await currentUser();
   if (!user) {
-    return Response.json({ message: 'User not found' }, { status: 404 });
+    return Response.json({ code: 'NOT_FOUND', message: 'User not found' }, { status: 404 });
   }
 
   const token = await getConvexTokenOrNull();
   if (!token) {
-    return Response.json({ message: 'Convex token missing' }, { status: 401 });
+    return Response.json(
+      { code: 'UNAUTHENTICATED', message: 'Convex token missing' },
+      { status: 401 },
+    );
   }
   const convex = getAuthedConvexHttpClient(token);
   if (!convex) {

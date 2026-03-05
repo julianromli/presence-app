@@ -8,12 +8,18 @@ export async function GET() {
 
   const token = await getConvexTokenOrNull();
   if (!token) {
-    return Response.json({ message: "Unauthorized" }, { status: 401 });
+    return Response.json(
+      { code: "UNAUTHENTICATED", message: "Unauthorized" },
+      { status: 401 },
+    );
   }
 
   const convex = getAuthedConvexHttpClient(token);
   if (!convex)
-    return Response.json({ message: "Convex URL missing" }, { status: 500 });
+    return Response.json(
+      { code: "INTERNAL_ERROR", message: "Convex URL missing" },
+      { status: 500 },
+    );
 
   try {
     const rows = await convex.query("deviceHeartbeat:listStatus", {});

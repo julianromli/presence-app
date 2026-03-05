@@ -12,11 +12,14 @@ type AttendanceRow = {
 };
 
 type AttendancePageResponse = {
-  page: AttendanceRow[];
-  continueCursor: string;
-  isDone: boolean;
-  splitCursor?: string | null;
-  pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+  rowsPage: {
+    page: AttendanceRow[];
+    continueCursor: string;
+    isDone: boolean;
+    splitCursor?: string | null;
+    pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+  };
+  summary: AttendanceSummary;
 };
 
 type AttendanceSummary = {
@@ -33,7 +36,10 @@ export async function GET(req: Request) {
   const searchParams = new URL(req.url).searchParams;
   const dateKey = searchParams.get("dateKey");
   if (!dateKey) {
-    return Response.json({ message: "dateKey wajib" }, { status: 400 });
+    return Response.json(
+      { code: "VALIDATION_ERROR", message: "dateKey wajib diisi." },
+      { status: 400 },
+    );
   }
   const cursorParam = searchParams.get("cursor");
   const cursor = cursorParam && cursorParam.length > 0 ? cursorParam : null;
@@ -48,16 +54,23 @@ export async function GET(req: Request) {
 
   const token = await getConvexTokenOrNull();
   if (!token) {
-    return Response.json({ message: "Unauthorized" }, { status: 401 });
+    return Response.json(
+      { code: "UNAUTHENTICATED", message: "Unauthorized" },
+      { status: 401 },
+    );
   }
 
   const convex = getAuthedConvexHttpClient(token);
   if (!convex)
-    return Response.json({ message: "Convex URL missing" }, { status: 500 });
+    return Response.json(
+      { code: "INTERNAL_ERROR", message: "Convex URL missing" },
+      { status: 500 },
+    );
 
   try {
-    const [rowsPage, summary] = await Promise.all([
-      convex.query<AttendancePageResponse>("attendance:listByDatePaginated", {
+    const result = await convex.query<AttendancePageResponse>(
+      "attendance:listByDatePaginated",
+      {
         dateKey,
         edited,
         employeeName,
@@ -65,21 +78,18 @@ export async function GET(req: Request) {
           numItems: limit,
           cursor,
         },
-      }),
-      convex.query<AttendanceSummary>("attendance:getSummaryByDate", {
-        dateKey,
-      }),
-    ]);
+      },
+    );
 
     return Response.json({
-      rows: rowsPage.page,
+      rows: result.rowsPage.page,
       pageInfo: {
-        continueCursor: rowsPage.continueCursor,
-        isDone: rowsPage.isDone,
-        splitCursor: rowsPage.splitCursor ?? null,
-        pageStatus: rowsPage.pageStatus ?? null,
+        continueCursor: result.rowsPage.continueCursor,
+        isDone: result.rowsPage.isDone,
+        splitCursor: result.rowsPage.splitCursor ?? null,
+        pageStatus: result.rowsPage.pageStatus ?? null,
       },
-      summary,
+      summary: result.summary,
     });
   } catch (error) {
     return convexErrorResponse(error, "Gagal memuat data attendance.");

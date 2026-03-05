@@ -14,6 +14,12 @@ import {
   ipAllowed,
   requireRole,
 } from "./helpers";
+import {
+  filterAttendanceByEmployeeName,
+  paginateFilteredAttendance,
+  summarizeAttendanceRows,
+} from "./attendanceList";
+import { isDeviceHeartbeatFresh } from "./deviceHeartbeatPolicy";
 
 const attendanceWithEmployeeValidator = v.object({
   _id: v.id("attendance"),
@@ -94,6 +100,10 @@ const scanEventSummaryValidator = v.object({
 const paginatedAttendanceValidator = paginationResultValidator(
   attendanceWithEmployeeValidator,
 );
+const paginatedAttendanceResponseValidator = v.object({
+  rowsPage: paginatedAttendanceValidator,
+  summary: attendanceSummaryValidator,
+});
 
 async function enrichRowsWithEmployeeName(ctx, rows) {
   const userIds = [...new Set(rows.map((row) => String(row.userId)))];
@@ -104,10 +114,6 @@ async function enrichRowsWithEmployeeName(ctx, rows) {
     ...row,
     employeeName: userById.get(String(row.userId))?.name ?? "Unknown",
   }));
-}
-
-function normalizeKeyword(value) {
-  return value.trim().toLocaleLowerCase("id-ID");
 }
 
 async function writeScanEvent(ctx, payload) {
@@ -219,6 +225,22 @@ async function processScan(ctx, actor, args, runtime) {
   }
   const sourceDeviceId = tokenResult.deviceUserId;
 
+  if (settings.enforceDeviceHeartbeat) {
+    const heartbeat = await ctx.db
+      .query("device_heartbeats")
+      .withIndex("by_device_user_id", (q) =>
+        q.eq("deviceUserId", sourceDeviceId),
+      )
+      .unique();
+
+    if (!isDeviceHeartbeatFresh(heartbeat, now)) {
+      throwScanError(
+        "DEVICE_HEARTBEAT_STALE",
+        "Perangkat QR offline atau heartbeat kedaluwarsa",
+      );
+    }
+  }
+
   const existing = await ctx.db
     .query("attendance")
     .withIndex("by_user_and_date", (q) =>
@@ -301,7 +323,7 @@ export const listByDatePaginated = query({
     employeeName: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
-  returns: paginatedAttendanceValidator,
+  returns: paginatedAttendanceResponseValidator,
   handler: async (ctx, args) => {
     await requireRole(ctx, ["admin", "superadmin"]);
 
@@ -316,22 +338,46 @@ export const listByDatePaginated = query({
               q.eq("dateKey", args.dateKey).eq("edited", args.edited),
             );
 
-    const result = await attendanceQuery.order("desc").paginate({
+    const hasEmployeeNameFilter = Boolean(args.employeeName?.trim().length);
+
+    if (hasEmployeeNameFilter) {
+      const rows = await attendanceQuery.order("desc").collect();
+      const enrichedRows = await enrichRowsWithEmployeeName(ctx, rows);
+      const filteredRows = filterAttendanceByEmployeeName(
+        enrichedRows,
+        args.employeeName,
+      );
+
+      return {
+        rowsPage: paginateFilteredAttendance(filteredRows, args.paginationOpts),
+        summary: summarizeAttendanceRows(filteredRows),
+      };
+    }
+
+    const rowsPage = await attendanceQuery.order("desc").paginate({
       ...args.paginationOpts,
       maximumRowsRead: args.paginationOpts.maximumRowsRead ?? 2_000,
     });
 
-    let page = await enrichRowsWithEmployeeName(ctx, result.page);
-    if (args.employeeName && args.employeeName.trim().length > 0) {
-      const keyword = normalizeKeyword(args.employeeName);
-      page = page.filter((row) =>
-        normalizeKeyword(row.employeeName).includes(keyword),
-      );
-    }
+    const summaryRows =
+      args.edited === undefined
+        ? await ctx.db
+            .query("attendance")
+            .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
+            .collect()
+        : await ctx.db
+            .query("attendance")
+            .withIndex("by_date_and_edited", (q) =>
+              q.eq("dateKey", args.dateKey).eq("edited", args.edited),
+            )
+            .collect();
 
     return {
-      ...result,
-      page,
+      rowsPage: {
+        ...rowsPage,
+        page: await enrichRowsWithEmployeeName(ctx, rowsPage.page),
+      },
+      summary: summarizeAttendanceRows(summaryRows),
     };
   },
 });
@@ -347,21 +393,7 @@ export const getSummaryByDate = query({
       .withIndex("by_date_and_user", (q) => q.eq("dateKey", args.dateKey))
       .collect();
 
-    let checkedIn = 0;
-    let checkedOut = 0;
-    let edited = 0;
-    for (const row of rows) {
-      if (row.checkInAt !== undefined) checkedIn += 1;
-      if (row.checkOutAt !== undefined) checkedOut += 1;
-      if (row.edited) edited += 1;
-    }
-
-    return {
-      total: rows.length,
-      checkedIn,
-      checkedOut,
-      edited,
-    };
+    return summarizeAttendanceRows(rows);
   },
 });
 
