@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowsClockwise,
+  CaretDown,
   Copy,
   Eye,
   EyeSlash,
@@ -12,6 +13,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import {
   Table,
   TableBody,
@@ -334,33 +336,69 @@ export function WorkspacePanel() {
           </label>
           <label className="space-y-1">
             <span className="text-sm font-medium text-zinc-700">Role</span>
-            <select
-              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-              value={filters.role}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, role: event.target.value as UsersPanelFilters['role'] }))
-              }
-            >
-              <option value="all">Semua</option>
-              <option value="superadmin">Superadmin</option>
-              <option value="admin">Admin</option>
-              <option value="karyawan">Karyawan</option>
-              <option value="device-qr">Device QR</option>
-            </select>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    className="h-10 w-full justify-between rounded-md border-zinc-200 bg-white px-3 text-sm font-normal text-zinc-900"
+                    variant="outline"
+                  />
+                }
+              >
+                {filters.role === 'all'
+                  ? 'Semua'
+                  : filters.role === 'superadmin'
+                    ? 'Superadmin'
+                    : filters.role === 'admin'
+                      ? 'Admin'
+                      : filters.role === 'karyawan'
+                        ? 'Karyawan'
+                        : 'Device QR'}
+                <CaretDown weight="regular" className="h-4 w-4 text-zinc-500" />
+              </MenuTrigger>
+              <MenuPopup align="start" className="w-[var(--anchor-width)]">
+                <MenuRadioGroup
+                  value={filters.role}
+                  onValueChange={(value) =>
+                    setFilters((prev) => ({ ...prev, role: value as UsersPanelFilters['role'] }))
+                  }
+                >
+                  <MenuRadioItem value="all">Semua</MenuRadioItem>
+                  <MenuRadioItem value="superadmin">Superadmin</MenuRadioItem>
+                  <MenuRadioItem value="admin">Admin</MenuRadioItem>
+                  <MenuRadioItem value="karyawan">Karyawan</MenuRadioItem>
+                  <MenuRadioItem value="device-qr">Device QR</MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
           </label>
           <label className="space-y-1">
             <span className="text-sm font-medium text-zinc-700">Status</span>
-            <select
-              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-              value={filters.isActive}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, isActive: event.target.value as UsersPanelFilters['isActive'] }))
-              }
-            >
-              <option value="all">Semua</option>
-              <option value="true">Aktif</option>
-              <option value="false">Non-aktif</option>
-            </select>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    className="h-10 w-full justify-between rounded-md border-zinc-200 bg-white px-3 text-sm font-normal text-zinc-900"
+                    variant="outline"
+                  />
+                }
+              >
+                {filters.isActive === 'all' ? 'Semua' : filters.isActive === 'true' ? 'Aktif' : 'Non-aktif'}
+                <CaretDown weight="regular" className="h-4 w-4 text-zinc-500" />
+              </MenuTrigger>
+              <MenuPopup align="start" className="w-[var(--anchor-width)]">
+                <MenuRadioGroup
+                  value={filters.isActive}
+                  onValueChange={(value) =>
+                    setFilters((prev) => ({ ...prev, isActive: value as UsersPanelFilters['isActive'] }))
+                  }
+                >
+                  <MenuRadioItem value="all">Semua</MenuRadioItem>
+                  <MenuRadioItem value="true">Aktif</MenuRadioItem>
+                  <MenuRadioItem value="false">Non-aktif</MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
           </label>
           <div className="flex items-end gap-2">
             <Button type="submit" disabled={busyAction !== 'none'}>
@@ -410,19 +448,33 @@ export function WorkspacePanel() {
                     <TableCell className="font-medium text-zinc-900">{row.name}</TableCell>
                     <TableCell className="text-zinc-600">{row.email}</TableCell>
                     <TableCell>
-                      <select
-                        className="h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
-                        value={row.role}
-                        onChange={(event) =>
-                          void updateMember({ userId: row._id, role: event.target.value as AdminUserRow['role'] })
-                        }
-                        disabled={busyAction !== 'none'}
-                      >
-                        <option value="superadmin">superadmin</option>
-                        <option value="admin">admin</option>
-                        <option value="karyawan">karyawan</option>
-                        <option value="device-qr">device-qr</option>
-                      </select>
+                      <Menu>
+                        <MenuTrigger
+                          render={
+                            <Button
+                              className="h-8 min-w-[120px] justify-between rounded-md border-zinc-200 bg-white px-2 text-xs font-normal text-zinc-900"
+                              variant="outline"
+                            />
+                          }
+                          disabled={busyAction !== 'none'}
+                        >
+                          {row.role}
+                          <CaretDown weight="regular" className="h-3.5 w-3.5 text-zinc-500" />
+                        </MenuTrigger>
+                        <MenuPopup align="start" className="min-w-[120px]">
+                          <MenuRadioGroup
+                            value={row.role}
+                            onValueChange={(value) =>
+                              void updateMember({ userId: row._id, role: value as AdminUserRow['role'] })
+                            }
+                          >
+                            <MenuRadioItem value="superadmin">superadmin</MenuRadioItem>
+                            <MenuRadioItem value="admin">admin</MenuRadioItem>
+                            <MenuRadioItem value="karyawan">karyawan</MenuRadioItem>
+                            <MenuRadioItem value="device-qr">device-qr</MenuRadioItem>
+                          </MenuRadioGroup>
+                        </MenuPopup>
+                      </Menu>
                     </TableCell>
                     <TableCell>
                       <span

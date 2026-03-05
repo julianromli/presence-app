@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -25,6 +25,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/components/ui/menu";
 import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
 import { getLocalDateKey } from "@/lib/date-key";
@@ -635,17 +636,35 @@ export function ReportPanel() {
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-600">Status edited</label>
-            <select
-              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-              value={editedFilter}
-              onChange={(e) =>
-                setEditedFilter(e.target.value as "all" | "true" | "false")
-              }
-            >
-              <option value="all">Semua</option>
-              <option value="true">Edited</option>
-              <option value="false">Belum edited</option>
-            </select>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    className="h-10 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+                  />
+                }
+              >
+                {editedFilter === "all"
+                  ? "Semua"
+                  : editedFilter === "true"
+                    ? "Edited"
+                    : "Belum edited"}
+                <ChevronDown className="h-4 w-4 opacity-70" />
+              </MenuTrigger>
+              <MenuPopup align="start" className="w-[var(--anchor-width)]">
+                <MenuRadioGroup
+                  value={editedFilter}
+                  onValueChange={(value) =>
+                    setEditedFilter(value as "all" | "true" | "false")
+                  }
+                >
+                  <MenuRadioItem value="all">Semua</MenuRadioItem>
+                  <MenuRadioItem value="true">Edited</MenuRadioItem>
+                  <MenuRadioItem value="false">Belum edited</MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
           </div>
           <Button type="submit" disabled={isLoadingAttendance}>
             {isLoadingAttendance ? "Memuat..." : "Muat Data"}

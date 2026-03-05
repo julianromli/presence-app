@@ -3,15 +3,16 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import * as React from 'react';
+import { CaretDown } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Menu,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuTrigger,
+} from '@/components/ui/menu';
 import { cn } from '@/lib/utils';
 
 export type BlogGridCard = {
@@ -90,35 +91,44 @@ export default function MetafiBlogGrid({ posts }: { posts: BlogGridCard[] }) {
 
           {/* Mobile: dropdown */}
           <div className="lg:hidden">
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="border-border bg-background text-foreground focus:ring-ring/30 h-11 w-full rounded-[12px] border px-3 text-sm shadow-none focus:ring-2">
-                <SelectValue placeholder={ALL} />
-              </SelectTrigger>
-
-              <SelectContent
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    className="border-border bg-background text-foreground focus:ring-ring/30 h-11 w-full justify-between rounded-[12px] border px-3 text-sm font-normal shadow-none"
+                    variant="outline"
+                  />
+                }
+              >
+                {category || ALL}
+                <CaretDown className="size-4 opacity-70" />
+              </MenuTrigger>
+              <MenuPopup
                 align="start"
                 sideOffset={6}
-                className="border-border bg-background text-foreground rounded-[12px] border p-1 shadow-none"
+                className="border-border bg-background text-foreground w-[var(--anchor-width)] rounded-[12px] border p-1 shadow-none"
               >
-                {categories.map((c) => {
-                  const active = category === c;
-                  return (
-                    <SelectItem
-                      key={c}
-                      value={c}
-                      className={cn(
-                        'rounded-[8px] px-3 py-2 text-sm transition-colors',
-                        active
-                          ? 'bg-muted text-tagline'
-                          : 'hover:bg-muted text-foreground',
-                      )}
-                    >
-                      {c}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+                <MenuRadioGroup onValueChange={setCategory} value={category}>
+                  {categories.map((c) => {
+                    const active = category === c;
+                    return (
+                      <MenuRadioItem
+                        key={c}
+                        value={c}
+                        className={cn(
+                          'rounded-[8px] px-3 py-2 text-sm transition-colors',
+                          active
+                            ? 'bg-muted text-tagline'
+                            : 'hover:bg-muted text-foreground',
+                        )}
+                      >
+                        {c}
+                      </MenuRadioItem>
+                    );
+                  })}
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
           </div>
 
           {/* Desktop: vertical list */}

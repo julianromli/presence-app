@@ -12,6 +12,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import {
   recoverWorkspaceScopeViolation,
@@ -235,30 +236,37 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
 
             <span className="text-zinc-600">/</span>
 
-            <div className="relative group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-800 cursor-pointer transition">
-              <div className="grid h-5 w-5 place-items-center rounded-sm bg-emerald-600/80 text-[10px] font-bold text-white shadow-sm ring-1 ring-emerald-500/50">
-                {workspaceDisplayText[0]?.toUpperCase() || 'W'}
-              </div>
-              <span className="truncate max-w-[160px] font-medium">{workspaceDisplayText}</span>
-              <CaretDown weight="bold" className="ml-1 h-3 w-3 text-zinc-500" />
-
-              <select
-                className="absolute inset-0 w-full opacity-0 cursor-pointer"
-                value={activeWorkspaceId ?? ''}
-                onChange={(event) => void handleWorkspaceChange(event.target.value)}
+            <Menu>
+              <MenuTrigger
+                className="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-800 cursor-pointer transition disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={workspaceLoading || workspaceSwitching || memberships.length === 0}
               >
-                {memberships.length === 0 ? (
-                  <option value="">{workspaceLoading ? 'Memuat workspace...' : 'Tidak ada workspace'}</option>
-                ) : (
-                  memberships.map((item) => (
-                    <option key={item.workspace._id} value={item.workspace._id}>
+                <div className="grid h-5 w-5 place-items-center rounded-sm bg-emerald-600/80 text-[10px] font-bold text-white shadow-sm ring-1 ring-emerald-500/50">
+                  {workspaceDisplayText[0]?.toUpperCase() || 'W'}
+                </div>
+                <span className="truncate max-w-[160px] font-medium">{workspaceDisplayText}</span>
+                <CaretDown weight="bold" className="ml-1 h-3 w-3 text-zinc-500" />
+              </MenuTrigger>
+              <MenuPopup
+                align="start"
+                className="min-w-[240px] border-zinc-700 bg-zinc-900 text-zinc-100"
+              >
+                <MenuRadioGroup
+                  value={activeWorkspaceId ?? ''}
+                  onValueChange={(value) => void handleWorkspaceChange(value)}
+                >
+                  {memberships.map((item) => (
+                    <MenuRadioItem
+                      key={item.workspace._id}
+                      value={item.workspace._id}
+                      className="data-highlighted:bg-zinc-800"
+                    >
                       {item.workspace.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
+                    </MenuRadioItem>
+                  ))}
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
           </div>
         </div>
 
