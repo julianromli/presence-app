@@ -1,0 +1,65 @@
+app/scan/history/history-panel.tsx(145,41): error TS2322: Type '{ children: Element; asChild: true; }' is not assignable to type 'IntrinsicAttributes & NativeButtonProps & Omit<WithBaseUIEvent<DetailedHTMLProps<ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>>, "className" | ... 2 more ... | "defaultValue"> & { ...; } & { ...; }'.
+  Property 'asChild' does not exist on type 'IntrinsicAttributes & NativeButtonProps & Omit<WithBaseUIEvent<DetailedHTMLProps<ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>>, "className" | ... 2 more ... | "defaultValue"> & { ...; } & { ...; }'.
+tests/admin-attendance-route.test.ts(87,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-attendance-route.test.ts(88,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-attendance-route.test.ts(107,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-attendance-route.test.ts(108,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(103,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(104,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(114,12): error TS18048: 'listResponse' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(122,12): error TS18048: 'triggerResponse' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(141,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(142,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-routes-workspace-policy.test.ts(155,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(81,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(82,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(90,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(94,27): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(103,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(104,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(121,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(122,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(139,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(156,12): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(157,18): error TS18048: 'response' is possibly 'undefined'.
+tests/admin-workspace-route.test.ts(174,12): error TS18048: 'response' is possibly 'undefined'.
+tests/api-error.test.ts(10,3): error TS2322: Type '{ code: string; message: string; }' is not assignable to type 'string & { code: string; message: string; }'.
+  Type '{ code: string; message: string; }' is not assignable to type 'string'.
+tests/attendance-list.test.ts(55,26): error TS7006: Parameter 'row' implicitly has an 'any' type.
+tests/attendance-list.test.ts(56,32): error TS7006: Parameter 'row' implicitly has an 'any' type.
+tests/attendance-list.test.ts(64,33): error TS7006: Parameter 'row' implicitly has an 'any' type.
+tests/karyawan-routes-workspace-policy.test.ts(135,12): error TS18048: 'response' is possibly 'undefined'.
+tests/karyawan-routes-workspace-policy.test.ts(136,18): error TS18048: 'response' is possibly 'undefined'.
+tests/karyawan-routes-workspace-policy.test.ts(146,12): error TS18048: 'response' is possibly 'undefined'.
+tests/karyawan-routes-workspace-policy.test.ts(163,12): error TS18048: 'response' is possibly 'undefined'.
+tests/karyawan-routes-workspace-policy.test.ts(172,12): error TS18048: 'response' is possibly 'undefined'.
+tests/karyawan-routes-workspace-policy.test.ts(187,12): error TS18048: 'response' is possibly 'undefined'.
+tests/report-idempotency.test.ts(20,12): error TS18048: 'decision.doc' is possibly 'undefined'.
+tests/report-idempotency.test.ts(21,12): error TS18048: 'decision.doc' is possibly 'undefined'.
+tests/report-idempotency.test.ts(45,12): error TS18048: 'decision.patch' is possibly 'undefined'.
+tests/report-idempotency.test.ts(68,12): error TS18048: 'decision.patch' is possibly 'undefined'.
+tests/report-idempotency.test.ts(69,12): error TS18048: 'decision.patch' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(91,12): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(92,18): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(114,12): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(115,18): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(133,12): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(134,18): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(152,12): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(153,18): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(177,12): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(202,12): error TS18048: 'response' is possibly 'undefined'.
+tests/scan-guardrails.test.ts(203,18): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(154,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(155,18): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(175,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(176,18): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(190,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(191,18): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(213,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(214,18): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(228,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(229,18): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(243,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(274,12): error TS18048: 'response' is possibly 'undefined'.
+tests/security-auth-rbac.test.ts(285,18): error TS18048: 'response' is possibly 'undefined'.
