@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 import { getConvexTokenOrNull } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
@@ -50,10 +51,22 @@ export async function GET() {
       payload.memberships[0]?.workspace._id ??
       null;
 
-    return Response.json({
+    const response = NextResponse.json({
       ...payload,
       activeWorkspaceId,
     });
+
+    if (activeWorkspaceId && activeWorkspaceId !== activeFromCookie) {
+      response.cookies.set(ACTIVE_WORKSPACE_COOKIE, activeWorkspaceId, {
+        httpOnly: false,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 180,
+      });
+    }
+
+    return response;
   } catch (error) {
     return convexErrorResponse(error, "Gagal memuat daftar workspace.");
   }

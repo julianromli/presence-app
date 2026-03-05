@@ -45,6 +45,11 @@ type WorkspaceMembershipSession = {
   };
 };
 
+type OnboardingState = {
+  hasActiveMembership: boolean;
+  memberships: WorkspaceMembershipSession[];
+};
+
 function forbiddenResponse() {
   return new Response(
     JSON.stringify({ code: "FORBIDDEN", message: "Forbidden" }),
@@ -168,6 +173,25 @@ async function getCurrentWorkspaceMembershipFromConvex(
   }
 }
 
+async function getOnboardingMembershipsFromConvex(): Promise<WorkspaceMembershipSession[]> {
+  const token = await getConvexTokenOrNull();
+  if (!token) {
+    return [];
+  }
+
+  const convex = getAuthedConvexHttpClient(token);
+  if (!convex) {
+    return [];
+  }
+
+  try {
+    const onboardingState = await convex.query<OnboardingState>("workspaces:myOnboardingState", {});
+    return onboardingState.memberships;
+  } catch {
+    return [];
+  }
+}
+
 export async function getCurrentSession() {
   const session = await auth();
   const dbUser = await getCurrentDbUserFromConvex();
@@ -220,12 +244,35 @@ export async function requireWorkspaceRolePageFromDb(
   }
 
   const resolvedWorkspaceId = workspaceId ?? (await getWorkspaceIdFromCookie());
-  if (!resolvedWorkspaceId) {
+  const memberships = await getOnboardingMembershipsFromConvex();
+
+  if (memberships.length === 0) {
     redirect("/onboarding/workspace");
   }
 
-  const membership = await getCurrentWorkspaceMembershipFromConvex(resolvedWorkspaceId);
-  if (!membership || !membership.isActive || !roles.includes(membership.role)) {
+  let membership: WorkspaceMembershipSession | null = null;
+
+  if (resolvedWorkspaceId) {
+    membership = memberships.find((item) => item.workspace._id === resolvedWorkspaceId) ?? null;
+    if (!membership) {
+      membership = await getCurrentWorkspaceMembershipFromConvex(resolvedWorkspaceId);
+    }
+  }
+
+  if (!membership) {
+    membership =
+      memberships.find((item) => item.isActive && roles.includes(item.role) && item.workspace.isActive) ?? null;
+  }
+
+  if (!membership) {
+    const hasAnyActiveMembership = memberships.some((item) => item.isActive && item.workspace.isActive);
+    if (hasAnyActiveMembership) {
+      redirect("/forbidden");
+    }
+    redirect("/onboarding/workspace");
+  }
+
+  if (!membership.isActive || !membership.workspace.isActive || !roles.includes(membership.role)) {
     redirect("/forbidden");
   }
 

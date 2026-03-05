@@ -6,6 +6,7 @@ import {
   setActiveWorkspaceIdInBrowser,
   workspaceFetch,
 } from "@/lib/workspace-client";
+import { bootstrapActiveWorkspaceForMember } from "./bootstrap-active-workspace";
 
 type OnboardingState = {
   hasActiveMembership: boolean;
@@ -50,6 +51,7 @@ export function OnboardingWorkspacePanel() {
 
         const data = (await response.json()) as OnboardingState;
         if (!cancelled && data.hasActiveMembership) {
+          await bootstrapActiveWorkspaceForMember(workspaceFetch);
           router.replace("/dashboard");
         }
       } catch {
