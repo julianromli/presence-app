@@ -7,6 +7,14 @@ import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -694,27 +702,27 @@ export function ReportPanel() {
               Memuat data attendance terbaru...
             </div>
           ) : null}
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-zinc-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Nama Karyawan</th>
-                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Tanggal</th>
-                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Jam Datang</th>
-                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Jam Pulang</th>
-                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Edited</th>
-                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="min-w-[760px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nama Karyawan</TableHead>
+                <TableHead>Tanggal</TableHead>
+                <TableHead>Jam Datang</TableHead>
+                <TableHead>Jam Pulang</TableHead>
+                <TableHead>Edited</TableHead>
+                <TableHead>Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {attendanceStatus === "loading" && rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-3 text-zinc-500" colSpan={6}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={6}>
                     Memuat data attendance...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : attendanceStatus === "error" && attendanceError ? (
-                <tr>
-                  <td className="px-4 py-3" colSpan={6}>
+                <TableRow>
+                  <TableCell colSpan={6}>
                     <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                       <span>
                         [{attendanceError.code}] {attendanceError.message}
@@ -730,22 +738,22 @@ export function ReportPanel() {
                         Coba lagi
                       </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-3 text-zinc-500" colSpan={6}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={6}>
                     {hasAttendanceFilter
                       ? "Tidak ada data attendance yang cocok dengan filter."
                       : "Belum ada data attendance untuk tanggal ini."}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 rows.map((row) => (
-                  <tr key={row._id} className="border-t border-zinc-200 align-top">
-                    <td className="px-4 py-3">{row.employeeName}</td>
-                    <td className="px-4 py-3 tabular-nums">{row.dateKey}</td>
-                    <td className="px-4 py-3 tabular-nums">
+                  <TableRow key={row._id} className="align-top">
+                    <TableCell>{row.employeeName}</TableCell>
+                    <TableCell className="tabular-nums">{row.dateKey}</TableCell>
+                    <TableCell className="tabular-nums">
                       {editingRowId === row._id ? (
                         <Input
                           type="time"
@@ -763,8 +771,8 @@ export function ReportPanel() {
                       ) : (
                         "-"
                       )}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
+                    </TableCell>
+                    <TableCell className="tabular-nums">
                       {editingRowId === row._id ? (
                         <Input
                           type="time"
@@ -782,8 +790,8 @@ export function ReportPanel() {
                       ) : (
                         "-"
                       )}
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <span
                         className={cn(
                           "inline-flex rounded-full border px-2 py-1 text-xs",
@@ -794,8 +802,8 @@ export function ReportPanel() {
                       >
                         {row.edited ? "Edited" : "Original"}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       {editingRowId === row._id ? (
                         <div className="flex max-w-[420px] flex-wrap items-center gap-2">
                           <Input
@@ -856,12 +864,12 @@ export function ReportPanel() {
                           Edit
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
 
           {!isLastPage ? (
             <div className="border-t border-zinc-200 p-3">
@@ -906,40 +914,40 @@ export function ReportPanel() {
               ) : null}
             </div>
           </div>
-          <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-zinc-50">
-              <tr>
-                <th className="p-3 text-left font-semibold text-zinc-700">Waktu</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Karyawan</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Result</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Reason</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Message</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Waktu</TableHead>
+                <TableHead>Karyawan</TableHead>
+                <TableHead>Result</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Message</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {scanEventsStatus === "loading" ? (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={5}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={5}>
                     Memuat scan events...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : scanEvents.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={5}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={5}>
                     Belum ada scan events.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 scanEvents.map((row) => (
-                  <tr key={row._id} className="border-t border-zinc-200">
-                    <td className="p-3 tabular-nums">
+                  <TableRow key={row._id}>
+                    <TableCell className="tabular-nums">
                       {new Date(row.scannedAt).toLocaleTimeString("id-ID")}
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell>
                       {row.actorName}
                       <div className="text-xs text-zinc-500">{row.actorEmail}</div>
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell>
                       <span
                         className={cn(
                           "inline-flex rounded-full border px-2 py-1 text-xs",
@@ -950,14 +958,14 @@ export function ReportPanel() {
                       >
                         {row.resultStatus}
                       </span>
-                    </td>
-                    <td className="p-3">{row.reasonCode}</td>
-                    <td className="p-3">{row.message ?? "-"}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>{row.reasonCode}</TableCell>
+                    <TableCell>{row.message ?? "-"}</TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CollapsibleContent>
       </Collapsible>
 
@@ -974,44 +982,44 @@ export function ReportPanel() {
           )}
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <table className="w-full min-w-[700px] text-sm">
-            <thead className="bg-zinc-50">
-              <tr>
-                <th className="p-3 text-left font-semibold text-zinc-700">Nama</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Email</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Online</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Last Seen</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="min-w-[700px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nama</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Online</TableHead>
+                <TableHead>Last Seen</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {deviceStatus === "loading" ? (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={4}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={4}>
                     Memuat status device...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : deviceRows.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={4}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={4}>
                     Tidak ada akun device-qr aktif.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 deviceRows.map((row) => (
-                  <tr key={row.deviceUserId} className="border-t border-zinc-200">
-                    <td className="p-3">{row.name}</td>
-                    <td className="p-3">{row.email}</td>
-                    <td className="p-3">{row.online ? "Online" : "Offline"}</td>
-                    <td className="p-3 tabular-nums">
+                  <TableRow key={row.deviceUserId}>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.email}</TableCell>
+                    <TableCell>{row.online ? "Online" : "Offline"}</TableCell>
+                    <TableCell className="tabular-nums">
                       {row.lastSeenAt
                         ? new Date(row.lastSeenAt).toLocaleString("id-ID")
                         : "-"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CollapsibleContent>
       </Collapsible>
 
@@ -1028,30 +1036,30 @@ export function ReportPanel() {
           )}
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-zinc-50">
-              <tr>
-                <th className="p-3 text-left font-semibold text-zinc-700">Week Key</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Range</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Status</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Source</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Attempt</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Durasi</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Error</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Generated At</th>
-                <th className="p-3 text-left font-semibold text-zinc-700">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="min-w-[760px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Week Key</TableHead>
+                <TableHead>Range</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Attempt</TableHead>
+                <TableHead>Durasi</TableHead>
+                <TableHead>Error</TableHead>
+                <TableHead>Generated At</TableHead>
+                <TableHead>Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {reportsStatus === "loading" && reports.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={9}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={9}>
                     Memuat riwayat report mingguan...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : reportsStatus === "error" && reportsError ? (
-                <tr>
-                  <td className="p-3" colSpan={9}>
+                <TableRow>
+                  <TableCell colSpan={9}>
                     <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                       <span>
                         [{reportsError.code}] {reportsError.message}
@@ -1065,40 +1073,40 @@ export function ReportPanel() {
                         Coba lagi
                       </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : reports.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={9}>
+                <TableRow>
+                  <TableCell className="text-zinc-500" colSpan={9}>
                     Belum ada report mingguan.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 reports.map((report) => (
-                  <tr key={report._id} className="border-t border-zinc-200">
-                    <td className="p-3 tabular-nums">{report.weekKey}</td>
-                    <td className="p-3 tabular-nums">
+                  <TableRow key={report._id}>
+                    <TableCell className="tabular-nums">{report.weekKey}</TableCell>
+                    <TableCell className="tabular-nums">
                       {report.startDate} s/d {report.endDate}
-                    </td>
-                    <td className="p-3">{report.status}</td>
-                    <td className="p-3">{report.triggerSource ?? "-"}</td>
-                    <td className="p-3 tabular-nums">{report.attempts ?? 1}</td>
-                    <td className="p-3 tabular-nums">
+                    </TableCell>
+                    <TableCell>{report.status}</TableCell>
+                    <TableCell>{report.triggerSource ?? "-"}</TableCell>
+                    <TableCell className="tabular-nums">{report.attempts ?? 1}</TableCell>
+                    <TableCell className="tabular-nums">
                       {report.durationMs !== undefined
                         ? `${Math.max(0, Math.round(report.durationMs / 1000))} detik`
                         : "-"}
-                    </td>
-                    <td className="max-w-[320px] truncate p-3">
+                    </TableCell>
+                    <TableCell className="max-w-[320px] truncate">
                       {report.status === "failed"
                         ? (report.errorMessage ?? "-")
                         : "-"}
-                    </td>
-                    <td className="p-3 tabular-nums">
+                    </TableCell>
+                    <TableCell className="tabular-nums">
                       {report.generatedAt
                         ? new Date(report.generatedAt).toLocaleString("id-ID")
                         : "-"}
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell>
                       <Button
                         size="sm"
                         variant="outline"
@@ -1107,12 +1115,12 @@ export function ReportPanel() {
                       >
                         Unduh
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CollapsibleContent>
       </Collapsible>
     </div>
