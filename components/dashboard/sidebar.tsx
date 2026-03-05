@@ -70,7 +70,7 @@ function canAccess(role: string, item: NavItem) {
   return item.requiresRole.includes(role);
 }
 
-export function DashboardSidebar({ role = 'karyawan', name, email }: SidebarProps) {
+export function DashboardSidebar({ role = 'karyawan' }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isCollapsed } = useSidebar();

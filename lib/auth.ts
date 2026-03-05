@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import { ACTIVE_WORKSPACE_COOKIE, isValidWorkspaceId } from "@/lib/workspace-context";
@@ -219,7 +219,7 @@ export async function requireRolePageFromDb(roles: AppRole[]) {
 
   const current = await requireUser();
   if (!current || !current.role || !roles.includes(current.role)) {
-    redirect("/forbidden");
+    forbidden();
   }
 
   return current;
@@ -267,18 +267,18 @@ export async function requireWorkspaceRolePageFromDb(
   if (!membership) {
     const hasAnyActiveMembership = memberships.some((item) => item.isActive && item.workspace.isActive);
     if (hasAnyActiveMembership) {
-      redirect("/forbidden");
+      forbidden();
     }
     redirect("/onboarding/workspace");
   }
 
   if (!membership.isActive || !membership.workspace.isActive || !roles.includes(membership.role)) {
-    redirect("/forbidden");
+    forbidden();
   }
 
   const current = await requireUser();
   if (!current?.user) {
-    redirect("/forbidden");
+    forbidden();
   }
 
   return {

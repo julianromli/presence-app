@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { workspaceFetch } from '@/lib/workspace-client';
 
@@ -119,8 +120,14 @@ export function DeviceQrPanel() {
 
         <div className="mx-auto mt-6 w-full max-w-sm rounded-2xl border bg-white p-4">
           {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrDataUrl} alt="QR Presence" className="aspect-square w-full" />
+            <Image
+              src={qrDataUrl}
+              alt="QR Presence"
+              width={512}
+              height={512}
+              unoptimized
+              className="aspect-square w-full"
+            />
           ) : (
             <div className="grid aspect-square place-items-center text-sm text-zinc-500">Memuat QR...</div>
           )}

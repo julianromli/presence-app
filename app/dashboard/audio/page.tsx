@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Faders, Microphone, MusicNotes, TextT, Waveform } from '@phosphor-icons/react/dist/ssr';
+import { ArrowSquareOut, Faders, Microphone, MusicNotes, Waveform } from '@phosphor-icons/react/dist/ssr';
 
 export default function AudioPage() {
     return (

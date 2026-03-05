@@ -107,6 +107,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
   const { user } = useUser();
   const { toggleSidebar, isCollapsed } = useSidebar();
   const actualName = user?.fullName || name;
+  const actualEmail = user?.primaryEmailAddress?.emailAddress || email;
 
   const [busy, setBusy] = useState<'none' | 'refresh' | 'report' | 'export'>('none');
   const [notice, setNotice] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
@@ -320,7 +321,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
             </button>
 
             <div className="hidden items-center gap-2 text-sm text-zinc-300 lg:flex">
-              <div className="flex items-center gap-2 rounded px-2 py-1.5 transition hover:bg-zinc-800">
+              <div className="flex items-center gap-2 rounded px-2 py-1.5 transition hover:bg-zinc-800" title={actualEmail}>
                 <div className="grid h-5 w-5 place-items-center rounded-full bg-zinc-700 text-[10px] font-medium text-white ring-1 ring-zinc-700">
                   {actualName[0]?.toUpperCase()}
                 </div>

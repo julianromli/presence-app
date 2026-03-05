@@ -1,4 +1,4 @@
-import { CaretDown, ChatTeardropText, ClockCounterClockwise, CodeBlock, PaperPlaneRight, Plus, WarningCircle } from '@phosphor-icons/react/dist/ssr';
+import { CaretDown, ClockCounterClockwise, CodeBlock, PaperPlaneRight, Plus, WarningCircle } from '@phosphor-icons/react/dist/ssr';
 
 export default function PlaygroundPage() {
     return (
