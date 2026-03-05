@@ -1,7 +1,7 @@
 'use client';
 
 import { SignOutButton } from '@clerk/nextjs';
-import { ChartBar, MapPinArea, SquaresFour, UserCircle, UsersThree } from '@phosphor-icons/react/dist/ssr';
+import { ChartBar, ClockCounterClockwise, MapPinArea, SquaresFour, Trophy, UserCircle, UsersThree } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -23,8 +23,18 @@ type NavItem = {
 
 const baseItems: NavItem[] = [
   { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
+];
+
+const adminItems: NavItem[] = [
+  ...baseItems,
   { href: '/dashboard/report', label: 'Laporan', icon: ChartBar },
   { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree },
+];
+
+const employeeItems: NavItem[] = [
+  ...baseItems,
+  { href: '/dashboard/attendance', label: 'Absensi', icon: ClockCounterClockwise },
+  { href: '/dashboard/leaderboard', label: 'Peringkat', icon: Trophy },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -39,10 +49,12 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
   const searchParams = useSearchParams();
   const [accountOpen, setAccountOpen] = useState(false);
   const activeQuery = (searchParams.get('q') ?? '').trim();
-  const items =
-    role === 'superadmin'
-      ? [...baseItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }]
-      : baseItems;
+  const items = role === 'karyawan'
+    ? employeeItems
+    : role === 'superadmin'
+      ? [...adminItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }]
+      : adminItems;
+  const showAccount = role === 'karyawan' || role === 'admin';
 
   const resolveItemHref = (href: string) => {
     if (!activeQuery) return href;
@@ -76,7 +88,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
               </li>
             );
           })}
-          {role !== 'superadmin' ? (
+          {showAccount ? (
             <li>
               <button
                 type="button"
@@ -97,7 +109,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
         </ul>
       </nav>
 
-      {role !== 'superadmin' && accountOpen ? (
+      {showAccount && accountOpen ? (
         <div className="fixed inset-0 z-50 bg-slate-900/30 md:hidden">
           <button
             type="button"

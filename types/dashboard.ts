@@ -79,3 +79,75 @@ export type WorkspaceManagementPayload = {
     expiresAt?: number;
   } | null;
 };
+
+export type EmployeeTrendPoint = {
+  dateKey: string;
+  checkInMinute: number | null;
+  onTime: boolean;
+  hasCheckIn: boolean;
+};
+
+export type EmployeeDashboardOverviewPayload = {
+  cards: {
+    disciplineScore: number;
+    onTimeThisWeek: number;
+    lateThisWeek: number;
+    avgCheckInTime: string;
+    improvementMinutes: number;
+    weeklyPoints: number;
+    streakDays: number;
+  };
+  trend14d: EmployeeTrendPoint[];
+  insight: string;
+  badgeProgress: {
+    current: "none" | "bronze" | "silver" | "gold";
+    next: "bronze" | "silver" | "gold" | null;
+    currentPoints: number;
+    targetPoints: number | null;
+    remainingPoints: number | null;
+  };
+};
+
+export type EmployeeAttendanceHistoryRow = {
+  attendanceId: string;
+  dateKey: string;
+  checkInAt?: number;
+  checkOutAt?: number;
+  status: "on-time" | "late" | "incomplete" | "absent";
+  workDurationMinutes: number;
+  edited: boolean;
+  points: number;
+};
+
+export type EmployeeAttendanceHistoryPayload = {
+  rows: EmployeeAttendanceHistoryRow[];
+  pageInfo: {
+    continueCursor: string;
+    isDone: boolean;
+  };
+  summary: {
+    totalRows: number;
+    onTime: number;
+    late: number;
+    incomplete: number;
+    absent: number;
+  };
+};
+
+export type EmployeeLeaderboardRow = {
+  userId: string;
+  name: string;
+  points: number;
+  onTimeDays: number;
+  streakDays: number;
+  disciplineScore: number;
+  rank: number;
+  isMe: boolean;
+};
+
+export type EmployeeLeaderboardPayload = {
+  weekLabel: string;
+  myRank: number | null;
+  myPoints: number;
+  rows: EmployeeLeaderboardRow[];
+};

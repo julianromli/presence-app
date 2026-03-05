@@ -6,11 +6,16 @@ export default async function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   await requireWorkspaceOnboardingPage();
-  const session = await requireWorkspaceRolePageFromDb(['admin', 'superadmin']);
+  const session = await requireWorkspaceRolePageFromDb(['admin', 'superadmin', 'karyawan']);
   if (!session.user) {
     redirect('/forbidden');
   }
-  const role = session.role === 'superadmin' ? 'superadmin' : 'admin';
+  const role =
+    session.role === 'superadmin'
+      ? 'superadmin'
+      : session.role === 'admin'
+        ? 'admin'
+        : 'karyawan';
 
   return (
     <DashboardShellLayout role={role} name={session.user.name} email={session.user.email}>

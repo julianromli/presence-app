@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentType } from 'react';
 import {
+  Trophy,
   Buildings,
   ChartBar,
+  ClockCounterClockwise,
   MapPinArea,
   SquaresFour,
   UsersThree,
@@ -24,6 +26,7 @@ type NavItem = {
   label: string;
   icon: ComponentType<{ className?: string; weight?: 'regular' | 'fill' | 'bold' }>;
   badge?: string;
+  requiresRole?: string[];
 };
 
 type NavGroup = {
@@ -37,8 +40,10 @@ const navigationGroups: NavGroup[] = [
     label: 'Operasional',
     items: [
       { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
-      { href: '/dashboard/report', label: 'Laporan', icon: ChartBar },
-      { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree },
+      { href: '/dashboard/attendance', label: 'Absensi Saya', icon: ClockCounterClockwise, requiresRole: ['karyawan'] },
+      { href: '/dashboard/leaderboard', label: 'Leaderboard', icon: Trophy, requiresRole: ['karyawan'] },
+      { href: '/dashboard/report', label: 'Laporan', icon: ChartBar, requiresRole: ['admin', 'superadmin'] },
+      { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree, requiresRole: ['admin', 'superadmin'] },
     ]
   },
   {
@@ -56,6 +61,13 @@ function isActive(pathname: string, href: string) {
     return pathname === '/dashboard';
   }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function canAccess(role: string, item: NavItem) {
+  if (!item.requiresRole) {
+    return true;
+  }
+  return item.requiresRole.includes(role);
 }
 
 export function DashboardSidebar({ role = 'karyawan', name, email }: SidebarProps) {
@@ -87,12 +99,14 @@ export function DashboardSidebar({ role = 'karyawan', name, email }: SidebarProp
               <div className="mx-auto my-2 h-[1px] w-8 bg-zinc-200" />
             )}
             {group.items.map((item) => (
-              <SidebarItem
-                key={item.href}
-                item={{ ...item, href: resolveItemHref(item.href) }}
-                active={isActive(pathname, item.href)}
-                isCollapsed={isCollapsed}
-              />
+              canAccess(role, item) ? (
+                <SidebarItem
+                  key={item.href}
+                  item={{ ...item, href: resolveItemHref(item.href) }}
+                  active={isActive(pathname, item.href)}
+                  isCollapsed={isCollapsed}
+                />
+              ) : null
             ))}
           </section>
         ))}

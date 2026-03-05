@@ -1,7 +1,10 @@
 import { DashboardPageHeader } from '@/components/dashboard/page-header';
 import { ReportPanel } from '@/components/dashboard/report-panel';
+import { requireWorkspaceRolePageFromDb } from '@/lib/auth';
 
-export default function DashboardReportPage() {
+export default async function DashboardReportPage() {
+  await requireWorkspaceRolePageFromDb(['admin', 'superadmin']);
+
   return (
     <>
       <DashboardPageHeader title="Manajemen Laporan" />

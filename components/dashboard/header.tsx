@@ -52,6 +52,18 @@ type SearchCapability = {
 };
 
 function resolveSearchCapability(pathname: string): SearchCapability {
+  if (pathname.startsWith('/dashboard/attendance')) {
+    return {
+      enabled: true,
+      scopeLabel: 'Cari tanggal absensi personal',
+    };
+  }
+  if (pathname.startsWith('/dashboard/leaderboard')) {
+    return {
+      enabled: true,
+      scopeLabel: 'Cari posisi leaderboard',
+    };
+  }
   if (pathname.startsWith('/settings/geofence')) {
     return {
       enabled: false,
@@ -80,6 +92,12 @@ function resolveSearchCapability(pathname: string): SearchCapability {
     enabled: true,
     scopeLabel: 'Cari aktivitas dashboard',
   };
+}
+
+function overviewEndpointForRole(role: string) {
+  return role === 'karyawan'
+    ? '/api/karyawan/dashboard/overview'
+    : '/api/admin/dashboard/overview';
 }
 
 export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.com', role = 'karyawan' }: DashboardHeaderProps) {
@@ -175,7 +193,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
     setBusy('refresh');
     setNotice(null);
     try {
-      const res = await workspaceFetch('/api/admin/dashboard/overview', { cache: 'no-store' });
+      const res = await workspaceFetch(overviewEndpointForRole(role), { cache: 'no-store' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal menyegarkan data dashboard.');
         if (recoverWorkspaceScopeViolation(error.code)) return;
@@ -380,37 +398,39 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
             >
               <ArrowsClockwise weight="bold" className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`} />
             </button>
-            <div className="relative" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((prev) => !prev)}
-                disabled={busy !== 'none'}
-                title="Reports Menu"
-                className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition disabled:opacity-50"
-              >
-                <DownloadSimple weight="bold" className="h-4 w-4" />
-              </button>
-              {menuOpen ? (
-                <div className="absolute right-0 top-10 z-50 min-w-56 rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-2xl">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
-                    onClick={() => void runExportLatestReport()}
-                  >
-                    <FileArrowDown weight="bold" className="h-3.5 w-3.5" />
-                    Export latest weekly report
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
-                    onClick={() => void runGenerateWeeklyReport()}
-                  >
-                    <ClockCounterClockwise weight="bold" className="h-3.5 w-3.5" />
-                    Generate weekly report
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            {role !== 'karyawan' ? (
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  disabled={busy !== 'none'}
+                  title="Reports Menu"
+                  className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition disabled:opacity-50"
+                >
+                  <DownloadSimple weight="bold" className="h-4 w-4" />
+                </button>
+                {menuOpen ? (
+                  <div className="absolute right-0 top-10 z-50 min-w-56 rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-2xl">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
+                      onClick={() => void runExportLatestReport()}
+                    >
+                      <FileArrowDown weight="bold" className="h-3.5 w-3.5" />
+                      Export latest weekly report
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
+                      onClick={() => void runGenerateWeeklyReport()}
+                    >
+                      <ClockCounterClockwise weight="bold" className="h-3.5 w-3.5" />
+                      Generate weekly report
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <UserButton
               afterSignOutUrl="/"
