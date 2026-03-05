@@ -4,12 +4,14 @@ import AnimationCheckout from '../ui/animation-checkout';
 import AnimationInvoicing from '../ui/animation-invoicing';
 import AnimationPaymentLink from '../ui/animation-payment-link';
 import AnimationRecurringBilling from '../ui/animation-recurring-bill';
+import type { FeaturePreviewState } from '../ui/feature-preview-shell';
 
 type Feature = {
   title: string;
   description: string;
   image: string;
   href?: string;
+  previewState?: FeaturePreviewState;
 };
 
 const FEATURES: Feature[] = [
@@ -18,24 +20,28 @@ const FEATURES: Feature[] = [
     description:
       'Token QR terus berputar dalam interval singkat sehingga kode lama tidak bisa dipakai ulang saat proses absensi.',
     image: '/images/homepage/features/animation1.svg',
+    previewState: 'ready',
   },
   {
     title: 'Mode device khusus scanner',
     description:
       'Layar scanner khusus role device-qr menjaga alur check-in/check-out tetap cepat tanpa membuka area admin.',
     image: '/images/homepage/features/recurring-billing.webp',
+    previewState: 'ready',
   },
   {
     title: 'Dashboard operasional real-time',
     description:
       'Admin bisa memantau aktivitas kehadiran, sinkronisasi user, dan ringkasan data harian dari satu dashboard.',
     image: '/images/homepage/features/invoicing.webp',
+    previewState: 'ready',
   },
   {
     title: 'Rekap mingguan siap ekspor',
     description:
       'Laporan absensi disiapkan untuk kebutuhan audit dengan jejak perubahan yang jelas dan format siap dibagikan.',
     image: '/images/homepage/features/payment-link.webp',
+    previewState: 'ready',
   },
 ];
 
@@ -57,13 +63,25 @@ function FeatureCard({ feature }: { feature: Feature }) {
       <div className="relative mt-6 w-full overflow-hidden rounded-[12px]">
         <div className="bg-accent relative h-[220px] w-full sm:h-[260px] md:h-[300px]">
           {isRecurring ? (
-            <AnimationRecurringBilling className="absolute inset-0" />
+            <AnimationRecurringBilling
+              className="absolute inset-0"
+              state={feature.previewState}
+            />
           ) : isCheckout ? (
-            <AnimationCheckout className="absolute inset-0" />
+            <AnimationCheckout
+              className="absolute inset-0"
+              state={feature.previewState}
+            />
           ) : isInvoicing ? (
-            <AnimationInvoicing className="absolute inset-0" />
+            <AnimationInvoicing
+              className="absolute inset-0"
+              state={feature.previewState}
+            />
           ) : isPayment ? (
-            <AnimationPaymentLink className="absolute inset-0" />
+            <AnimationPaymentLink
+              className="absolute inset-0"
+              state={feature.previewState}
+            />
           ) : (
             <Image
               src={feature.image}
@@ -74,6 +92,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
               priority={false}
             />
           )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-t from-[#f8fafb] to-transparent" />
         </div>
       </div>
     </div>

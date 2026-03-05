@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowsClockwise, CheckCircle, Clock, Pulse, UsersThree } from '@phosphor-icons/react/dist/ssr';
+import { ArrowsClockwise, CheckCircle, Clock, Pulse, UsersThree, Info } from '@phosphor-icons/react/dist/ssr';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -15,21 +15,18 @@ type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
 function summaryCard(
   label: string,
   value: number,
-  tone: 'default' | 'success' = 'default',
+  isHero: boolean = false,
   suffix = '',
 ) {
-  const toneClass =
-    tone === 'success'
-      ? 'bg-emerald-50 border-emerald-200'
-      : 'bg-white border-slate-200';
-
   return (
-    <article className={`rounded-xl border p-4 ${toneClass}`}>
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">
-        {value}
-        {suffix}
-      </p>
+    <article className={`relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:shadow-md`}>
+      <p className="text-xs font-medium text-zinc-500">{label}</p>
+      <div className="mt-4 flex items-baseline gap-1">
+        <p className={`font-semibold tabular-nums tracking-tight ${isHero ? 'text-4xl text-zinc-900' : 'text-3xl text-zinc-800'}`}>
+          {value}
+        </p>
+        {suffix && <span className="text-sm font-medium text-zinc-500">{suffix}</span>}
+      </div>
     </article>
   );
 }
@@ -88,24 +85,22 @@ export function OverviewPanel() {
   }, [loadOverview]);
 
   const filteredActivity = useMemo(() => {
-    if (!payload) {
-      return [];
-    }
-    if (quickFilter.length === 0) {
-      return payload.recentActivity;
-    }
+    if (!payload) return [];
+    if (quickFilter.length === 0) return payload.recentActivity;
 
     return payload.recentActivity.filter((item) => {
       const haystack = `${item.employeeName} ${item.dateKey} ${item.status}`.toLocaleLowerCase('id-ID');
       return haystack.includes(quickFilter);
     });
   }, [payload, quickFilter]);
+  const noDataActivity = status === 'empty';
+  const noMatchActivity = status === 'success' && filteredActivity.length === 0;
 
   if (status === 'loading' && !payload) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
         {[...Array.from({ length: 3 })].map((_, idx) => (
-          <div key={idx} className="h-28 animate-pulse rounded-xl border border-slate-200 bg-white" />
+          <div key={idx} className="h-32 animate-pulse rounded-xl border border-zinc-100 bg-zinc-50/50" />
         ))}
       </div>
     );
@@ -113,59 +108,56 @@ export function OverviewPanel() {
 
   if (status === 'error' && error) {
     return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-        <p>
-          [{error.code}] {error.message}
-        </p>
-        <Button type="button" variant="outline" className="mt-3" onClick={() => void loadOverview()}>
+      <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-900 shadow-sm">
+        <p className="font-semibold text-rose-950">Error Loading Dashboard</p>
+        <p className="mt-1 text-rose-800/80">[{error.code}] {error.message}</p>
+        <Button onClick={() => void loadOverview()} className="mt-4 bg-white text-rose-900 border-rose-200 hover:bg-rose-100 hover:border-rose-300 shadow-sm" variant="outline" size="sm">
           Coba Lagi
         </Button>
       </div>
     );
   }
 
-  if (!payload) {
-    return null;
-  }
+  if (!payload) return null;
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
-        <p className="text-sm font-semibold tracking-tight text-zinc-900">Snapshot operasional hari ini</p>
-        <p className="mt-1 text-sm text-zinc-600">
-          Pantau status kehadiran, tren 7 hari, dan aktivitas terbaru dalam satu area kerja.
-        </p>
-      </section>
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        {summaryCard('Karyawan aktif', payload.cards.activeEmployees)}
-        {summaryCard('Hadir hari ini', payload.cards.presentToday, 'success')}
-        {summaryCard('Rasio kehadiran', payload.cards.attendanceRatePct, 'default', '%')}
-        {summaryCard('Sudah check-out', payload.cards.checkedOut)}
-        {summaryCard('Edit hari ini', payload.cards.editedToday)}
-        {summaryCard('Device QR online', payload.cards.deviceQrOnline, 'success')}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {summaryCard('Karyawan aktif', payload.cards.activeEmployees, true)}
+        {summaryCard('Hadir hari ini', payload.cards.presentToday, true)}
+        {summaryCard('Rasio kehadiran', payload.cards.attendanceRatePct, true, '%')}
+        {summaryCard('Device QR online', payload.cards.deviceQrOnline, true)}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-base font-semibold tracking-tight text-slate-900">Tren kehadiran 7 hari</h2>
-            <Button type="button" variant="ghost" size="sm" onClick={() => void loadOverview()}>
-              <ArrowsClockwise weight="regular" className="mr-1 h-3.5 w-3.5" />
-              Refresh
-            </Button>
+      <div className="grid gap-8 lg:grid-cols-2">
+        <section className="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">Tren kehadiran 7 hari</h2>
+              <p className="text-xs text-zinc-500 mt-1">Berdasarkan data check-in harian</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadOverview()}
+              className="flex items-center justify-center p-2 rounded-md text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+              title="Refresh Trend"
+            >
+              <ArrowsClockwise weight="bold" className="h-4 w-4" />
+            </button>
           </div>
-          <div className="grid grid-cols-7 items-end gap-2 rounded-lg bg-slate-50 p-4">
+
+          <div className="flex-1 flex items-end justify-between gap-2 md:gap-4 mt-auto rounded-lg border border-dashed border-zinc-200 p-4 bg-zinc-50/30">
             {payload.trend7d.map((point) => {
-              const barHeight = Math.max(10, Math.round(point.attendanceRatePct));
+              const barHeight = Math.max(8, Math.round(point.attendanceRatePct));
               return (
-                <div key={point.dateKey} className="flex flex-col items-center gap-2">
-                  <div className="flex h-40 w-full items-end justify-center rounded bg-white p-2">
-                    <div className="w-full rounded-t bg-slate-900" style={{ height: `${barHeight}%` }} />
+                <div key={point.dateKey} className="group relative flex flex-1 flex-col items-center justify-end">
+                  <div className="flex h-40 w-full max-w-[40px] flex-col justify-end">
+                    <div className="w-full rounded-md bg-zinc-800 transition-all duration-300 group-hover:bg-indigo-600" style={{ height: `${barHeight}%` }} />
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium text-slate-700">{dayLabelFromDateKey(point.dateKey)}</p>
-                    <p className="text-[10px] tabular-nums text-slate-500">{point.attendanceRatePct}%</p>
+                  <div className="mt-4 text-center">
+                    <p className="text-xs font-medium text-zinc-700">{dayLabelFromDateKey(point.dateKey)}</p>
+                    <p className="mt-0.5 text-[10px] tabular-nums text-zinc-400 font-semibold">{point.attendanceRatePct}%</p>
                   </div>
                 </div>
               );
@@ -173,77 +165,88 @@ export function OverviewPanel() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold tracking-tight text-slate-900">Aktivitas terkini</h2>
-            <p className="text-xs text-slate-500">{filteredActivity.length} item</p>
+        <section className="flex flex-col rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-zinc-100 p-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">Aktivitas terkini</h2>
+              <p className="text-xs text-zinc-500 mt-1">{filteredActivity.length} events detected</p>
+            </div>
           </div>
 
-          {status === 'empty' ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-              Belum ada aktivitas attendance untuk ditampilkan.
-            </div>
-          ) : filteredActivity.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-              Tidak ada aktivitas yang cocok dengan filter pencarian.
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {filteredActivity.map((item) => (
-                <li key={item.attendanceId} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 p-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">{item.employeeName}</p>
-                    <p className="text-xs text-slate-500">
-                      {item.status === 'check-out' ? 'Check-out' : 'Check-in'} • {item.dateKey}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-slate-700">
-                      {new Date(item.happenedAt).toLocaleTimeString('id-ID', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                    {item.edited ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                        <Clock weight="regular" className="h-3 w-3" />
-                        Edited
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                        <CheckCircle weight="regular" className="h-3 w-3" />
-                        Normal
-                      </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="flex-1 overflow-y-auto max-h-[340px] p-6 pt-4 bg-zinc-50/30">
+            {noDataActivity || noMatchActivity ? (
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-500">
+                <Info weight="regular" className="h-8 w-8 mb-3 text-zinc-400" />
+                <p>
+                  {noMatchActivity
+                    ? 'Tidak ada aktivitas yang cocok dengan kata kunci pencarian.'
+                    : 'Belum ada aktivitas attendance untuk ditampilkan.'}
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {filteredActivity.map((item) => (
+                  <li key={item.attendanceId} className="group flex items-center justify-between gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-zinc-100/80">
+                    <div className="flex flex-col">
+                      <p className="text-[13px] font-medium text-zinc-900">{item.employeeName}</p>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                        <span className={item.status === 'check-out' ? 'text-indigo-600' : 'text-emerald-600 font-medium'}>
+                          {item.status === 'check-out' ? 'Check-out' : 'Check-in'}
+                        </span>
+                        {' '}• {item.dateKey}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <p className="text-xs font-semibold tabular-nums text-zinc-700">
+                        {new Date(item.happenedAt).toLocaleTimeString('id-ID', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                      {item.edited ? (
+                        <span className="mt-1 flex items-center gap-1 rounded bg-zinc-200/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+                          <Clock weight="bold" className="h-2.5 w-2.5" /> Edited
+                        </span>
+                      ) : (
+                        <span className="mt-1 flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                          <CheckCircle weight="bold" className="h-2.5 w-2.5" /> Normal
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-500">
-            <UsersThree weight="regular" className="h-4 w-4" />
-            <p className="text-xs font-semibold tracking-wide">Sumber KPI</p>
+        <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-zinc-500">
+            <UsersThree weight="bold" className="h-4 w-4 text-zinc-400" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Sumber KPI</p>
           </div>
-          <p className="mt-2 text-sm text-slate-700">
-            Semua angka diambil dari data attendance dan users terkini pada Convex.
+          <p className="mt-3 text-[13px] text-zinc-600">
+            Semua angka metrik ditarik secara _realtime_ dari data kehadiran pada Server Database.
           </p>
         </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-500">
-            <Pulse weight="regular" className="h-4 w-4" />
-            <p className="text-xs font-semibold tracking-wide">Status report mingguan</p>
+        <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-zinc-500">
+            <Pulse weight="bold" className="h-4 w-4 text-zinc-400" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Status Report Mingguan</p>
           </div>
           {payload.reportStatus ? (
-            <div className="mt-2 text-sm text-slate-700">
-              <p>
-                {payload.reportStatus.weekKey} • <span className="font-semibold">{payload.reportStatus.status}</span>
+            <div className="mt-3">
+              <p className="text-[13px] text-zinc-700">
+                Data Mingguan <span className="font-semibold">{payload.reportStatus.weekKey}</span>{' '}
+                <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+                  ${payload.reportStatus.status === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}
+                `}>
+                  {payload.reportStatus.status}
+                </span>
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] text-zinc-500 mt-2 font-mono">
                 Trigger terakhir:{' '}
                 {payload.reportStatus.lastTriggeredAt
                   ? new Date(payload.reportStatus.lastTriggeredAt).toLocaleString('id-ID')
@@ -251,7 +254,9 @@ export function OverviewPanel() {
               </p>
             </div>
           ) : (
-            <p className="mt-2 text-sm text-slate-500">Belum ada report mingguan.</p>
+            <div className="mt-3 flex items-center gap-2 text-[13px] text-zinc-500">
+              <Info weight="bold" className="h-4 w-4 text-zinc-400" /> Belum ada riwayat report mingguan.
+            </div>
           )}
         </article>
       </section>

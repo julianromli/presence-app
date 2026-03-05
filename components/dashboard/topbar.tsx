@@ -5,6 +5,7 @@ import { ArrowsClockwise, CaretDown, DownloadSimple, SquaresFour } from '@phosph
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import {
   recoverWorkspaceScopeViolation,
@@ -255,28 +256,39 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
         <div className="mx-auto w-full max-w-[1400px]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-[280px] items-center gap-2">
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500" htmlFor="workspace-switcher">
+              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 Workspace
               </label>
-              <select
-                id="workspace-switcher"
-                className="h-10 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                value={activeWorkspaceId ?? ''}
-                onChange={(event) => void handleWorkspaceChange(event.target.value)}
-                disabled={workspaceLoading || workspaceSwitching || memberships.length === 0}
-              >
-                {memberships.length === 0 ? (
-                  <option value="">
-                    {workspaceLoading ? 'Memuat workspace...' : 'Tidak ada workspace'}
-                  </option>
-                ) : (
-                  memberships.map((item) => (
-                    <option key={item.workspace._id} value={item.workspace._id}>
-                      {item.workspace.name}
-                    </option>
-                  ))
-                )}
-              </select>
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <Button
+                      className="h-10 min-w-[220px] justify-between rounded-lg border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
+                      variant="outline"
+                    />
+                  }
+                  disabled={workspaceLoading || workspaceSwitching || memberships.length === 0}
+                >
+                  {memberships.length === 0
+                    ? workspaceLoading
+                      ? 'Memuat workspace...'
+                      : 'Tidak ada workspace'
+                    : memberships.find((item) => item.workspace._id === activeWorkspaceId)?.workspace.name ?? 'Pilih workspace'}
+                  <CaretDown weight="regular" className="ml-2 h-4 w-4" />
+                </MenuTrigger>
+                <MenuPopup align="start" className="min-w-[220px] border-slate-300 bg-white">
+                  <MenuRadioGroup
+                    value={activeWorkspaceId ?? ''}
+                    onValueChange={(value) => void handleWorkspaceChange(value)}
+                  >
+                    {memberships.map((item) => (
+                      <MenuRadioItem key={item.workspace._id} value={item.workspace._id}>
+                        {item.workspace.name}
+                      </MenuRadioItem>
+                    ))}
+                  </MenuRadioGroup>
+                </MenuPopup>
+              </Menu>
             </div>
 
             <button

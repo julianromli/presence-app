@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { DashboardHeroMockup } from '@/components/sections/dashboard-hero-mockup';
 import { Button } from '@/components/ui/button';
 
 import { GridBackground } from '../ui/grid-background';
@@ -53,16 +54,8 @@ const MetafiHero = () => {
             </Button>
           </div>
         </div>
-        <div className="mx-auto flex w-full max-w-[994px] items-center justify-center rounded-t-[16px] bg-white/20 shadow-[0_15px_80px_-1px_rgba(8,9,10,0.04)] backdrop-blur-[20px]">
-          <Image
-            src="/images/homepage/hero/Dashboard.webp"
-            alt="Pratinjau dashboard Presence"
-            width={994}
-            height={707}
-            priority
-            sizes="(max-width: 1024px) 100vw, 994px"
-            className="h-auto w-full rounded-t-[16px] object-cover object-top"
-          />
+        <div className="mx-auto w-full max-w-[994px] rounded-t-[16px] bg-white/10 shadow-[0_15px_80px_-1px_rgba(8,9,10,0.08)] backdrop-blur-[20px]">
+          <DashboardHeroMockup />
         </div>
       </div>
     </section>

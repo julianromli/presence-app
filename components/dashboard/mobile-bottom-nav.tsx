@@ -1,9 +1,9 @@
 'use client';
 
 import { SignOutButton } from '@clerk/nextjs';
-import { ChartBar, MapPinArea, SquaresFour, UserCircle, UsersThree } from '@phosphor-icons/react/dist/ssr';
+import { ChartBar, ClockCounterClockwise, MapPinArea, SquaresFour, Trophy, UserCircle, UsersThree } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -23,8 +23,18 @@ type NavItem = {
 
 const baseItems: NavItem[] = [
   { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
+];
+
+const adminItems: NavItem[] = [
+  ...baseItems,
   { href: '/dashboard/report', label: 'Laporan', icon: ChartBar },
   { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree },
+];
+
+const employeeItems: NavItem[] = [
+  ...baseItems,
+  { href: '/dashboard/attendance', label: 'Absensi', icon: ClockCounterClockwise },
+  { href: '/dashboard/leaderboard', label: 'Peringkat', icon: Trophy },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -36,11 +46,22 @@ function isActive(pathname: string, href: string) {
 
 export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [accountOpen, setAccountOpen] = useState(false);
-  const items =
-    role === 'superadmin'
-      ? [...baseItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }]
-      : baseItems;
+  const activeQuery = (searchParams.get('q') ?? '').trim();
+  const items = role === 'karyawan'
+    ? employeeItems
+    : role === 'superadmin'
+      ? [...adminItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }]
+      : adminItems;
+  const showAccount = role === 'karyawan' || role === 'admin';
+
+  const resolveItemHref = (href: string) => {
+    if (!activeQuery) return href;
+    const params = new URLSearchParams();
+    params.set('q', activeQuery);
+    return `${href}?${params.toString()}`;
+  };
 
   return (
     <>
@@ -52,7 +73,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
             return (
               <li key={item.href}>
                 <Link
-                  href={item.href}
+                  href={resolveItemHref(item.href)}
                   className={cn(
                     'flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium transition active:scale-[0.98]',
                     active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
@@ -67,7 +88,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
               </li>
             );
           })}
-          {role !== 'superadmin' ? (
+          {showAccount ? (
             <li>
               <button
                 type="button"
@@ -88,7 +109,7 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
         </ul>
       </nav>
 
-      {role !== 'superadmin' && accountOpen ? (
+      {showAccount && accountOpen ? (
         <div className="fixed inset-0 z-50 bg-slate-900/30 md:hidden">
           <button
             type="button"

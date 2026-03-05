@@ -1,6 +1,7 @@
 import './globals.css';
 
 import { ClerkProvider } from '@clerk/nextjs';
+import Script from "next/script";
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ConvexClientProvider } from '@/components/providers/convex-client-provider';
@@ -19,6 +20,8 @@ const geistMono = Geist_Mono({
   display: 'swap',
 });
 
+const REACT_GRAB_VERSION = '0.1.22';
+
 export const metadata: Metadata = {
   title: {
     default: 'Presence - Absensi Digital',
@@ -34,6 +37,22 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="id" suppressHydrationWarning>
+      <head>
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src={`https://unpkg.com/react-grab@${REACT_GRAB_VERSION}/dist/index.global.js`}
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src={`https://unpkg.com/@react-grab/mcp@${REACT_GRAB_VERSION}/dist/client.global.js`}
+            crossOrigin="anonymous"
+            strategy="lazyOnload"
+          />
+        )}
+      </head>
         <body
           suppressHydrationWarning
           className={`min-h-screen ${geist.variable} ${geistMono.variable} antialiased`}
