@@ -10,7 +10,7 @@ type SetupOptions = {
 async function setupRoute(options: SetupOptions = {}) {
   vi.resetModules();
 
-  const requireRoleApiFromDb = vi.fn(
+  const requireWorkspaceRoleApiFromDb = vi.fn(
     async () => options.roleResult ?? { session: { role: "admin" } },
   );
   const getConvexTokenOrNull = vi.fn(async () =>
@@ -39,7 +39,13 @@ async function setupRoute(options: SetupOptions = {}) {
   const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
 
   vi.doMock("@/lib/auth", () => ({
-    requireRoleApiFromDb,
+    requireWorkspaceRoleApiFromDb,
+    requireWorkspaceApiContext: vi.fn((request: Request) => ({
+      workspace: {
+        workspaceId:
+          request.headers.get("x-workspace-id") ?? "workspace_123456",
+      },
+    })),
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({
@@ -47,7 +53,10 @@ async function setupRoute(options: SetupOptions = {}) {
   }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      Response.json(
+        { code: "INTERNAL_ERROR", message: fallbackMessage },
+        { status: 500 },
+      ),
     ),
   }));
 
@@ -56,7 +65,7 @@ async function setupRoute(options: SetupOptions = {}) {
     GET: routeModule.GET,
     mocks: {
       query,
-      requireRoleApiFromDb,
+      requireWorkspaceRoleApiFromDb,
       getConvexTokenOrNull,
       getAuthedConvexHttpClient,
     },
@@ -71,7 +80,9 @@ describe("admin attendance route", () => {
   it("returns validation error when dateKey is missing", async () => {
     const { GET, mocks } = await setupRoute();
 
-    const response = await GET(new Request("http://localhost/api/admin/attendance"));
+    const response = await GET(
+      new Request("http://localhost/api/admin/attendance"),
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
@@ -87,6 +98,9 @@ describe("admin attendance route", () => {
     const response = await GET(
       new Request(
         "http://localhost/api/admin/attendance?dateKey=2026-03-05&q=ali&edited=true&limit=25",
+        {
+          headers: { "x-workspace-id": "workspace_123456" },
+        },
       ),
     );
 
@@ -117,6 +131,7 @@ describe("admin attendance route", () => {
     expect(mocks.query).toHaveBeenCalledTimes(1);
     expect(mocks.query).toHaveBeenCalledWith("attendance:listByDatePaginated", {
       dateKey: "2026-03-05",
+      workspaceId: "workspace_123456",
       edited: true,
       employeeName: "ali",
       paginationOpts: {

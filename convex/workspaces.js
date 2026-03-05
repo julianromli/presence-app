@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { requireIdentityUser } from "./helpers";
 
 const workspaceRoleValidator = v.union(
@@ -343,5 +343,14 @@ export const joinWorkspaceByCode = mutation({
       workspaceName: workspace.name,
       alreadyMember: false,
     };
+  },
+});
+
+export const listActiveWorkspaceIds = internalQuery({
+  args: {},
+  returns: v.array(v.id("workspaces")),
+  handler: async (ctx) => {
+    const workspaces = await ctx.db.query("workspaces").collect();
+    return workspaces.filter((workspace) => workspace.isActive).map((workspace) => workspace._id);
   },
 });

@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, query } from "./_generated/server";
-import { requireRole } from "./helpers";
+import { requireWorkspaceRole } from "./helpers";
 import { decideWeeklyReportStart } from "./reportIdempotency";
 
 const triggerSourceValidator = v.union(v.literal("manual"), v.literal("cron"));
@@ -37,34 +37,32 @@ const weeklyReportValidator = v.object({
 
 export const listWeekly = query({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: v.array(weeklyReportValidator),
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["admin", "superadmin"]);
-    return args.workspaceId
-      ? await ctx.db
-          .query("weekly_reports")
-          .withIndex("by_workspace_week_key", (q) =>
-            q.eq("workspaceId", args.workspaceId),
-          )
-          .order("desc")
-          .take(20)
-      : await ctx.db.query("weekly_reports").order("desc").take(20);
+    await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
+    return await ctx.db
+      .query("weekly_reports")
+      .withIndex("by_workspace_week_key", (q) =>
+        q.eq("workspaceId", args.workspaceId),
+      )
+      .order("desc")
+      .take(20);
   },
 });
 
 export const getDownloadUrl = query({
   args: {
     reportId: v.id("weekly_reports"),
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: v.object({
     url: v.optional(v.string()),
     fileName: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["admin", "superadmin"]);
+    await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
 
     const report = await ctx.db.get(args.reportId);
     if (!report) {
@@ -73,7 +71,7 @@ export const getDownloadUrl = query({
         message: "Report tidak ditemukan",
       });
     }
-    if (args.workspaceId && report.workspaceId !== args.workspaceId) {
+    if (report.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "FORBIDDEN",
         message: "Report bukan milik workspace aktif.",
@@ -110,23 +108,18 @@ export const markWeeklyReport = internalMutation({
     durationMs: v.optional(v.number()),
     triggerSource: v.optional(triggerSourceValidator),
     triggeredBy: v.optional(v.id("users")),
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
     lastTriggeredAt: v.optional(v.number()),
     attempts: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const existing = args.workspaceId
-      ? await ctx.db
-          .query("weekly_reports")
-          .withIndex("by_workspace_week_key", (q) =>
-            q.eq("workspaceId", args.workspaceId).eq("weekKey", args.weekKey),
-          )
-          .unique()
-      : await ctx.db
-          .query("weekly_reports")
-          .withIndex("by_week_key", (q) => q.eq("weekKey", args.weekKey))
-          .unique();
+    const existing = await ctx.db
+      .query("weekly_reports")
+      .withIndex("by_workspace_week_key", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("weekKey", args.weekKey),
+      )
+      .unique();
 
     const patch = {
       startDate: args.startDate,
@@ -173,7 +166,7 @@ export const beginWeeklyReport = internalMutation({
     endDate: v.string(),
     triggerSource: triggerSourceValidator,
     triggeredBy: v.optional(v.id("users")),
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: v.object({
     reportId: v.id("weekly_reports"),
@@ -184,17 +177,12 @@ export const beginWeeklyReport = internalMutation({
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
-    const existing = args.workspaceId
-      ? await ctx.db
-          .query("weekly_reports")
-          .withIndex("by_workspace_week_key", (q) =>
-            q.eq("workspaceId", args.workspaceId).eq("weekKey", args.weekKey),
-          )
-          .unique()
-      : await ctx.db
-          .query("weekly_reports")
-          .withIndex("by_week_key", (q) => q.eq("weekKey", args.weekKey))
-          .unique();
+    const existing = await ctx.db
+      .query("weekly_reports")
+      .withIndex("by_workspace_week_key", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("weekKey", args.weekKey),
+      )
+      .unique();
     const decision = decideWeeklyReportStart(existing, {
       now,
       triggerSource: args.triggerSource,
@@ -245,7 +233,7 @@ export const beginWeeklyReport = internalMutation({
 
 export const triggerWeeklyReport = action({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: v.object({
     weekKey: v.string(),
@@ -253,12 +241,19 @@ export const triggerWeeklyReport = action({
     skipped: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    const actorMembership = await ctx.runQuery(api.workspaces.myMembershipByWorkspace, {
+      workspaceId: args.workspaceId,
+    });
+    if (
+      !actorMembership ||
+      !actorMembership.isActive ||
+      (actorMembership.role !== "admin" && actorMembership.role !== "superadmin")
+    ) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Role tidak diizinkan" });
+    }
     const actor = await ctx.runQuery(api.users.me, {});
-    if (!actor || (actor.role !== "admin" && actor.role !== "superadmin")) {
-      throw new ConvexError({
-        code: "FORBIDDEN",
-        message: "Role tidak diizinkan",
-      });
+    if (!actor) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Login required" });
     }
 
     return await ctx.runAction(internal.reportsNode.runWeeklyReport, {

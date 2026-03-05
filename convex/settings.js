@@ -4,7 +4,7 @@ import { internalMutation, internalQuery, mutation, query } from "./_generated/s
 import {
   ensureGlobalSettingsForMutation,
   getGlobalSettingsOrThrow,
-  requireRole,
+  requireWorkspaceRole,
 } from "./helpers";
 
 const settingsValidator = v.object({
@@ -28,18 +28,18 @@ const settingsValidator = v.object({
 
 export const ensureGlobal = mutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: settingsValidator,
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["admin", "superadmin"]);
+    await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
     return await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
   },
 });
 
 export const ensureGlobalInternal = internalMutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: settingsValidator,
   handler: async (ctx, args) => {
@@ -49,18 +49,18 @@ export const ensureGlobalInternal = internalMutation({
 
 export const get = query({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: settingsValidator,
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["admin", "superadmin"]);
+    await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
     return await getGlobalSettingsOrThrow(ctx, args.workspaceId);
   },
 });
 
 export const getGlobalUnsafe = internalQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: settingsValidator,
   handler: async (ctx, args) => {
@@ -70,7 +70,7 @@ export const getGlobalUnsafe = internalQuery({
 
 export const update = mutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
     timezone: v.optional(v.string()),
     geofenceEnabled: v.optional(v.boolean()),
     geofenceRadiusMeters: v.optional(v.number()),
@@ -84,7 +84,9 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const actor = await requireRole(ctx, ["superadmin"]);
+    const { user: actor } = await requireWorkspaceRole(ctx, args.workspaceId, [
+      "superadmin",
+    ]);
     const current = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
 
     await ctx.db.patch(current._id, {

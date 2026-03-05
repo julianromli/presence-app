@@ -69,7 +69,7 @@ export function buildDateKey(ts, timezone) {
   return formatter.format(new Date(ts));
 }
 
-function buildDefaultGlobalSettings(now = Date.now(), workspaceId = undefined) {
+function buildDefaultGlobalSettings(now = Date.now(), workspaceId) {
   return {
     key: 'global',
     workspaceId,
@@ -88,18 +88,14 @@ function buildDefaultGlobalSettings(now = Date.now(), workspaceId = undefined) {
   };
 }
 
-export async function getGlobalSettingsOrNull(ctx, workspaceId = undefined) {
-  if (workspaceId) {
-    return await ctx.db
-      .query('settings')
-      .withIndex('by_workspace', (q) => q.eq('workspaceId', workspaceId))
-      .unique();
-  }
-
-  return await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'global')).unique();
+export async function getGlobalSettingsOrNull(ctx, workspaceId) {
+  return await ctx.db
+    .query('settings')
+    .withIndex('by_workspace', (q) => q.eq('workspaceId', workspaceId))
+    .unique();
 }
 
-export async function getGlobalSettingsOrThrow(ctx, workspaceId = undefined) {
+export async function getGlobalSettingsOrThrow(ctx, workspaceId) {
   const existing = await getGlobalSettingsOrNull(ctx, workspaceId);
   if (existing) {
     return existing;
@@ -111,14 +107,11 @@ export async function getGlobalSettingsOrThrow(ctx, workspaceId = undefined) {
   });
 }
 
-export async function ensureGlobalSettingsForMutation(ctx, workspaceId = undefined) {
+export async function ensureGlobalSettingsForMutation(ctx, workspaceId) {
   const existing = await getGlobalSettingsOrNull(ctx, workspaceId);
   if (existing) {
     const patch = {};
 
-    if (workspaceId && existing.workspaceId === undefined) {
-      patch.workspaceId = workspaceId;
-    }
     if (existing.scanCooldownSeconds === undefined) {
       patch.scanCooldownSeconds = 30;
     }

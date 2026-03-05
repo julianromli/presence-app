@@ -6,7 +6,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { parseApiErrorResponse } from '@/lib/client-error';
-import { setActiveWorkspaceIdInBrowser, workspaceFetch } from '@/lib/workspace-client';
+import {
+  recoverWorkspaceScopeViolation,
+  setActiveWorkspaceIdInBrowser,
+  workspaceFetch,
+} from '@/lib/workspace-client';
 
 const titleByPathname: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -123,6 +127,9 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       const res = await workspaceFetch('/api/admin/dashboard/overview', { cache: 'no-store' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal menyegarkan data dashboard.');
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
         return;
       }
@@ -149,6 +156,9 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal mengganti workspace aktif.');
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
         return;
       }
@@ -181,6 +191,9 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       const res = await workspaceFetch('/api/admin/reports', { method: 'POST' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal memproses trigger report mingguan.');
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
         return;
       }
@@ -200,6 +213,9 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
       const res = await workspaceFetch('/api/admin/reports', { cache: 'no-store' });
       if (!res.ok) {
         const error = await parseApiErrorResponse(res, 'Gagal memuat daftar report mingguan.');
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
         return;
       }
