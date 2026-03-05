@@ -12,6 +12,14 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { WorkspaceManagementPayload, AdminUsersPage, AdminUserRow } from '@/types/dashboard';
 import { workspaceFetch } from '@/lib/workspace-client';
 import { parseApiErrorResponse } from '@/lib/client-error';
@@ -36,9 +44,9 @@ function noticeClass(tone: NoticeTone) {
     case 'warning':
       return 'border-amber-200 bg-amber-50 text-amber-900';
     case 'error':
-      return 'border-red-200 bg-red-50 text-red-900';
+      return 'border-rose-200 bg-rose-50/50 text-rose-900';
     default:
-      return 'border-blue-200 bg-blue-50 text-blue-900';
+      return 'border-zinc-200 bg-zinc-50 text-zinc-900';
   }
 }
 
@@ -204,8 +212,8 @@ export function WorkspacePanel() {
   if (loadingWorkspace && !workspaceData) {
     return (
       <div className="space-y-4">
-        <div className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white" />
-        <div className="h-60 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="h-36 animate-pulse rounded-xl border border-zinc-200 bg-white" />
+        <div className="h-60 animate-pulse rounded-xl border border-zinc-200 bg-white" />
       </div>
     );
   }
@@ -215,36 +223,29 @@ export function WorkspacePanel() {
     : '-';
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
-        <p className="text-sm font-semibold tracking-tight text-zinc-900">Workspace management center</p>
-        <p className="mt-1 text-sm text-zinc-600">
-          Kelola invitation code, profil workspace, dan member aktif dari satu halaman.
-        </p>
-        {notice ? <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>{notice.text}</div> : null}
-      </section>
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-600">
+            <div className="flex items-center gap-2 text-zinc-600">
               <Key weight="regular" className="h-4 w-4" />
-              <h2 className="text-base font-semibold text-slate-900">Invitation Code</h2>
+              <h2 className="text-base font-semibold text-zinc-900">Invitation Code</h2>
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+              className="inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900"
               onClick={() => setInviteVisible((prev) => !prev)}
             >
               {inviteVisible ? <EyeSlash weight="regular" className="h-4 w-4" /> : <Eye weight="regular" className="h-4 w-4" />}
               {inviteVisible ? 'Hide' : 'Reveal'}
             </button>
           </div>
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="font-mono text-sm text-slate-900">
+          <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <p className="font-mono text-sm text-zinc-900">
               {inviteVisible ? workspaceData?.activeInviteCode?.code ?? '-' : maskedCode}
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-zinc-500">
               Last rotated:{' '}
               {workspaceData?.activeInviteCode?.lastRotatedAt
                 ? new Date(workspaceData.activeInviteCode.lastRotatedAt).toLocaleString('id-ID')
@@ -272,18 +273,18 @@ export function WorkspacePanel() {
           </div>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-600">
+        <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-zinc-600">
             <PencilSimple weight="regular" className="h-4 w-4" />
-            <h2 className="text-base font-semibold text-slate-900">Workspace Profile</h2>
+            <h2 className="text-base font-semibold text-zinc-900">Workspace Profile</h2>
           </div>
           <div className="mt-4 space-y-3">
             <label className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Workspace name</span>
+              <span className="text-sm font-medium text-zinc-700">Workspace name</span>
               <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} />
             </label>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              <p>Slug: <span className="font-mono text-slate-900">{workspaceData?.workspace.slug ?? '-'}</span></p>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600">
+              <p>Slug: <span className="font-mono text-zinc-900">{workspaceData?.workspace.slug ?? '-'}</span></p>
               <p className="mt-1">
                 Created:{' '}
                 {workspaceData?.workspace.createdAt
@@ -302,13 +303,14 @@ export function WorkspacePanel() {
         </article>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-slate-600">
+          <div className="flex items-center gap-2 text-zinc-600">
             <ShieldCheck weight="regular" className="h-4 w-4" />
-            <h2 className="text-base font-semibold text-slate-900">Member Management</h2>
+            <h2 className="text-base font-semibold text-zinc-900">Member Management</h2>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-zinc-500">
             Total {summary.total} · Aktif {summary.active} · Non-aktif {summary.inactive}
           </p>
         </div>
@@ -323,7 +325,7 @@ export function WorkspacePanel() {
           }}
         >
           <label className="space-y-1">
-            <span className="text-sm font-medium text-slate-700">Cari user</span>
+            <span className="text-sm font-medium text-zinc-700">Cari user</span>
             <Input
               value={filters.q}
               onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
@@ -331,9 +333,9 @@ export function WorkspacePanel() {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-medium text-slate-700">Role</span>
+            <span className="text-sm font-medium text-zinc-700">Role</span>
             <select
-              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               value={filters.role}
               onChange={(event) =>
                 setFilters((prev) => ({ ...prev, role: event.target.value as UsersPanelFilters['role'] }))
@@ -347,9 +349,9 @@ export function WorkspacePanel() {
             </select>
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-medium text-slate-700">Status</span>
+            <span className="text-sm font-medium text-zinc-700">Status</span>
             <select
-              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               value={filters.isActive}
               onChange={(event) =>
                 setFilters((prev) => ({ ...prev, isActive: event.target.value as UsersPanelFilters['isActive'] }))
@@ -378,38 +380,38 @@ export function WorkspacePanel() {
           </div>
         </form>
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-slate-50 text-slate-700">
-              <tr>
-                <th className="px-4 py-3 text-left">Nama</th>
-                <th className="px-4 py-3 text-left">Email</th>
-                <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="mt-4 rounded-xl border border-zinc-200 bg-white">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[200px]">Nama</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {loadingMembers && rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
+                <TableRow>
+                  <TableCell className="h-24 text-center text-zinc-500" colSpan={5}>
                     Memuat member workspace...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
+                <TableRow>
+                  <TableCell className="h-24 text-center text-zinc-500" colSpan={5}>
                     {hasFilter ? 'Tidak ada member yang cocok dengan filter.' : 'Belum ada member workspace.'}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 rows.map((row) => (
-                  <tr key={row._id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-medium text-slate-900">{row.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{row.email}</td>
-                    <td className="px-4 py-3">
+                  <TableRow key={row._id}>
+                    <TableCell className="font-medium text-zinc-900">{row.name}</TableCell>
+                    <TableCell className="text-zinc-600">{row.email}</TableCell>
+                    <TableCell>
                       <select
-                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs"
+                        className="h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
                         value={row.role}
                         onChange={(event) =>
                           void updateMember({ userId: row._id, role: event.target.value as AdminUserRow['role'] })
@@ -421,17 +423,16 @@ export function WorkspacePanel() {
                         <option value="karyawan">karyawan</option>
                         <option value="device-qr">device-qr</option>
                       </select>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                        }`}
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                          }`}
                       >
                         {row.isActive ? 'Aktif' : 'Non-aktif'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <Button
                         type="button"
                         variant="outline"
@@ -441,12 +442,12 @@ export function WorkspacePanel() {
                       >
                         {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
 
         {!isLastPage ? (

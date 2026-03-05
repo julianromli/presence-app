@@ -31,9 +31,9 @@ function noticeClass(tone: NoticeTone) {
     case 'warning':
       return 'border-amber-200 bg-amber-50 text-amber-900';
     case 'error':
-      return 'border-red-200 bg-red-50 text-red-900';
+      return 'border-rose-200 bg-rose-50/50 text-rose-900';
     default:
-      return 'border-blue-200 bg-blue-50 text-blue-900';
+      return 'border-zinc-200 bg-zinc-50 text-zinc-900';
   }
 }
 
@@ -107,15 +107,15 @@ export function GeofencePanel() {
   if (initialLoading) {
     return (
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white" />
-        <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="h-64 animate-pulse rounded-xl border border-zinc-200 bg-white" />
+        <div className="h-64 animate-pulse rounded-xl border border-zinc-200 bg-white" />
       </div>
     );
   }
 
   return (
-    <form onSubmit={save} className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+    <form onSubmit={save} className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <p className="text-sm font-semibold tracking-tight text-zinc-900">Kebijakan lokasi & jaringan</p>
         <p className="mt-1 text-sm text-zinc-600">
           Atur area absensi, whitelist jaringan, dan kontrol validasi scan sesuai kebijakan kantor.
@@ -128,18 +128,18 @@ export function GeofencePanel() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold tracking-tight text-slate-900">Lokasi geofence</h2>
+        <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold tracking-tight text-zinc-900">Lokasi geofence</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">Timezone</span>
+              <span className="text-sm font-medium text-zinc-700">Timezone</span>
               <Input
                 value={data.timezone}
                 onChange={(event) => setData((prev) => ({ ...prev, timezone: event.target.value }))}
               />
             </label>
             <label className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Latitude</span>
+              <span className="text-sm font-medium text-zinc-700">Latitude</span>
               <Input
                 type="number"
                 value={data.geofenceLat ?? ''}
@@ -152,7 +152,7 @@ export function GeofencePanel() {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Longitude</span>
+              <span className="text-sm font-medium text-zinc-700">Longitude</span>
               <Input
                 type="number"
                 value={data.geofenceLng ?? ''}
@@ -165,7 +165,7 @@ export function GeofencePanel() {
               />
             </label>
             <label className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-slate-700">Radius Geofence (meter)</span>
+              <span className="text-sm font-medium text-zinc-700">Radius Geofence (meter)</span>
               <Input
                 type="number"
                 min={10}
@@ -181,13 +181,13 @@ export function GeofencePanel() {
           </div>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold tracking-tight text-slate-900">Aturan tambahan</h2>
+        <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold tracking-tight text-zinc-900">Aturan tambahan</h2>
           <div className="mt-4 space-y-4">
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2">
               <div>
-                <p className="text-sm font-medium text-slate-800">Aktifkan Geofence</p>
-                <p className="text-xs text-slate-500">Scan harus berada dalam radius kantor.</p>
+                <p className="text-sm font-medium text-zinc-800">Aktifkan Geofence</p>
+                <p className="text-xs text-zinc-500">Scan harus berada dalam radius kantor.</p>
               </div>
               <input
                 type="checkbox"
@@ -198,10 +198,10 @@ export function GeofencePanel() {
               />
             </label>
 
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2">
               <div>
-                <p className="text-sm font-medium text-slate-800">Aktifkan IP Whitelist</p>
-                <p className="text-xs text-slate-500">Hanya IP kantor yang diizinkan untuk scan.</p>
+                <p className="text-sm font-medium text-zinc-800">Aktifkan IP Whitelist</p>
+                <p className="text-xs text-zinc-500">Hanya IP kantor yang diizinkan untuk scan.</p>
               </div>
               <input
                 type="checkbox"
@@ -213,14 +213,14 @@ export function GeofencePanel() {
             </label>
 
             <label className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Whitelist IP (pisahkan koma)</span>
+              <span className="text-sm font-medium text-zinc-700">Whitelist IP (pisahkan koma)</span>
               <Input value={ipText} onChange={(event) => setIpText(event.target.value)} />
             </label>
           </div>
         </article>
       </section>
 
-      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
+      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
         <Button type="submit" disabled={loading} className="min-w-40">
           {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
         </Button>

@@ -1,8 +1,16 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Collapsible,
   CollapsibleContent,
@@ -130,9 +138,9 @@ function noticeClass(tone: NoticeTone) {
     case "warning":
       return "border-amber-200 bg-amber-50 text-amber-900";
     case "error":
-      return "border-red-200 bg-red-50 text-red-900";
+      return "border-rose-200 bg-rose-50/50 text-rose-900";
     default:
-      return "border-blue-200 bg-blue-50 text-blue-900";
+      return "border-zinc-200 bg-zinc-50 text-zinc-900";
   }
 }
 
@@ -141,30 +149,25 @@ function summaryCard(
   value: number,
   tone: "default" | "success" | "danger" = "default",
 ) {
-  const toneClass =
-    tone === "success"
-      ? "bg-emerald-50 border-emerald-200"
-      : tone === "danger"
-        ? "bg-rose-50 border-rose-200"
-        : "bg-white border-slate-200";
-
   return (
-    <div className={cn("rounded-xl border p-4", toneClass)}>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
+    <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
+      <p className="text-xs font-medium text-zinc-500">{label}</p>
+      <div className="mt-4 flex items-baseline gap-1 relative z-10">
+        <p className="text-3xl font-semibold tabular-nums text-zinc-800 tracking-tight">{value}</p>
+      </div>
     </div>
   );
 }
 
 function sectionTitle(title: string, description: string, countLabel?: string) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
-      <div>
-        <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 px-6 py-5">
+      <div className="text-left flex flex-col items-start">
+        <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">{title}</h2>
+        <p className="mt-1 text-xs text-zinc-500">{description}</p>
       </div>
       {countLabel ? (
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700">
+        <span className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-semibold tracking-wide text-zinc-600">
           {countLabel}
         </span>
       ) : null}
@@ -556,7 +559,7 @@ export function ReportPanel() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+      <section className="rounded-xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
         <p className="text-sm font-semibold tracking-tight text-zinc-900">Kontrol kehadiran & audit data</p>
         <p className="mt-1 text-sm text-zinc-600">
           Monitor absensi harian, evaluasi scan event, dan koreksi data attendance dalam satu panel.
@@ -583,14 +586,39 @@ export function ReportPanel() {
         {summaryCard("Scan rejected", scanEventSummary.rejected, "danger")}
       </section>
 
-      <section className="sticky top-3 z-10 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
+      <section className="sticky top-3 z-10 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
         <form onSubmit={submitDate} className="grid gap-3 md:grid-cols-[1fr_1fr_180px_auto_auto] md:items-end">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">Tanggal (dateKey)</label>
-            <Input value={dateKey} onChange={(e) => setDateKey(e.target.value)} />
+            <label className="text-xs font-medium text-zinc-600">Tanggal (dateKey)</label>
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-10 border-zinc-200 bg-white px-3 text-sm",
+                      !dateKey && "text-zinc-500"
+                    )}
+                  />
+                }
+              >
+                <CalendarIcon className="mr-2 h-4 w-4 opacity-70" />
+                {dateKey ? format(new Date(dateKey + "T00:00:00"), "dd MMM yyyy") : <span>Pilih tanggal</span>}
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateKey ? new Date(dateKey + "T00:00:00") : undefined}
+                  onSelect={(date) => {
+                    if (date) setDateKey(format(date, "yyyy-MM-dd"));
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">Nama karyawan</label>
+            <label className="text-xs font-medium text-zinc-600">Nama karyawan</label>
             <Input
               value={employeeName}
               onChange={(e) => setEmployeeName(e.target.value)}
@@ -598,9 +626,9 @@ export function ReportPanel() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">Status edited</label>
+            <label className="text-xs font-medium text-zinc-600">Status edited</label>
             <select
-              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               value={editedFilter}
               onChange={(e) =>
                 setEditedFilter(e.target.value as "all" | "true" | "false")
@@ -649,7 +677,7 @@ export function ReportPanel() {
       <Collapsible
         open={sectionOpen.attendance}
         onOpenChange={(open) => toggleSection("attendance", open)}
-        className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
@@ -662,25 +690,25 @@ export function ReportPanel() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           {isLoadingAttendance && rows.length > 0 ? (
-            <div className="border-b px-4 py-2 text-xs text-slate-500">
+            <div className="border-b px-4 py-2 text-xs text-zinc-500">
               Memuat data attendance terbaru...
             </div>
           ) : null}
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-zinc-50">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Nama Karyawan</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Tanggal</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Jam Datang</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Jam Pulang</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edited</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Aksi</th>
+                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Nama Karyawan</th>
+                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Tanggal</th>
+                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Jam Datang</th>
+                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Jam Pulang</th>
+                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Edited</th>
+                <th className="px-4 py-3 text-left font-semibold text-zinc-700">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {attendanceStatus === "loading" && rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-3 text-slate-500" colSpan={6}>
+                  <td className="px-4 py-3 text-zinc-500" colSpan={6}>
                     Memuat data attendance...
                   </td>
                 </tr>
@@ -706,7 +734,7 @@ export function ReportPanel() {
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-3 text-slate-500" colSpan={6}>
+                  <td className="px-4 py-3 text-zinc-500" colSpan={6}>
                     {hasAttendanceFilter
                       ? "Tidak ada data attendance yang cocok dengan filter."
                       : "Belum ada data attendance untuk tanggal ini."}
@@ -714,7 +742,7 @@ export function ReportPanel() {
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row._id} className="border-t border-slate-200 align-top">
+                  <tr key={row._id} className="border-t border-zinc-200 align-top">
                     <td className="px-4 py-3">{row.employeeName}</td>
                     <td className="px-4 py-3 tabular-nums">{row.dateKey}</td>
                     <td className="px-4 py-3 tabular-nums">
@@ -761,7 +789,7 @@ export function ReportPanel() {
                           "inline-flex rounded-full border px-2 py-1 text-xs",
                           row.edited
                             ? "border-amber-200 bg-amber-50 text-amber-900"
-                            : "border-slate-200 bg-slate-50 text-slate-700",
+                            : "border-zinc-200 bg-zinc-50 text-zinc-700",
                         )}
                       >
                         {row.edited ? "Edited" : "Original"}
@@ -836,7 +864,7 @@ export function ReportPanel() {
           </table>
 
           {!isLastPage ? (
-            <div className="border-t border-slate-200 p-3">
+            <div className="border-t border-zinc-200 p-3">
               <Button
                 type="button"
                 variant="outline"
@@ -853,7 +881,7 @@ export function ReportPanel() {
       <Collapsible
         open={sectionOpen.scanEvents}
         onOpenChange={(open) => toggleSection("scanEvents", open)}
-        className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
@@ -863,53 +891,53 @@ export function ReportPanel() {
           )}
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="border-b border-slate-200 p-4">
+          <div className="border-b border-zinc-200 p-4">
             <div className="flex flex-wrap gap-2 text-xs">
               {scanEventSummary.byReason.slice(0, 8).map((item) => (
                 <span
                   key={item.reasonCode}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-700"
+                  className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-zinc-700"
                 >
                   {item.reasonCode}: {item.count}
                 </span>
               ))}
               {scanEventSummary.byReason.length === 0 ? (
-                <span className="text-slate-500">Belum ada breakdown reason.</span>
+                <span className="text-zinc-500">Belum ada breakdown reason.</span>
               ) : null}
             </div>
           </div>
           <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-zinc-50">
               <tr>
-                <th className="p-3 text-left font-semibold text-slate-700">Waktu</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Karyawan</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Result</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Reason</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Message</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Waktu</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Karyawan</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Result</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Reason</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Message</th>
               </tr>
             </thead>
             <tbody>
               {scanEventsStatus === "loading" ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={5}>
+                  <td className="p-3 text-zinc-500" colSpan={5}>
                     Memuat scan events...
                   </td>
                 </tr>
               ) : scanEvents.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={5}>
+                  <td className="p-3 text-zinc-500" colSpan={5}>
                     Belum ada scan events.
                   </td>
                 </tr>
               ) : (
                 scanEvents.map((row) => (
-                  <tr key={row._id} className="border-t border-slate-200">
+                  <tr key={row._id} className="border-t border-zinc-200">
                     <td className="p-3 tabular-nums">
                       {new Date(row.scannedAt).toLocaleTimeString("id-ID")}
                     </td>
                     <td className="p-3">
                       {row.actorName}
-                      <div className="text-xs text-slate-500">{row.actorEmail}</div>
+                      <div className="text-xs text-zinc-500">{row.actorEmail}</div>
                     </td>
                     <td className="p-3">
                       <span
@@ -936,7 +964,7 @@ export function ReportPanel() {
       <Collapsible
         open={sectionOpen.device}
         onOpenChange={(open) => toggleSection("device", open)}
-        className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
@@ -947,30 +975,30 @@ export function ReportPanel() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <table className="w-full min-w-[700px] text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-zinc-50">
               <tr>
-                <th className="p-3 text-left font-semibold text-slate-700">Nama</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Email</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Online</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Last Seen</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Nama</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Email</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Online</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Last Seen</th>
               </tr>
             </thead>
             <tbody>
               {deviceStatus === "loading" ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={4}>
+                  <td className="p-3 text-zinc-500" colSpan={4}>
                     Memuat status device...
                   </td>
                 </tr>
               ) : deviceRows.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={4}>
+                  <td className="p-3 text-zinc-500" colSpan={4}>
                     Tidak ada akun device-qr aktif.
                   </td>
                 </tr>
               ) : (
                 deviceRows.map((row) => (
-                  <tr key={row.deviceUserId} className="border-t border-slate-200">
+                  <tr key={row.deviceUserId} className="border-t border-zinc-200">
                     <td className="p-3">{row.name}</td>
                     <td className="p-3">{row.email}</td>
                     <td className="p-3">{row.online ? "Online" : "Offline"}</td>
@@ -990,7 +1018,7 @@ export function ReportPanel() {
       <Collapsible
         open={sectionOpen.weekly}
         onOpenChange={(open) => toggleSection("weekly", open)}
-        className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
@@ -1001,23 +1029,23 @@ export function ReportPanel() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-zinc-50">
               <tr>
-                <th className="p-3 text-left font-semibold text-slate-700">Week Key</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Range</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Status</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Source</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Attempt</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Durasi</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Error</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Generated At</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Aksi</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Week Key</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Range</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Status</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Source</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Attempt</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Durasi</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Error</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Generated At</th>
+                <th className="p-3 text-left font-semibold text-zinc-700">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {reportsStatus === "loading" && reports.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={9}>
+                  <td className="p-3 text-zinc-500" colSpan={9}>
                     Memuat riwayat report mingguan...
                   </td>
                 </tr>
@@ -1041,13 +1069,13 @@ export function ReportPanel() {
                 </tr>
               ) : reports.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={9}>
+                  <td className="p-3 text-zinc-500" colSpan={9}>
                     Belum ada report mingguan.
                   </td>
                 </tr>
               ) : (
                 reports.map((report) => (
-                  <tr key={report._id} className="border-t border-slate-200">
+                  <tr key={report._id} className="border-t border-zinc-200">
                     <td className="p-3 tabular-nums">{report.weekKey}</td>
                     <td className="p-3 tabular-nums">
                       {report.startDate} s/d {report.endDate}
