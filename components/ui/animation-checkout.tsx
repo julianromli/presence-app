@@ -1,110 +1,132 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useId } from 'react';
-
-import ShadowRootHost from './shadow-root-host';
+import {
+  CheckCircle,
+  CircleNotch,
+  Clock,
+  Scan,
+  ShieldCheck,
+} from '@phosphor-icons/react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useMemo, useState } from 'react';
+import {
+  FeaturePreviewShell,
+  type FeaturePreviewState,
+} from './feature-preview-shell';
 
 type Props = {
   className?: string;
+  state?: FeaturePreviewState;
 };
 
-export default function AnimationCheckout({ className }: Props) {
-  const uid = useId();
-  const cpId = `cp-${uid}`;
-  const gradId = `g-${uid}`;
+type ScanMode = 'checkin' | 'checkout';
+
+const MODE_STATS: Record<ScanMode, { title: string; ratio: string; color: string }> = {
+  checkin: { title: 'Sukses check-in', ratio: '96.4%', color: 'bg-emerald-500' },
+  checkout: { title: 'Sukses check-out', ratio: '94.1%', color: 'bg-zinc-900' },
+};
+
+const EVENTS = [
+  { id: 'ev-1', name: 'Nadia Putri', time: '08:11', status: 'ok' as const },
+  { id: 'ev-2', name: 'Raka Dirgantara', time: '08:16', status: 'ok' as const },
+  { id: 'ev-3', name: 'Salsa Mahardika', time: '08:19', status: 'warn' as const },
+  { id: 'ev-4', name: 'Bagas Pratama', time: '08:23', status: 'ok' as const },
+];
+
+export default function AnimationCheckout({ className, state = 'ready' }: Props) {
+  const [mode, setMode] = useState<ScanMode>('checkin');
+  const [selectedEvent, setSelectedEvent] = useState(EVENTS[0]?.id ?? '');
+
+  const activeMetric = useMemo(() => MODE_STATS[mode], [mode]);
 
   return (
-    <ShadowRootHost className={className}>
-      <style>{`
-        /* Respect user settings */
-        @media (prefers-reduced-motion: reduce) {
-          * { animation: none !important; transition: none !important; }
-        }
-        .s0 { fill: #f8fafb }
-        .s1 { fill: url(#${gradId}) }
-        svg, div { width: 100%; height: 100%; display: block; }
-      `}</style>
+    <FeaturePreviewShell
+      className={className}
+      state={state}
+      emptyTitle="Belum ada event scanner"
+      emptyDescription="Preview check-in/check-out tampil saat scanner menerima QR pertama."
+      errorTitle="Koneksi scanner terputus"
+      errorDescription="Pastikan device QR online lalu sinkronkan ulang."
+    >
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-zinc-500 uppercase">
+            QR Scanner
+          </p>
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <CircleNotch className="size-3.5 animate-spin text-emerald-600" />
+            <span>Realtime</span>
+          </div>
+        </div>
 
-      <svg
-        viewBox="0 0 628 300"
-        width="100%"
-        height="100%"
-        xmlns="http://www.w3.org/2000/svg"
-        xmlnsXlink="http://www.w3.org/1999/xlink"
-        role="img"
-        aria-label="Checkout animation"
-      >
-        <defs>
-          <clipPath clipPathUnits="userSpaceOnUse" id={cpId}>
-            <path d="m16 0h596c8.84 0 16 7.16 16 16v268c0 8.84-7.16 16-16 16h-596c-8.84 0-16-7.16-16-16v-268c0-8.84 7.16-16 16-16z" />
-          </clipPath>
+        <div className="mb-4 flex rounded-xl border border-zinc-200 bg-zinc-50 p-1">
+          {(['checkin', 'checkout'] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setMode(item)}
+              className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition active:scale-[0.98] ${
+                mode === item ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800'
+              }`}
+            >
+              {item === 'checkin' ? 'Check-in' : 'Check-out'}
+            </button>
+          ))}
+        </div>
 
-          <linearGradient
-            id={gradId}
-            x2="1"
-            gradientUnits="userSpaceOnUse"
-            gradientTransform="matrix(0,300,-628,0,314,.027)"
-          >
-            <stop offset="0" stopColor="#f8fafb" stopOpacity="0" />
-            <stop offset="1" stopColor="#f8fafb" stopOpacity="1" />
-          </linearGradient>
-        </defs>
-
-        <g clipPath={`url(#${cpId})`}>
-          <path
-            className="s0"
-            fillRule="evenodd"
-            d="m16 0h596c8.84 0 16 7.16 16 16v268c0 8.84-7.16 16-16 16h-596c-8.84 0-16-7.16-16-16v-268c0-8.84 7.16-16 16-16z"
-          />
-
-          <motion.image
-            href="/images/homepage/features/anim1-Item1.webp"
-            x={32}
-            y={35}
-            width={420}
-            height={380}
-            initial={{ y: 40, opacity: 0 }}
-            whileInView={{ y: 0, opacity: 1 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            xlinkHref="/images/homepage/features/anim1-Item1.webp"
-          />
-
-          <path className="s1" fillRule="evenodd" d="m0 0.03h628v300h-628z" />
-
-          <motion.image
-            href="/images/homepage/features/anim1-Item3.webp"
-            x={326}
-            y={140}
-            width={276}
-            height={90}
-            initial={{ x: 60, opacity: 0 }}
-            whileInView={{ x: 0, opacity: 1 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
-            xlinkHref="/images/homepage/features/anim1-Item3.webp"
-          />
-
-          <motion.g
-            initial={{ scale: 0.01, opacity: 0 }}
-            whileInView={{ scale: 1, opacity: 1 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{ duration: 0.6, ease: 'backOut', delay: 0.3 }}
-            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-          >
-            <image
-              href="/images/homepage/features/anim1-Item2.webp"
-              x={483}
-              y={55}
-              width={56}
-              height={56}
-              xlinkHref="/images/homepage/features/anim1-item2.webp"
-              preserveAspectRatio="xMidYMid meet"
+        <article className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs text-zinc-500">{activeMetric.title}</span>
+            <ShieldCheck className="size-4 text-zinc-500" />
+          </div>
+          <p className="text-2xl font-semibold tracking-tight text-zinc-900">{activeMetric.ratio}</p>
+          <div className="mt-2 h-2 rounded-full bg-zinc-200">
+            <motion.div
+              key={mode}
+              initial={{ width: '35%' }}
+              animate={{ width: activeMetric.ratio }}
+              transition={{ type: 'spring', stiffness: 110, damping: 22 }}
+              className={`h-full rounded-full ${activeMetric.color}`}
             />
-          </motion.g>
-        </g>
-      </svg>
-    </ShadowRootHost>
+          </div>
+        </article>
+
+        <div className="mt-3 grid gap-2">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {EVENTS.map((event, index) => {
+              const isActive = selectedEvent === event.id;
+              return (
+                <motion.button
+                  layout
+                  key={event.id}
+                  type="button"
+                  onClick={() => setSelectedEvent(event.id)}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.04, type: 'spring', stiffness: 105, damping: 20 }}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs transition active:scale-[0.98] ${
+                    isActive ? 'border-zinc-300 bg-white' : 'border-zinc-200 bg-zinc-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-zinc-800">{event.name}</span>
+                    <span className="text-zinc-500">{event.time}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-zinc-500">
+                    <span className="inline-flex items-center gap-1">
+                      <Scan className="size-3.5" />
+                      {mode === 'checkin' ? 'Masuk area valid' : 'Keluar area valid'}
+                    </span>
+                    {event.status === 'ok' ? (
+                      <CheckCircle className="size-3.5 text-emerald-600" weight="fill" />
+                    ) : (
+                      <Clock className="size-3.5 text-amber-600" weight="fill" />
+                    )}
+                  </div>
+                </motion.button>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+    </FeaturePreviewShell>
   );
 }
