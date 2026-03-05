@@ -255,6 +255,11 @@ export function WorkspacePanel() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      {notice ? (
+        <div className={`rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
+          {notice.text}
+        </div>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">

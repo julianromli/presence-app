@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretLeft, CaretRight } from '@phosphor-icons/react/dist/ssr';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -53,16 +53,20 @@ export function EmployeeAttendancePanel() {
   const [error, setError] = useState<ApiErrorInfo | null>(null);
   const [payload, setPayload] = useState<EmployeeAttendanceHistoryPayload | null>(null);
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const latestRequestRef = useRef(0);
   const currentCursor = cursorStack[cursorStack.length - 1];
 
   const load = useCallback(async (nextRange: RangeFilter, cursor: string | null) => {
+    const requestId = ++latestRequestRef.current;
     setStatus('loading');
     setError(null);
     try {
       const next = await fetchAttendancePayload(nextRange, cursor);
+      if (requestId !== latestRequestRef.current) return;
       setPayload(next);
       setStatus('ready');
     } catch (nextError) {
+      if (requestId !== latestRequestRef.current) return;
       setError(nextError as ApiErrorInfo);
       setStatus('error');
     }

@@ -1,4 +1,27 @@
 const DEFAULT_CUTOFF_MINUTES = 8 * 60;
+const DEFAULT_TIME_ZONE = "UTC";
+const validTimeZoneCache = new Map();
+
+function resolveTimeZone(timezone) {
+  if (typeof timezone !== "string" || timezone.trim().length === 0) {
+    return DEFAULT_TIME_ZONE;
+  }
+
+  const candidate = timezone.trim();
+  const cached = validTimeZoneCache.get(candidate);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: candidate });
+    validTimeZoneCache.set(candidate, candidate);
+    return candidate;
+  } catch {
+    validTimeZoneCache.set(candidate, DEFAULT_TIME_ZONE);
+    return DEFAULT_TIME_ZONE;
+  }
+}
 
 export function parseOffsetCursor(cursor) {
   if (!cursor || !cursor.startsWith("offset:")) {
@@ -31,8 +54,9 @@ export function getCutoffMinutes() {
 }
 
 export function getMinutesInTimezone(ts, timezone) {
+  const safeTimeZone = resolveTimeZone(timezone);
   const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: timezone,
+    timeZone: safeTimeZone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -106,4 +130,3 @@ export function computeDisciplineScore(totalPoints, workdayCount) {
   const normalized = Math.max(0, Math.min(100, (totalPoints / maxPoints) * 100));
   return Number(normalized.toFixed(1));
 }
-

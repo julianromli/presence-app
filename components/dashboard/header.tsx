@@ -120,6 +120,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
   const initialSearchValue = useMemo(() => searchParams?.get('q') ?? '', [searchParams]);
   const [searchValue, setSearchValue] = useState(initialSearchValue);
   const searchCapability = useMemo(() => resolveSearchCapability(pathname), [pathname]);
+  const canManageReports = role === 'admin' || role === 'superadmin';
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const desktopSearchRef = useRef<HTMLInputElement | null>(null);
@@ -398,7 +399,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
             >
               <ArrowsClockwise weight="bold" className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`} />
             </button>
-            {role !== 'karyawan' ? (
+            {canManageReports ? (
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"

@@ -85,6 +85,7 @@ type AttendanceListResponse = {
 type LoadAttendanceOptions = {
   append: boolean;
   cursor: string | null;
+  searchQueryOverride?: string;
 };
 
 type LoadReportOptions = {
@@ -159,8 +160,20 @@ function summaryCard(
   value: number,
   tone: "default" | "success" | "danger" = "default",
 ) {
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50/40"
+      : tone === "danger"
+        ? "border-rose-200 bg-rose-50/40"
+        : "border-zinc-200 bg-white";
+
   return (
-    <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-xl border p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md",
+        toneClass,
+      )}
+    >
       <p className="text-xs font-medium text-zinc-500">{label}</p>
       <div className="mt-4 flex items-baseline gap-1 relative z-10">
         <p className="text-3xl font-semibold tabular-nums text-zinc-800 tracking-tight">{value}</p>
@@ -246,7 +259,7 @@ export function ReportPanel() {
   };
 
   const buildAttendanceParams = useCallback(
-    (cursor: string | null) => {
+    (cursor: string | null, searchQueryOverride?: string) => {
       const params = new URLSearchParams({
         dateKey,
         limit: "25",
@@ -256,7 +269,10 @@ export function ReportPanel() {
         params.set("cursor", cursor);
       }
 
-      const query = employeeName.trim();
+      const query =
+        searchQueryOverride === undefined
+          ? employeeName.trim()
+          : searchQueryOverride.trim();
       if (query.length > 0) {
         params.set("q", query);
       }
@@ -280,7 +296,10 @@ export function ReportPanel() {
 
       try {
         const res = await workspaceFetch(
-          `/api/admin/attendance?${buildAttendanceParams(opts.cursor)}`,
+          `/api/admin/attendance?${buildAttendanceParams(
+            opts.cursor,
+            opts.searchQueryOverride,
+          )}`,
           {
             cache: "no-store",
           },
@@ -551,10 +570,11 @@ export function ReportPanel() {
     if (prevHeaderQueryRef.current === headerQuery) return;
     prevHeaderQueryRef.current = headerQuery;
     setEmployeeName(headerQuery);
-    const timer = window.setTimeout(() => {
-      void loadAttendance({ append: false, cursor: null });
-    }, 0);
-    return () => window.clearTimeout(timer);
+    void loadAttendance({
+      append: false,
+      cursor: null,
+      searchQueryOverride: headerQuery,
+    });
   }, [headerQuery, loadAttendance]);
 
   useEffect(() => {

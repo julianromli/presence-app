@@ -20,6 +20,8 @@ const geistMono = Geist_Mono({
   display: 'swap',
 });
 
+const REACT_GRAB_VERSION = '0.1.22';
+
 export const metadata: Metadata = {
   title: {
     default: 'Presence - Absensi Digital',
@@ -38,14 +40,15 @@ export default function RootLayout({
       <head>
         {process.env.NODE_ENV === "development" && (
           <Script
-            src="//unpkg.com/react-grab/dist/index.global.js"
+            src={`https://unpkg.com/react-grab@${REACT_GRAB_VERSION}/dist/index.global.js`}
             crossOrigin="anonymous"
             strategy="beforeInteractive"
           />
         )}
         {process.env.NODE_ENV === "development" && (
           <Script
-            src="//unpkg.com/@react-grab/mcp/dist/client.global.js"
+            src={`https://unpkg.com/@react-grab/mcp@${REACT_GRAB_VERSION}/dist/client.global.js`}
+            crossOrigin="anonymous"
             strategy="lazyOnload"
           />
         )}

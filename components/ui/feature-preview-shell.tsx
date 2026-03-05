@@ -61,13 +61,15 @@ export function FeaturePreviewShell({
                   <p className="text-sm font-medium text-zinc-800">{errorTitle}</p>
                   <p className="max-w-[30ch] text-xs text-zinc-500">{errorDescription}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={onRetry}
-                  className="mx-auto rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 active:scale-[0.98]"
-                >
-                  Coba lagi
-                </button>
+                {onRetry ? (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="mx-auto rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 active:scale-[0.98]"
+                  >
+                    Coba lagi
+                  </button>
+                ) : null}
               </div>
             )}
           </div>

@@ -93,6 +93,8 @@ export function OverviewPanel() {
       return haystack.includes(quickFilter);
     });
   }, [payload, quickFilter]);
+  const noDataActivity = status === 'empty';
+  const noMatchActivity = status === 'success' && filteredActivity.length === 0;
 
   if (status === 'loading' && !payload) {
     return (
@@ -172,10 +174,14 @@ export function OverviewPanel() {
           </div>
 
           <div className="flex-1 overflow-y-auto max-h-[340px] p-6 pt-4 bg-zinc-50/30">
-            {status === 'empty' || filteredActivity.length === 0 ? (
+            {noDataActivity || noMatchActivity ? (
               <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-500">
                 <Info weight="regular" className="h-8 w-8 mb-3 text-zinc-400" />
-                <p>Belum ada aktivitas attendance untuk ditampilkan.</p>
+                <p>
+                  {noMatchActivity
+                    ? 'Tidak ada aktivitas yang cocok dengan kata kunci pencarian.'
+                    : 'Belum ada aktivitas attendance untuk ditampilkan.'}
+                </p>
               </div>
             ) : (
               <ul className="space-y-1">

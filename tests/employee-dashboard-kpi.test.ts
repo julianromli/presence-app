@@ -31,5 +31,9 @@ describe('employee dashboard kpi', () => {
     const ts = new Date('2026-03-05T00:30:00.000Z').getTime();
     expect(getMinutesInTimezone(ts, 'Asia/Jakarta')).toBe(7 * 60 + 30);
   });
-});
 
+  it('falls back safely when timezone is invalid', () => {
+    const ts = new Date('2026-03-05T00:30:00.000Z').getTime();
+    expect(() => getMinutesInTimezone(ts, 'Invalid/Timezone')).not.toThrow();
+  });
+});

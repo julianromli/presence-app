@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 type SidebarContextType = {
     isCollapsed: boolean;
@@ -11,24 +11,33 @@ type SidebarContextType = {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-    const [isCollapsed, setIsCollapsed] = useState(() => {
+    const [isCollapsed, setIsCollapsed] = useState(false);
+
+    useEffect(() => {
         if (typeof window === 'undefined') {
-            return false;
+            return;
         }
-        return localStorage.getItem('sidebar-collapsed') === 'true';
-    });
+        const frame = window.requestAnimationFrame(() => {
+            setIsCollapsed(localStorage.getItem('sidebar-collapsed') === 'true');
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, []);
 
     const toggleSidebar = () => {
         setIsCollapsed((prev) => {
             const next = !prev;
-            localStorage.setItem('sidebar-collapsed', String(next));
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('sidebar-collapsed', String(next));
+            }
             return next;
         });
     };
 
     const setCollapsed = (collapsed: boolean) => {
         setIsCollapsed(collapsed);
-        localStorage.setItem('sidebar-collapsed', String(collapsed));
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('sidebar-collapsed', String(collapsed));
+        }
     };
 
     return (

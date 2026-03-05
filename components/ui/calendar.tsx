@@ -54,22 +54,18 @@ function Calendar({
     weekday:
       "size-(--cell-size) p-0 text-xs font-medium text-muted-foreground/70",
   };
-  const mergedClassNames: typeof defaultClassNames = Object.keys(
-    defaultClassNames,
-  ).reduce(
-    (acc, key) => {
-      const userClass = classNames?.[key as keyof typeof classNames];
-      const baseClass =
-        defaultClassNames[key as keyof typeof defaultClassNames];
+  const mergedClassNames = {
+    ...(classNames ?? {}),
+  } as NonNullable<React.ComponentProps<typeof DayPicker>["classNames"]>;
 
-      acc[key as keyof typeof defaultClassNames] = userClass
-        ? cn(baseClass, userClass)
-        : baseClass;
+  for (const key of Object.keys(defaultClassNames) as Array<
+    keyof typeof defaultClassNames
+  >) {
+    const userClass = classNames?.[key];
+    const baseClass = defaultClassNames[key];
 
-      return acc;
-    },
-    { ...defaultClassNames } as typeof defaultClassNames,
-  );
+    mergedClassNames[key] = userClass ? cn(baseClass, userClass) : baseClass;
+  }
 
   const defaultComponents = {
     Chevron: ({
