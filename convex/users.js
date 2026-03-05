@@ -9,6 +9,7 @@ import {
   requireWorkspaceRole,
 } from "./helpers";
 import { isAdminManagedActivationAllowed, isSelfDeactivation } from "./usersPolicy";
+import { isLastActiveSuperadminTransition } from "./workspaceMembersPolicy";
 import {
   buildUsersMetricsFromRows,
   filterUsers,
@@ -145,6 +146,30 @@ function assertSelfDeactivate(actorId, targetId, nextActive) {
     code: "FORBIDDEN",
     message: "Anda tidak dapat menonaktifkan akun sendiri.",
   });
+}
+
+async function assertWorkspaceHasAnotherActiveSuperadmin(ctx, workspaceId, membership, nextRole, nextActive) {
+  const activeSuperadmins = await ctx.db
+    .query("workspace_members")
+    .withIndex("by_workspace_role_active", (q) =>
+      q.eq("workspaceId", workspaceId).eq("role", "superadmin").eq("isActive", true),
+    )
+    .collect();
+
+  if (
+    isLastActiveSuperadminTransition({
+      currentRole: membership.role,
+      currentActive: membership.isActive,
+      nextRole,
+      nextActive,
+      activeSuperadminCount: activeSuperadmins.length,
+    })
+  ) {
+    throw new ConvexError({
+      code: "VALIDATION_ERROR",
+      message: "Workspace harus memiliki minimal satu superadmin aktif.",
+    });
+  }
 }
 
 export const me = query({
@@ -345,6 +370,14 @@ export const updateAdminManagedFields = mutation({
     const nextActive = args.isActive ?? membership.isActive;
     const roleChanged = nextRole !== membership.role;
     const activeChanged = nextActive !== membership.isActive;
+
+    await assertWorkspaceHasAnotherActiveSuperadmin(
+      ctx,
+      args.workspaceId,
+      membership,
+      nextRole,
+      nextActive,
+    );
 
     if (!roleChanged && !activeChanged) {
       return {

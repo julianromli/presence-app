@@ -115,11 +115,9 @@ export function GeofencePanel() {
 
   return (
     <form onSubmit={save} className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
-          Pengaturan geofence
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
+      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+        <p className="text-sm font-semibold tracking-tight text-zinc-900">Kebijakan lokasi & jaringan</p>
+        <p className="mt-1 text-sm text-zinc-600">
           Atur area absensi, whitelist jaringan, dan kontrol validasi scan sesuai kebijakan kantor.
         </p>
         {notice ? (
@@ -222,7 +220,7 @@ export function GeofencePanel() {
         </article>
       </section>
 
-      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur md:bottom-3">
+      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
         <Button type="submit" disabled={loading} className="min-w-40">
           {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
         </Button>

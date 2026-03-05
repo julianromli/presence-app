@@ -57,3 +57,25 @@ export type AdminUsersPage = {
     inactive: number;
   };
 };
+
+export type WorkspaceManagementPayload = {
+  workspace: {
+    _id: string;
+    _creationTime: number;
+    slug: string;
+    name: string;
+    isActive: boolean;
+    createdAt: number;
+    updatedAt: number;
+    createdByUserId?: string;
+  };
+  activeInviteCode: {
+    _id: string;
+    code: string;
+    isActive: boolean;
+    createdAt: number;
+    updatedAt: number;
+    lastRotatedAt?: number;
+    expiresAt?: number;
+  } | null;
+};

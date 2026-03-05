@@ -1,0 +1,467 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowsClockwise,
+  Copy,
+  Eye,
+  EyeSlash,
+  Key,
+  PencilSimple,
+  ShieldCheck,
+} from '@phosphor-icons/react/dist/ssr';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import type { WorkspaceManagementPayload, AdminUsersPage, AdminUserRow } from '@/types/dashboard';
+import { workspaceFetch } from '@/lib/workspace-client';
+import { parseApiErrorResponse } from '@/lib/client-error';
+import {
+  buildUsersQueryString,
+  DEFAULT_USERS_FILTERS,
+  resolveUsersFilters,
+  type UsersPanelFilters,
+} from '@/lib/users-filters';
+
+type NoticeTone = 'info' | 'success' | 'warning' | 'error';
+
+type InlineNotice = {
+  tone: NoticeTone;
+  text: string;
+};
+
+function noticeClass(tone: NoticeTone) {
+  switch (tone) {
+    case 'success':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+    case 'warning':
+      return 'border-amber-200 bg-amber-50 text-amber-900';
+    case 'error':
+      return 'border-red-200 bg-red-50 text-red-900';
+    default:
+      return 'border-blue-200 bg-blue-50 text-blue-900';
+  }
+}
+
+export function WorkspacePanel() {
+  const [workspaceData, setWorkspaceData] = useState<WorkspaceManagementPayload | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [loadingWorkspace, setLoadingWorkspace] = useState(true);
+  const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members'>('none');
+  const [notice, setNotice] = useState<InlineNotice | null>(null);
+
+  const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [summary, setSummary] = useState<AdminUsersPage['summary']>({
+    total: 0,
+    active: 0,
+    inactive: 0,
+  });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLastPage, setIsLastPage] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  const hasFilter = useMemo(
+    () =>
+      appliedFilters.q.trim().length > 0 ||
+      appliedFilters.role !== 'all' ||
+      appliedFilters.isActive !== 'all',
+    [appliedFilters],
+  );
+
+  const loadWorkspaceData = useCallback(async () => {
+    setLoadingWorkspace(true);
+    try {
+      const res = await workspaceFetch('/api/admin/workspace', { cache: 'no-store' });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memuat data workspace.');
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+      const payload = (await res.json()) as WorkspaceManagementPayload;
+      setWorkspaceData(payload);
+      setRenameValue(payload.workspace.name);
+    } finally {
+      setLoadingWorkspace(false);
+    }
+  }, []);
+
+  const loadMembers = useCallback(async (
+    opts: { append: boolean; cursor: string | null; activeFilters?: UsersPanelFilters } = {
+      append: false,
+      cursor: null,
+    },
+  ) => {
+    const activeFilters = resolveUsersFilters(appliedFilters, opts.activeFilters);
+    setLoadingMembers(true);
+    if (!opts.append) {
+      setBusyAction('members');
+    }
+    try {
+      const res = await workspaceFetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memuat member workspace.');
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+      const payload = (await res.json()) as AdminUsersPage;
+      setRows((prev) => (opts.append ? [...prev, ...payload.rows] : payload.rows));
+      setSummary(payload.summary);
+      setNextCursor(payload.pageInfo.isDone ? null : payload.pageInfo.continueCursor);
+      setIsLastPage(payload.pageInfo.isDone);
+    } finally {
+      setLoadingMembers(false);
+      if (!opts.append) {
+        setBusyAction('none');
+      }
+    }
+  }, [appliedFilters]);
+
+  useEffect(() => {
+    void loadWorkspaceData();
+    void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS });
+  }, [loadMembers, loadWorkspaceData]);
+
+  const handleRename = async () => {
+    setBusyAction('rename');
+    setNotice(null);
+    try {
+      const res = await workspaceFetch('/api/admin/workspace', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: renameValue }),
+      });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal mengubah nama workspace.');
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+      await loadWorkspaceData();
+      setNotice({ tone: 'success', text: 'Nama workspace berhasil diperbarui.' });
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const handleRotateInviteCode = async () => {
+    setBusyAction('rotate');
+    setNotice(null);
+    try {
+      const res = await workspaceFetch('/api/admin/workspace', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'rotateInviteCode' }),
+      });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal merotasi invitation code.');
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+      await loadWorkspaceData();
+      setInviteVisible(true);
+      setNotice({ tone: 'success', text: 'Invitation code baru berhasil dibuat.' });
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const copyInviteCode = async () => {
+    if (!workspaceData?.activeInviteCode?.code) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(workspaceData.activeInviteCode.code);
+      setNotice({ tone: 'success', text: 'Invitation code berhasil disalin.' });
+    } catch {
+      setNotice({ tone: 'warning', text: 'Clipboard tidak tersedia. Salin secara manual.' });
+    }
+  };
+
+  const updateMember = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
+    setBusyAction('members');
+    setNotice(null);
+    try {
+      const res = await workspaceFetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memperbarui member workspace.');
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+      await loadMembers({ append: false, cursor: null, activeFilters: appliedFilters });
+      setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  if (loadingWorkspace && !workspaceData) {
+    return (
+      <div className="space-y-4">
+        <div className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="h-60 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+      </div>
+    );
+  }
+
+  const maskedCode = workspaceData?.activeInviteCode?.code
+    ? `${workspaceData.activeInviteCode.code.slice(0, 4)}-****-********`
+    : '-';
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+        <p className="text-sm font-semibold tracking-tight text-zinc-900">Workspace management center</p>
+        <p className="mt-1 text-sm text-zinc-600">
+          Kelola invitation code, profil workspace, dan member aktif dari satu halaman.
+        </p>
+        {notice ? <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>{notice.text}</div> : null}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-600">
+              <Key weight="regular" className="h-4 w-4" />
+              <h2 className="text-base font-semibold text-slate-900">Invitation Code</h2>
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+              onClick={() => setInviteVisible((prev) => !prev)}
+            >
+              {inviteVisible ? <EyeSlash weight="regular" className="h-4 w-4" /> : <Eye weight="regular" className="h-4 w-4" />}
+              {inviteVisible ? 'Hide' : 'Reveal'}
+            </button>
+          </div>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="font-mono text-sm text-slate-900">
+              {inviteVisible ? workspaceData?.activeInviteCode?.code ?? '-' : maskedCode}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Last rotated:{' '}
+              {workspaceData?.activeInviteCode?.lastRotatedAt
+                ? new Date(workspaceData.activeInviteCode.lastRotatedAt).toLocaleString('id-ID')
+                : '-'}
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void copyInviteCode()}>
+              <Copy weight="regular" className="mr-1 h-4 w-4" />
+              Copy
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleRotateInviteCode()}
+              disabled={busyAction !== 'none'}
+            >
+              <ArrowsClockwise
+                weight="regular"
+                className={`mr-1 h-4 w-4 ${busyAction === 'rotate' ? 'animate-spin' : ''}`}
+              />
+              Rotate
+            </Button>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-600">
+            <PencilSimple weight="regular" className="h-4 w-4" />
+            <h2 className="text-base font-semibold text-slate-900">Workspace Profile</h2>
+          </div>
+          <div className="mt-4 space-y-3">
+            <label className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Workspace name</span>
+              <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} />
+            </label>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <p>Slug: <span className="font-mono text-slate-900">{workspaceData?.workspace.slug ?? '-'}</span></p>
+              <p className="mt-1">
+                Created:{' '}
+                {workspaceData?.workspace.createdAt
+                  ? new Date(workspaceData.workspace.createdAt).toLocaleString('id-ID')
+                  : '-'}
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => void handleRename()}
+              disabled={busyAction !== 'none' || renameValue.trim().length < 3}
+            >
+              Simpan Nama Workspace
+            </Button>
+          </div>
+        </article>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-slate-600">
+            <ShieldCheck weight="regular" className="h-4 w-4" />
+            <h2 className="text-base font-semibold text-slate-900">Member Management</h2>
+          </div>
+          <p className="text-xs text-slate-500">
+            Total {summary.total} · Aktif {summary.active} · Non-aktif {summary.inactive}
+          </p>
+        </div>
+
+        <form
+          className="grid gap-3 md:grid-cols-[1fr_180px_160px_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const nextFilters = resolveUsersFilters(filters);
+            setAppliedFilters(nextFilters);
+            void loadMembers({ append: false, cursor: null, activeFilters: nextFilters });
+          }}
+        >
+          <label className="space-y-1">
+            <span className="text-sm font-medium text-slate-700">Cari user</span>
+            <Input
+              value={filters.q}
+              onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
+              placeholder="Nama atau email"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-sm font-medium text-slate-700">Role</span>
+            <select
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              value={filters.role}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, role: event.target.value as UsersPanelFilters['role'] }))
+              }
+            >
+              <option value="all">Semua</option>
+              <option value="superadmin">Superadmin</option>
+              <option value="admin">Admin</option>
+              <option value="karyawan">Karyawan</option>
+              <option value="device-qr">Device QR</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-sm font-medium text-slate-700">Status</span>
+            <select
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              value={filters.isActive}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, isActive: event.target.value as UsersPanelFilters['isActive'] }))
+              }
+            >
+              <option value="all">Semua</option>
+              <option value="true">Aktif</option>
+              <option value="false">Non-aktif</option>
+            </select>
+          </label>
+          <div className="flex items-end gap-2">
+            <Button type="submit" disabled={busyAction !== 'none'}>
+              Terapkan
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFilters(DEFAULT_USERS_FILTERS);
+                setAppliedFilters(DEFAULT_USERS_FILTERS);
+                void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS });
+              }}
+            >
+              Reset
+            </Button>
+          </div>
+        </form>
+
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead className="bg-slate-50 text-slate-700">
+              <tr>
+                <th className="px-4 py-3 text-left">Nama</th>
+                <th className="px-4 py-3 text-left">Email</th>
+                <th className="px-4 py-3 text-left">Role</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingMembers && rows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
+                    Memuat member workspace...
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
+                    {hasFilter ? 'Tidak ada member yang cocok dengan filter.' : 'Belum ada member workspace.'}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row._id} className="border-t border-slate-100">
+                    <td className="px-4 py-3 font-medium text-slate-900">{row.name}</td>
+                    <td className="px-4 py-3 text-slate-600">{row.email}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs"
+                        value={row.role}
+                        onChange={(event) =>
+                          void updateMember({ userId: row._id, role: event.target.value as AdminUserRow['role'] })
+                        }
+                        disabled={busyAction !== 'none'}
+                      >
+                        <option value="superadmin">superadmin</option>
+                        <option value="admin">admin</option>
+                        <option value="karyawan">karyawan</option>
+                        <option value="device-qr">device-qr</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${
+                          row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                        }`}
+                      >
+                        {row.isActive ? 'Aktif' : 'Non-aktif'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busyAction !== 'none'}
+                        onClick={() => void updateMember({ userId: row._id, isActive: !row.isActive })}
+                      >
+                        {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {!isLastPage ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loadingMembers || !nextCursor}
+              onClick={() => void loadMembers({ append: true, cursor: nextCursor, activeFilters: appliedFilters })}
+            >
+              Muat Lagi
+            </Button>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}

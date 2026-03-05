@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 
 import { internalQuery, mutation, query } from "./_generated/server";
-import { requireIdentityUser } from "./helpers";
+import { requireIdentityUser, requireWorkspaceRole } from "./helpers";
+import { listActiveInviteCodeIds } from "./workspaceInvitePolicy";
 
 const workspaceRoleValidator = v.union(
   v.literal("superadmin"),
@@ -33,6 +34,22 @@ const onboardingStateValidator = v.object({
   memberships: v.array(membershipWithWorkspaceValidator),
 });
 
+const workspaceManagementValidator = v.object({
+  workspace: workspaceValidator,
+  activeInviteCode: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("workspace_invite_codes"),
+      code: v.string(),
+      isActive: v.boolean(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      lastRotatedAt: v.optional(v.number()),
+      expiresAt: v.optional(v.number()),
+    }),
+  ),
+});
+
 function normalizeWorkspaceName(value) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -54,6 +71,24 @@ function normalizeInviteCode(input) {
 function generateInviteCode(seed) {
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `${seed}-${random}-PRESENCE`.replace(/-+/g, "-").toUpperCase();
+}
+
+async function generateUniqueInviteCode(ctx, seed) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = generateInviteCode(seed);
+    const existing = await ctx.db
+      .query("workspace_invite_codes")
+      .withIndex("by_code", (q) => q.eq("code", candidate))
+      .unique();
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  throw new ConvexError({
+    code: "INTERNAL_ERROR",
+    message: "Gagal menghasilkan invitation code unik.",
+  });
 }
 
 async function ensureUniqueWorkspaceSlug(ctx, baseSlug) {
@@ -100,6 +135,17 @@ async function listActiveMemberships(ctx, userId) {
   }
 
   return results;
+}
+
+async function getActiveInviteCodeByWorkspace(ctx, workspaceId) {
+  const inviteCodes = await ctx.db
+    .query("workspace_invite_codes")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+  const active = inviteCodes
+    .filter((item) => item.isActive)
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+  return active ?? null;
 }
 
 export const myOnboardingState = query({
@@ -152,6 +198,30 @@ export const myMembershipByWorkspace = query({
       role: membership.role,
       isActive: membership.isActive,
       workspace,
+    };
+  },
+});
+
+export const workspaceManagementDetail = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: workspaceManagementValidator,
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    const activeInviteCode = await getActiveInviteCodeByWorkspace(ctx, args.workspaceId);
+    return {
+      workspace,
+      activeInviteCode,
     };
   },
 });
@@ -342,6 +412,106 @@ export const joinWorkspaceByCode = mutation({
       workspaceId: workspace._id,
       workspaceName: workspace.name,
       alreadyMember: false,
+    };
+  },
+});
+
+export const renameWorkspace = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+  },
+  returns: v.object({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    slug: v.string(),
+    updatedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    const name = normalizeWorkspaceName(args.name);
+    if (name.length < 3) {
+      throw new ConvexError({
+        code: "VALIDATION_ERROR",
+        message: "Workspace name minimal 3 karakter.",
+      });
+    }
+
+    const now = Date.now();
+    const baseSlug = slugifyWorkspaceName(name);
+    const slug = baseSlug === workspace.slug ? workspace.slug : await ensureUniqueWorkspaceSlug(ctx, baseSlug);
+    await ctx.db.patch(workspace._id, {
+      name,
+      slug,
+      updatedAt: now,
+    });
+
+    return {
+      workspaceId: workspace._id,
+      name,
+      slug,
+      updatedAt: now,
+    };
+  },
+});
+
+export const rotateWorkspaceInviteCode = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.object({
+    code: v.string(),
+    rotatedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    const now = Date.now();
+    const inviteCodes = await ctx.db
+      .query("workspace_invite_codes")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspace._id))
+      .collect();
+
+    const activeInviteCodeIds = listActiveInviteCodeIds(inviteCodes);
+    for (const inviteCodeId of activeInviteCodeIds) {
+      await ctx.db.patch(inviteCodeId, {
+        isActive: false,
+        updatedAt: now,
+      });
+    }
+
+    const code = await generateUniqueInviteCode(ctx, workspace.slug.toUpperCase());
+    await ctx.db.insert("workspace_invite_codes", {
+      workspaceId: workspace._id,
+      code,
+      isActive: true,
+      expiresAt: undefined,
+      createdByUserId: user._id,
+      createdAt: now,
+      updatedAt: now,
+      lastRotatedAt: now,
+    });
+
+    return {
+      code,
+      rotatedAt: now,
     };
   },
 });

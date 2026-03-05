@@ -38,9 +38,10 @@ function noticeClass(tone: NoticeTone) {
 
 type UsersPanelProps = {
   viewerRole: 'admin' | 'superadmin';
+  readOnly?: boolean;
 };
 
-export function UsersPanel({ viewerRole }: UsersPanelProps) {
+export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
   const [status, setStatus] = useState<PanelStatus>('idle');
@@ -167,13 +168,16 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
-          Manajemen karyawan
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
+      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+        <p className="text-sm font-semibold tracking-tight text-zinc-900">Kontrol akun operasional</p>
+        <p className="mt-1 text-sm text-zinc-600">
           Kelola role, status aktif, dan pencarian akun operasional dalam satu tabel terpusat.
         </p>
+        {readOnly ? (
+          <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            Halaman ini mode read-only. Manajemen role/status dipindahkan ke Settings &gt; Workspace.
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">
@@ -191,7 +195,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
         </div>
       </section>
 
-      <section className="sticky top-16 z-10 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+      <section className="sticky top-3 z-10 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
         <form onSubmit={handleFilterSubmit} className="grid gap-3 md:grid-cols-[1fr_180px_160px_auto]">
           <label className="space-y-1">
             <span className="text-sm font-medium text-slate-700">Cari User</span>
@@ -309,7 +313,7 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                       </td>
                       <td className="px-4 py-3 text-slate-600">{row.email}</td>
                       <td className="px-4 py-3">
-                        {viewerRole === 'superadmin' ? (
+                        {viewerRole === 'superadmin' && !readOnly ? (
                           <select
                             className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs"
                             value={row.role}
@@ -342,7 +346,10 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                           {row.isActive ? 'Aktif' : 'Non-aktif'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right">
+                      {readOnly ? (
+                        <span className="text-xs text-slate-500">Read-only</span>
+                      ) : (
                         <Button
                           type="button"
                           variant="outline"
@@ -357,9 +364,10 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
                         >
                           {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
                         </Button>
-                      </td>
-                    </tr>
-                  );
+                      )}
+                    </td>
+                  </tr>
+                );
                 })
               )}
             </tbody>

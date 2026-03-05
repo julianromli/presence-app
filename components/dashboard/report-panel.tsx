@@ -555,12 +555,10 @@ export function ReportPanel() {
   }, [loadReports, reports]);
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
-          Manajemen kehadiran
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+        <p className="text-sm font-semibold tracking-tight text-zinc-900">Kontrol kehadiran & audit data</p>
+        <p className="mt-1 text-sm text-zinc-600">
           Monitor absensi harian, evaluasi scan event, dan koreksi data attendance dalam satu panel.
         </p>
         {notice ? (
@@ -572,20 +570,20 @@ export function ReportPanel() {
         ) : null}
       </section>
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-4">
         {summaryCard("Total data", summary.total)}
         {summaryCard("Check-in", summary.checkedIn, "success")}
         {summaryCard("Check-out", summary.checkedOut)}
         {summaryCard("Edited", summary.edited)}
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-3">
         {summaryCard("Scan total", scanEventSummary.total)}
         {summaryCard("Scan accepted", scanEventSummary.accepted, "success")}
         {summaryCard("Scan rejected", scanEventSummary.rejected, "danger")}
       </section>
 
-      <section className="sticky top-16 z-10 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
+      <section className="sticky top-3 z-10 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
         <form onSubmit={submitDate} className="grid gap-3 md:grid-cols-[1fr_1fr_180px_auto_auto] md:items-end">
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-600">Tanggal (dateKey)</label>
@@ -671,24 +669,24 @@ export function ReportPanel() {
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="p-3 text-left font-semibold text-slate-700">Nama Karyawan</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Tanggal</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Jam Datang</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Jam Pulang</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Edited</th>
-                <th className="p-3 text-left font-semibold text-slate-700">Aksi</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Nama Karyawan</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Tanggal</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Jam Datang</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Jam Pulang</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edited</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {attendanceStatus === "loading" && rows.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={6}>
+                  <td className="px-4 py-3 text-slate-500" colSpan={6}>
                     Memuat data attendance...
                   </td>
                 </tr>
               ) : attendanceStatus === "error" && attendanceError ? (
                 <tr>
-                  <td className="p-3" colSpan={6}>
+                  <td className="px-4 py-3" colSpan={6}>
                     <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                       <span>
                         [{attendanceError.code}] {attendanceError.message}
@@ -708,7 +706,7 @@ export function ReportPanel() {
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-slate-500" colSpan={6}>
+                  <td className="px-4 py-3 text-slate-500" colSpan={6}>
                     {hasAttendanceFilter
                       ? "Tidak ada data attendance yang cocok dengan filter."
                       : "Belum ada data attendance untuk tanggal ini."}
@@ -717,9 +715,9 @@ export function ReportPanel() {
               ) : (
                 rows.map((row) => (
                   <tr key={row._id} className="border-t border-slate-200 align-top">
-                    <td className="p-3">{row.employeeName}</td>
-                    <td className="p-3 tabular-nums">{row.dateKey}</td>
-                    <td className="p-3 tabular-nums">
+                    <td className="px-4 py-3">{row.employeeName}</td>
+                    <td className="px-4 py-3 tabular-nums">{row.dateKey}</td>
+                    <td className="px-4 py-3 tabular-nums">
                       {editingRowId === row._id ? (
                         <Input
                           type="time"
@@ -738,7 +736,7 @@ export function ReportPanel() {
                         "-"
                       )}
                     </td>
-                    <td className="p-3 tabular-nums">
+                    <td className="px-4 py-3 tabular-nums">
                       {editingRowId === row._id ? (
                         <Input
                           type="time"
@@ -757,7 +755,7 @@ export function ReportPanel() {
                         "-"
                       )}
                     </td>
-                    <td className="p-3">
+                    <td className="px-4 py-3">
                       <span
                         className={cn(
                           "inline-flex rounded-full border px-2 py-1 text-xs",
@@ -769,7 +767,7 @@ export function ReportPanel() {
                         {row.edited ? "Edited" : "Original"}
                       </span>
                     </td>
-                    <td className="p-3">
+                    <td className="px-4 py-3">
                       {editingRowId === row._id ? (
                         <div className="flex max-w-[420px] flex-wrap items-center gap-2">
                           <Input

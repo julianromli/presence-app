@@ -130,12 +130,10 @@ export function OverviewPanel() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
-          Ringkasan operasional
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Pantau status kehadiran, tren 7 hari, dan aktivitas terbaru dalam satu tampilan.
+      <section className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
+        <p className="text-sm font-semibold tracking-tight text-zinc-900">Snapshot operasional hari ini</p>
+        <p className="mt-1 text-sm text-zinc-600">
+          Pantau status kehadiran, tren 7 hari, dan aktivitas terbaru dalam satu area kerja.
         </p>
       </section>
 

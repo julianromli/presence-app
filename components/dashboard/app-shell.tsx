@@ -1,6 +1,4 @@
-import { DashboardSidebar } from '@/components/dashboard/sidebar';
-import { DashboardTopbar } from '@/components/dashboard/topbar';
-import { MobileBottomNav } from '@/components/dashboard/mobile-bottom-nav';
+import { DashboardLayout } from '@/components/dashboard/layout';
 
 type DashboardAppShellProps = {
   role: string;
@@ -10,18 +8,5 @@ type DashboardAppShellProps = {
 };
 
 export function DashboardAppShell({ role, name, email, children }: DashboardAppShellProps) {
-  return (
-    <div className="min-h-[100dvh] bg-slate-100 text-slate-900">
-      <div className="flex min-h-[100dvh]">
-        <DashboardSidebar role={role} name={name} email={email} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <DashboardTopbar name={name} email={email} />
-          <main className="flex-1 px-4 pt-3 pb-24 md:px-6 md:pt-4 md:pb-6">
-            <div className="mx-auto w-full max-w-[1400px]">{children}</div>
-          </main>
-        </div>
-      </div>
-      <MobileBottomNav role={role} name={name} email={email} />
-    </div>
-  );
+  return <DashboardLayout role={role} name={name} email={email}>{children}</DashboardLayout>;
 }

@@ -113,7 +113,7 @@ export async function PATCH(req: Request) {
   const workspaceId = workspaceContext.workspace.workspaceId;
 
   const roleCheck = await requireWorkspaceRoleApiFromDb(
-    ['admin', 'superadmin'],
+    ['superadmin'],
     workspaceContext.workspace.workspaceId,
   );
   if ('error' in roleCheck) return roleCheck.error;

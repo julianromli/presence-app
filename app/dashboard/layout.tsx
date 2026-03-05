@@ -1,4 +1,4 @@
-import { DashboardAppShell } from '@/components/dashboard/app-shell';
+import { DashboardLayout as DashboardShellLayout } from '@/components/dashboard/layout';
 import { requireWorkspaceOnboardingPage, requireWorkspaceRolePageFromDb } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
@@ -13,8 +13,8 @@ export default async function DashboardLayout({
   const role = session.role === 'superadmin' ? 'superadmin' : 'admin';
 
   return (
-    <DashboardAppShell role={role} name={session.user.name} email={session.user.email}>
+    <DashboardShellLayout role={role} name={session.user.name} email={session.user.email}>
       {children}
-    </DashboardAppShell>
+    </DashboardShellLayout>
   );
 }

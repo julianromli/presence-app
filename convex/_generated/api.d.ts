@@ -9,11 +9,14 @@
  */
 
 import type * as attendance from "../attendance.js";
+import type * as attendanceList from "../attendanceList.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as dashboardOverviewShape from "../dashboardOverviewShape.js";
 import type * as deviceHeartbeat from "../deviceHeartbeat.js";
+import type * as deviceHeartbeatPolicy from "../deviceHeartbeatPolicy.js";
 import type * as helpers from "../helpers.js";
+import type * as qrPolicy from "../qrPolicy.js";
 import type * as qrTokens from "../qrTokens.js";
 import type * as reportIdempotency from "../reportIdempotency.js";
 import type * as reports from "../reports.js";
@@ -22,6 +25,8 @@ import type * as settings from "../settings.js";
 import type * as users from "../users.js";
 import type * as usersList from "../usersList.js";
 import type * as usersPolicy from "../usersPolicy.js";
+import type * as workspaceInvitePolicy from "../workspaceInvitePolicy.js";
+import type * as workspaceMembersPolicy from "../workspaceMembersPolicy.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -32,11 +37,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
+  attendanceList: typeof attendanceList;
   crons: typeof crons;
   dashboard: typeof dashboard;
   dashboardOverviewShape: typeof dashboardOverviewShape;
   deviceHeartbeat: typeof deviceHeartbeat;
+  deviceHeartbeatPolicy: typeof deviceHeartbeatPolicy;
   helpers: typeof helpers;
+  qrPolicy: typeof qrPolicy;
   qrTokens: typeof qrTokens;
   reportIdempotency: typeof reportIdempotency;
   reports: typeof reports;
@@ -45,6 +53,8 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   usersList: typeof usersList;
   usersPolicy: typeof usersPolicy;
+  workspaceInvitePolicy: typeof workspaceInvitePolicy;
+  workspaceMembersPolicy: typeof workspaceMembersPolicy;
   workspaces: typeof workspaces;
 }>;
 
