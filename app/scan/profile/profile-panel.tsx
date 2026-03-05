@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, LogOut, ChevronRight, User as UserIcon, Loader2 } from 'lucide-react';
+import { Settings, LogOut, ChevronRight, User as UserIcon, Loader2, Bell } from 'lucide-react';
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
+import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function ProfilePanel() {
     const [loading, setLoading] = useState(true);
     const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+    const [notifOpen, setNotifOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     useEffect(() => {
@@ -43,14 +45,29 @@ export function ProfilePanel() {
                         Profil
                     </h1>
                 </div>
-                {loading ? (
-                    <Skeleton className="w-10 h-10 rounded-full" />
-                ) : (
-                    <button className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
-                        <Settings className="w-5 h-5 text-foreground" />
-                    </button>
-                )}
+                <div className="flex gap-2">
+                    {loading ? (
+                        <Skeleton className="w-10 h-10 rounded-full" />
+                    ) : (
+                        <button
+                            onClick={() => setNotifOpen(true)}
+                            className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
+                        >
+                            <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
+                            <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background ring-offset-0" />
+                        </button>
+                    )}
+                    {loading ? (
+                        <Skeleton className="w-10 h-10 rounded-full" />
+                    ) : (
+                        <button className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
+                            <Settings className="w-5 h-5 text-foreground" />
+                        </button>
+                    )}
+                </div>
             </div>
+
+            <ScanNotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
 
             {/* Main Content */}
             <div className="flex-1 w-full max-w-md px-6 py-6 mx-auto space-y-6">

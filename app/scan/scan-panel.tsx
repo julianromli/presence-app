@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { workspaceFetch } from '@/lib/workspace-client';
 import { cn } from '@/lib/utils';
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
+import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
 import {
   Dialog,
   DialogContent,
@@ -115,11 +116,17 @@ export function ScanPanel() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [modalContent, setModalContent] = useState<{
     type: 'success' | 'error';
     title: string;
     message: string;
     metadata?: string;
+  } | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    success: boolean;
+    title: string;
+    message: string;
   } | null>(null);
 
   useEffect(() => {
@@ -441,11 +448,16 @@ export function ScanPanel() {
             Halo, Karyawan
           </h1>
         </div>
-        <button className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
-          <Bell className="w-5 h-5 text-foreground" />
-          <span className="absolute top-2 right-2.5 w-2 h-2 bg-destructive rounded-full border border-background"></span>
+        <button
+          onClick={() => setNotifOpen(true)}
+          className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
+        >
+          <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
+          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background ring-offset-0" />
         </button>
       </div>
+
+      <ScanNotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
 
       {/* Main Content */}
       <div className="flex-1 w-full max-w-md flex flex-col px-6 relative py-8 mx-auto items-center">

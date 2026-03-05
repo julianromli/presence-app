@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
+import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
 import { Card } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
@@ -21,6 +22,7 @@ export function HistoryPanel() {
     const [date, setDate] = useState<Date | undefined>(new Date());
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [notifOpen, setNotifOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const controls = useAnimation();
 
@@ -108,10 +110,16 @@ export function HistoryPanel() {
                         Riwayat Scan
                     </h1>
                 </div>
-                <button className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
-                    <Bell className="w-5 h-5 text-foreground" />
+                <button
+                    onClick={() => setNotifOpen(true)}
+                    className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
+                >
+                    <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
+                    <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background ring-offset-0" />
                 </button>
             </div>
+
+            <ScanNotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
 
             {/* Main Content Area */}
             <div
