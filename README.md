@@ -13,14 +13,14 @@ Presence adalah aplikasi absensi digital berbasis Next.js + Clerk + Convex denga
 - Vitest + ESLint
 
 ## Prerequisites
-- Node.js **20 LTS** (baseline lokal dan CI)
-- npm `>=10`
+- Bun `1.3.x` (default package manager + command runner)
+- Node.js `>=20.9` (runtime requirement Next.js, termasuk runtime production di Vercel)
 - Convex deployment aktif
 - Clerk project aktif
 
-Gunakan `.nvmrc`:
+Pin versi Bun via `.bun-version`:
 ```bash
-nvm use
+bun --version
 ```
 
 ## Environment Variables
@@ -44,19 +44,19 @@ UPLOADTHING_TOKEN=
 
 ## Local Setup
 ```bash
-npm ci
-npm run dev
+bun install --frozen-lockfile
+bun run dev
 ```
 
 App default: [http://localhost:3000](http://localhost:3000)
 
 ## Scripts
-- `npm run dev` - start dev server
-- `npm run build` - production build check
-- `npm run start` - run production server
-- `npm run lint` - lint checks
-- `npm test` - run Vitest once
-- `npm run test:watch` - Vitest watch mode
+- `bun run dev` - start dev server
+- `bun run build` - production build check
+- `bun run start` - run production server
+- `bun run lint` - lint checks
+- `bun run test` - run Vitest once
+- `bun run test:watch` - Vitest watch mode
 
 ## Auth & Role Matrix
 - `superadmin`: full access termasuk settings geofence/IP, role management.
@@ -88,10 +88,18 @@ Semua non-2xx response menggunakan bentuk:
 
 ## Quality Gate
 CI workflow ada di `.github/workflows/ci.yml`:
-1. `npm ci`
-2. `npm run lint`
-3. `npm test`
-4. `npm run build`
+1. `bun install --frozen-lockfile`
+2. `bun run lint`
+3. `bun run test`
+4. `bun run build`
+
+## Package Manager & Runtime Policy
+- Default local development, install dependency, test, lint, dan build: **Bun**.
+- Deployment target: **Vercel (managed)**.
+- Runtime production server/function tetap **Node.js** (constraint platform), bukan Bun runtime.
+- Vercel build/install command dikunci lewat `vercel.json`:
+  - `installCommand`: `bun install --frozen-lockfile`
+  - `buildCommand`: `bun run build`
 
 ## Next.js Docs Bootstrap (Repo Policy)
 Jika `.next-docs/` belum ada, generate docs index lokal:

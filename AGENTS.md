@@ -12,14 +12,14 @@ This repository is a Next.js 16 + React 19 app with Convex backend logic.
 - `docs/`: Product and planning docs.
 
 ## Build, Test, and Development Commands
-Use `npm` (lockfile is `package-lock.json`).
+Use `bun` (lockfile is `bun.lock`).
 
-- `npm run dev`: Start local Next.js dev server (`http://localhost:3000`).
-- `npm run build`: Create production build.
-- `npm run start`: Run production server from build output.
-- `npm run lint`: Run ESLint (Next.js core-web-vitals + TypeScript config).
-- `npm test`: Run Vitest test suite once.
-- `npm run test:watch`: Run Vitest in watch mode during development.
+- `bun run dev`: Start local Next.js dev server (`http://localhost:3000`).
+- `bun run build`: Create production build.
+- `bun run start`: Run production server from build output.
+- `bun run lint`: Run ESLint (Next.js core-web-vitals + TypeScript config).
+- `bun run test`: Run Vitest test suite once.
+- `bun run test:watch`: Run Vitest in watch mode during development.
 
 ## Coding Style & Naming Conventions
 - Language: TypeScript/TSX across app code; Convex files include JS/TS.
@@ -35,7 +35,7 @@ Use `npm` (lockfile is `package-lock.json`).
 - Framework: Vitest (`tests/*.test.ts`).
 - Focus tests on pure logic in `lib/` and data/validation behavior.
 - Keep test names behavior-driven (e.g., `"maps forbidden text errors to 403"`).
-- Run `npm test` before opening a PR; use `npm run test:watch` while iterating.
+- Run `bun run test` before opening a PR; use `bun run test:watch` while iterating.
 - No explicit coverage threshold is enforced currently; add tests for every bug fix.
 
 ## Commit & Pull Request Guidelines
@@ -45,7 +45,7 @@ Use `npm` (lockfile is `package-lock.json`).
 - PRs should include:
 - Clear summary and motivation.
 - Linked issue/task (if available).
-- Testing evidence (`npm run lint`, `npm test`).
+- Testing evidence (`bun run lint`, `bun run test`).
 - Screenshots/GIFs for UI changes (dashboard/marketing flows).
 
 ## Agent-Specific Notes

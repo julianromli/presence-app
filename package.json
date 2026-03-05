@@ -2,8 +2,10 @@
   "name": "presence-app",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "bun@1.3.3",
   "engines": {
-    "node": "20.x"
+    "bun": "1.3.x",
+    "node": ">=20.9"
   },
   "scripts": {
     "dev": "next dev --webpack",
