@@ -3,7 +3,7 @@ import { ConvexError } from 'convex/values';
 import type { AppRole } from '@/lib/auth';
 import {
   getConvexTokenOrNull,
-  requireRoleApiFromDb,
+  requireWorkspaceRoleApiFromDb,
   requireWorkspaceApiContextForMigration,
 } from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
@@ -46,7 +46,10 @@ export async function GET(req: Request) {
       ? undefined
       : workspaceContext.workspace.workspaceId;
 
-  const role = await requireRoleApiFromDb(['admin', 'superadmin']);
+  const role = await requireWorkspaceRoleApiFromDb(
+    ['admin', 'superadmin'],
+    workspaceContext.workspace.workspaceId,
+  );
   if ('error' in role) return role.error;
 
   const token = await getConvexTokenOrNull();
@@ -115,7 +118,10 @@ export async function PATCH(req: Request) {
       ? undefined
       : workspaceContext.workspace.workspaceId;
 
-  const roleCheck = await requireRoleApiFromDb(['admin', 'superadmin']);
+  const roleCheck = await requireWorkspaceRoleApiFromDb(
+    ['admin', 'superadmin'],
+    workspaceContext.workspace.workspaceId,
+  );
   if ('error' in roleCheck) return roleCheck.error;
   if (!roleCheck.session.role) {
     return Response.json({ code: 'FORBIDDEN', message: 'Forbidden' }, { status: 403 });

@@ -1,8 +1,8 @@
 import { GeofencePanel } from '@/components/dashboard/geofence-panel';
-import { requireRolePageFromDb } from '@/lib/auth';
+import { requireWorkspaceRolePageFromDb } from '@/lib/auth';
 
 export default async function GeofenceSettingsPage() {
-  await requireRolePageFromDb(['superadmin']);
+  await requireWorkspaceRolePageFromDb(['superadmin']);
 
   return <GeofencePanel />;
 }

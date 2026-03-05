@@ -14,7 +14,9 @@ type CommonSetupOptions = {
 async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   vi.resetModules();
 
-  const requireRoleApiFromDb = vi.fn(async () => options.roleResult ?? { session: { role: 'device-qr' } });
+  const requireWorkspaceRoleApiFromDb = vi.fn(
+    async () => options.roleResult ?? { session: { role: 'device-qr' } },
+  );
   const getConvexTokenOrNull = vi.fn(async () =>
     options.convexToken === undefined ? 'convex-token' : options.convexToken,
   );
@@ -25,7 +27,7 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   }));
 
   vi.doMock('@/lib/auth', () => ({
-    requireRoleApiFromDb,
+    requireWorkspaceRoleApiFromDb,
     getConvexTokenOrNull,
     requireWorkspaceApiContextForMigration,
   }));
@@ -48,7 +50,7 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   return {
     GET: routeModule.GET,
     mocks: {
-      requireRoleApiFromDb,
+      requireWorkspaceRoleApiFromDb,
       getConvexTokenOrNull,
       getAuthedConvexHttpClient,
       mutation,
@@ -59,7 +61,9 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
 async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
   vi.resetModules();
 
-  const requireRoleApiFromDb = vi.fn(async () => options.roleResult ?? { session: { role: 'superadmin' } });
+  const requireWorkspaceRoleApiFromDb = vi.fn(
+    async () => options.roleResult ?? { session: { role: 'superadmin' } },
+  );
   const getConvexTokenOrNull = vi.fn(async () =>
     options.convexToken === undefined ? 'convex-token' : options.convexToken,
   );
@@ -86,7 +90,7 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
   }));
 
   vi.doMock('@/lib/auth', () => ({
-    requireRoleApiFromDb,
+    requireWorkspaceRoleApiFromDb,
     getConvexTokenOrNull,
     requireWorkspaceApiContextForMigration,
   }));
@@ -110,7 +114,7 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
     GET: routeModule.GET,
     PATCH: routeModule.PATCH,
     mocks: {
-      requireRoleApiFromDb,
+      requireWorkspaceRoleApiFromDb,
       getConvexTokenOrNull,
       getAuthedConvexHttpClient,
       query,

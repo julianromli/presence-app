@@ -1,12 +1,12 @@
 import { DashboardAppShell } from '@/components/dashboard/app-shell';
-import { requireRolePageFromDb, requireWorkspaceOnboardingPage } from '@/lib/auth';
+import { requireWorkspaceOnboardingPage, requireWorkspaceRolePageFromDb } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
 export default async function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   await requireWorkspaceOnboardingPage();
-  const session = await requireRolePageFromDb(['admin', 'superadmin']);
+  const session = await requireWorkspaceRolePageFromDb(['admin', 'superadmin']);
   if (!session.user) {
     redirect('/forbidden');
   }

@@ -9,7 +9,9 @@ type ScanRouteSetupOptions = {
 async function setupScanRoute(options: ScanRouteSetupOptions = {}) {
   vi.resetModules();
 
-  const requireRoleApiFromDb = vi.fn(async () => options.roleResult ?? { session: { role: 'karyawan' } });
+  const requireWorkspaceRoleApiFromDb = vi.fn(
+    async () => options.roleResult ?? { session: { role: 'karyawan' } },
+  );
   const getConvexTokenOrNull = vi.fn(async () =>
     options.convexToken === undefined ? 'convex-token' : options.convexToken,
   );
@@ -27,7 +29,7 @@ async function setupScanRoute(options: ScanRouteSetupOptions = {}) {
   }));
 
   vi.doMock('@/lib/auth', () => ({
-    requireRoleApiFromDb,
+    requireWorkspaceRoleApiFromDb,
     getConvexTokenOrNull,
     requireWorkspaceApiContextForMigration,
   }));
@@ -50,7 +52,7 @@ async function setupScanRoute(options: ScanRouteSetupOptions = {}) {
   return {
     POST: routeModule.POST,
     mocks: {
-      requireRoleApiFromDb,
+      requireWorkspaceRoleApiFromDb,
       getConvexTokenOrNull,
       getAuthedConvexHttpClient,
       mutation,
@@ -137,6 +139,7 @@ describe('scan route guardrails', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.mutation).toHaveBeenCalledWith('attendance:recordScan', {
+      workspaceId: undefined,
       token: 'token-active',
       ipAddress: '203.0.113.1',
       latitude: -6.2,

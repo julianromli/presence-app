@@ -116,6 +116,9 @@ export async function ensureGlobalSettingsForMutation(ctx, workspaceId = undefin
   if (existing) {
     const patch = {};
 
+    if (workspaceId && existing.workspaceId === undefined) {
+      patch.workspaceId = workspaceId;
+    }
     if (existing.scanCooldownSeconds === undefined) {
       patch.scanCooldownSeconds = 30;
     }
@@ -170,6 +173,3 @@ export function distanceMeters(lat1, lng1, lat2, lng2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return earthRadius * c;
 }
-    if (workspaceId && existing.workspaceId === undefined) {
-      patch.workspaceId = workspaceId;
-    }

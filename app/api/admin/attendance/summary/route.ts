@@ -1,6 +1,6 @@
 import {
   getConvexTokenOrNull,
-  requireRoleApiFromDb,
+  requireWorkspaceRoleApiFromDb,
   requireWorkspaceApiContextForMigration,
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
@@ -14,7 +14,10 @@ export async function GET(req: Request) {
       ? undefined
       : workspaceContext.workspace.workspaceId;
 
-  const role = await requireRoleApiFromDb(["admin", "superadmin"]);
+  const role = await requireWorkspaceRoleApiFromDb(
+    ["admin", "superadmin"],
+    workspaceContext.workspace.workspaceId,
+  );
   if ("error" in role) return role.error;
 
   const dateKey = new URL(req.url).searchParams.get("dateKey");

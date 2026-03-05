@@ -116,6 +116,46 @@ export const myOnboardingState = query({
   },
 });
 
+export const myMembershipByWorkspace = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      membershipId: v.id("workspace_members"),
+      role: workspaceRoleValidator,
+      isActive: v.boolean(),
+      workspace: workspaceValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await requireIdentityUser(ctx);
+    const membership = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspace_and_user", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("userId", user._id),
+      )
+      .unique();
+
+    if (!membership || !membership.isActive) {
+      return null;
+    }
+
+    const workspace = await ctx.db.get(membership.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      return null;
+    }
+
+    return {
+      membershipId: membership._id,
+      role: membership.role,
+      isActive: membership.isActive,
+      workspace,
+    };
+  },
+});
+
 export const createWorkspace = mutation({
   args: {
     name: v.string(),

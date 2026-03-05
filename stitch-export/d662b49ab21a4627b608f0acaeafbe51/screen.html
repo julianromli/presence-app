@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html class="" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Presence Admin Dashboard Overview</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Font+Unspecified:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>tailwind.config = {darkMode: "class", theme: {extend: {colors: {primary: "#0f172a", secondary: "#64748b", "background-light": "#ffffff", "background-subtle": "#f8fafc", "border-subtle": "#e2e8f0", "text-main": "#0f172a", "text-muted": "#64748b"}, fontFamily: {sans: ["Inter", "sans-serif"], display: "Font Unspecified"}, borderRadius: {DEFAULT: "0px", lg: "0px", xl: "0px", full: "0px"}}}};</script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background-subtle text-text-main antialiased h-screen flex overflow-hidden">
+<aside class="w-64 bg-white border-r border-border-subtle flex-shrink-0 flex flex-col h-full z-20">
+<div class="h-16 flex items-center px-6 border-b border-border-subtle">
+<div class="w-6 h-6 text-primary mr-3">
+<svg fill="currentColor" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M24 4H6V17.3333V30.6667H24V44H42V30.6667V17.3333H24V4Z" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h1 class="text-lg font-bold tracking-tight text-text-main">Presence</h1>
+</div>
+<nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md bg-slate-100 text-slate-900 group" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+                Ringkasan
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 group transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">group</span>
+                Karyawan
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 group transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">calendar_month</span>
+                Jadwal
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 group transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">description</span>
+                Laporan
+            </a>
+<div class="pt-6 pb-2">
+<p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Sistem</p>
+</div>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 group transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+                Pengaturan
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 group transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">help</span>
+                Bantuan
+            </a>
+</nav>
+<div class="p-4 border-t border-border-subtle">
+<div class="flex items-center gap-3">
+<img alt="Admin Profile" class="w-9 h-9 rounded-full bg-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTA8dPPTgisDXrWt5HIyu60NjAkGxZT6hyNCXNeaoJsAf-QmhAyIIKxRjZD3kFA0i9e9GvKLKc8O51eV_2jHA2QBjLcGw4CocQL-n7KGV3l3YV6HGjS_Wt2anPgGmuNPKkQf47ynG3cJsQ3vULjgf7Ea5AZ_C7SF_IBti014HN0eHqTHFPtebjqf1VtIpU8COfr5gPNpVnu5cPv93PwI9OgH_OFge-Y0axphqEK5irMfPrHzoNpPdTvt1g_QGoi-j1PrXU7-Pn6E0p"/>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900 truncate">Admin Utama</p>
+<p class="text-xs text-slate-500 truncate">admin@presence.id</p>
+</div>
+<button class="text-slate-400 hover:text-slate-600">
+<span class="material-symbols-outlined text-xl">logout</span>
+</button>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+<header class="h-16 flex items-center justify-between px-6 border-b border-border-subtle bg-white z-10">
+<h2 class="text-xl font-semibold text-slate-900">Dashboard</h2>
+<div class="flex items-center gap-4">
+<div class="relative w-64 md:w-80">
+<span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</span>
+<input class="w-full py-2 pl-10 pr-4 text-sm bg-slate-50 border-none rounded-lg focus:ring-1 focus:ring-slate-300 placeholder-slate-400 text-slate-900" placeholder="Cari karyawan atau laporan..." type="text"/>
+</div>
+<button class="relative p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+</button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto p-6 md:p-8 bg-background-subtle">
+<div class="max-w-6xl mx-auto space-y-8">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-sm text-slate-500 mb-1">Overview</p>
+<h3 class="text-2xl font-bold text-slate-900">Senin, 24 Oktober 2023</h3>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 shadow-sm transition-all">Hari Ini</button>
+<button class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 shadow-sm transition-all">Minggu Ini</button>
+<button class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 shadow-sm transition-all">Bulan Ini</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white p-6 rounded-xl border border-border-subtle shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-green-50 rounded-lg">
+<span class="material-symbols-outlined text-green-600">check_circle</span>
+</div>
+<span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">+2.5%</span>
+</div>
+<p class="text-sm font-medium text-slate-500">Kehadiran Hari Ini</p>
+<h4 class="text-3xl font-bold text-slate-900 mt-1">95%</h4>
+<p class="text-xs text-slate-400 mt-2">142 dari 150 karyawan hadir</p>
+</div>
+<div class="bg-white p-6 rounded-xl border border-border-subtle shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-orange-50 rounded-lg">
+<span class="material-symbols-outlined text-orange-600">schedule</span>
+</div>
+<span class="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full">+1</span>
+</div>
+<p class="text-sm font-medium text-slate-500">Terlambat</p>
+<h4 class="text-3xl font-bold text-slate-900 mt-1">2</h4>
+<p class="text-xs text-slate-400 mt-2">Rata-rata keterlambatan 15 menit</p>
+</div>
+<div class="bg-white p-6 rounded-xl border border-border-subtle shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-blue-50 rounded-lg">
+<span class="material-symbols-outlined text-blue-600">sick</span>
+</div>
+<span class="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-1 rounded-full">Normal</span>
+</div>
+<p class="text-sm font-medium text-slate-500">Izin / Sakit</p>
+<h4 class="text-3xl font-bold text-slate-900 mt-1">3</h4>
+<p class="text-xs text-slate-400 mt-2">Menunggu persetujuan: 1</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 bg-white p-6 rounded-xl border border-border-subtle shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-lg font-bold text-slate-900">Tren Kehadiran</h3>
+<button class="text-slate-400 hover:text-slate-600">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+<div class="relative h-64 w-full flex items-end justify-between px-2 gap-2">
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none">
+<div class="w-full h-px bg-slate-100"></div>
+<div class="w-full h-px bg-slate-100"></div>
+<div class="w-full h-px bg-slate-100"></div>
+<div class="w-full h-px bg-slate-100"></div>
+<div class="w-full h-px bg-slate-100"></div>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[60%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-900 rounded-t-sm h-[90%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Sen</span>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[85%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-900 rounded-t-sm h-[95%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Sel</span>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[80%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-900 rounded-t-sm h-[88%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Rab</span>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[90%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-900 rounded-t-sm h-[92%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Kam</span>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[75%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-900 rounded-t-sm h-[85%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Jum</span>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[40%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-300 rounded-t-sm h-[40%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Sab</span>
+</div>
+<div class="relative flex flex-col items-center justify-end w-full h-full group cursor-pointer">
+<div class="w-8 md:w-12 bg-slate-100 rounded-t-sm h-[0%] group-hover:bg-slate-200 transition-all relative">
+<div class="absolute bottom-0 w-full bg-slate-300 rounded-t-sm h-[0%]"></div>
+</div>
+<span class="text-xs text-slate-400 mt-2 font-medium">Min</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-1 bg-white p-6 rounded-xl border border-border-subtle shadow-sm flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-lg font-bold text-slate-900">Aktivitas Terkini</h3>
+<a class="text-xs font-semibold text-slate-500 hover:text-slate-900" href="#">Lihat Semua</a>
+</div>
+<div class="flex-1 overflow-y-auto pr-2 space-y-5">
+<div class="flex items-start gap-3">
+<img alt="Avatar" class="w-8 h-8 rounded-full bg-slate-100 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkp4WyyxadLL1SfthSShdg4-Z2CTWTZoLE8h0DvrAA4iALg-vrX4J7qsnd4-l7luT80OrJ75QqdUVr7K-30VnEFAZRW9VWoyG7ixg1zpyBwm_U3WYu7mYWWsEhHDCZeOBTx3wq77sSJ-0URAJFv9wewomksGPnz_kGsyOyHgoZ0u6X2-Tqbqh33FX8ok2Zn7GdtIZQ6Sdtnb7JQ5hTv50u2GYISSFgghLsQRTbxOiILcpFeBunhPdHCKClP251yjauT_u6L-YHptp3"/>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900">Budi Santoso</p>
+<p class="text-xs text-slate-500">Scan Masuk • Kantor Pusat</p>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">07:55</p>
+<span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<img alt="Avatar" class="w-8 h-8 rounded-full bg-slate-100 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCg1gxpb_l2o6wXcZy_DyV6rumjgY-MXflqWHDawyNGBWOj7MM7uGilL-DdZsPZOlIPbAzHtc2jv6h6fvm6wQz81KxaVf4-npQaAkzcR5xQFciv91X3DPgt8lqSqHW6cRLsirC339i_bonoDICTTPPKeURkNKDnvPfKqNVvh8vFRaFmwWtsKSsPDTIQEJyrHErGkHu794x-blahY6PwQLzkZjm-dBQjLGR-qPfMxOirEuTyule4W3brAJSshKlLDwPTET5ZXqZXX1LZ"/>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900">Siti Aminah</p>
+<p class="text-xs text-slate-500">Scan Masuk • Cabang A</p>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">08:02</p>
+<span class="inline-block w-2 h-2 rounded-full bg-orange-500"></span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<img alt="Avatar" class="w-8 h-8 rounded-full bg-slate-100 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAliBTsoyyo7wAG9EmUWRpqw2B3KuMGG-4rjmONoeZ_9yAW1RE_8aYKSJHCV_rSx-_vuisNtUglrnzQqfgIbBtHLPlvUrJ2HFGLJs-hzpwxtHvLzEwWTRgx6FcVYjsFX5-VecCZhz_hXa6gFUHT0V4N16__cAGcGmkcojqjnMdsX7AAFL2a73yA982sNdB31I2Bv3h4svQo8A81Bfq18me2INLANSbE0yLUdOEPtE-7ENIibS7SxrClMxIV3nszaQAEGfM7fG3RbFxq"/>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900">Reza Rahardian</p>
+<p class="text-xs text-slate-500">Izin Sakit</p>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">08:10</p>
+<span class="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<img alt="Avatar" class="w-8 h-8 rounded-full bg-slate-100 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5Sg7H_-XkVxNg5chMHBIjqsBY3Z48SWKoKhCqu8a4LLsnGdwTh4Q-XkefbfnwoG8G1FAEq0qseZQyKmnFhKBVIGIJ51o71_Mxp0Ge3nrTFvrCX2hjH_ZwtrkZhJrx0ub5J4mqO_HKAcIP589nrkGzKce6FSPrD5gDL_EGX5ljsQE0_miBZTgmI8UUh4BeI7YK1zutCOMe5-5hFHf7ai_TDr828-_FI-3kDadOS492dreyknUWJpsWF6dZJyQS6djxu1eDEjo45_3g"/>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900">Dewi Lestari</p>
+<p class="text-xs text-slate-500">Scan Masuk • Kantor Pusat</p>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">08:15</p>
+<span class="inline-block w-2 h-2 rounded-full bg-orange-500"></span>
+</div>
+</div>
+<div class="flex items-start gap-3 opacity-60">
+<img alt="Avatar" class="w-8 h-8 rounded-full bg-slate-100 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlXfGbq_tXMPXt9LA9zBN4WqbL_tMaq-hxdGuktp6a7pteXAQZuD2hOk8-h3mkTeMAZzbkGc80W-KJHk0BVvVR-sE-WCHt0SsAb5yaX4trpmW51jjj6PbMgDl4EEGJ-j0pe7Lb1TfY9_lpRiGEtBVwVLaB2W50DdQTpstoMo1OhPV7tPRnph1kXOMHRBdahDvOaPxfcOqMkoNvf6fGbv_BkfaNZlcl1CBi7b7G7G6i4pZtodluqUQ1Omd_eGSYCKWB3F6ke_FJFJFK"/>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900">Anton Wijaya</p>
+<p class="text-xs text-slate-500">Scan Masuk • Remote</p>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">08:20</p>
+<span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-slate-900 text-white p-6 rounded-xl flex items-center justify-between shadow-lg">
+<div>
+<h4 class="font-bold text-lg mb-1">Butuh Laporan Bulanan?</h4>
+<p class="text-slate-300 text-sm">Unduh rekapitulasi kehadiran bulan Oktober.</p>
+</div>
+<button class="bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-100 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span> Export
+                        </button>
+</div>
+<div class="bg-white p-6 rounded-xl border border-border-subtle shadow-sm flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-slate-900 text-sm">Sistem Maintenance</h4>
+<p class="text-slate-500 text-xs">Akan dilakukan pemeliharaan server pada hari Sabtu pukul 23:00 WIB.</p>
+</div>
+<button class="text-slate-400 hover:text-slate-600">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
