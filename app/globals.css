@@ -121,6 +121,13 @@
   }
 }
 
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
 .force-light-vars {
   /* base tokens (light) */
   --primary: oklch(0.172 0.006 286.3); /* #0D0D12 */
