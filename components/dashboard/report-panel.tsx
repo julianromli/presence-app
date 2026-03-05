@@ -13,7 +13,7 @@ import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
 import { getLocalDateKey } from "@/lib/date-key";
 import { cn } from "@/lib/utils";
-import { workspaceFetch } from "@/lib/workspace-client";
+import { recoverWorkspaceScopeViolation, workspaceFetch } from "@/lib/workspace-client";
 
 type AttendanceRow = {
   _id: string;
@@ -274,6 +274,9 @@ export function ReportPanel() {
             res,
             "Gagal memuat data attendance.",
           );
+          if (recoverWorkspaceScopeViolation(error.code)) {
+            return;
+          }
           setAttendanceError(error);
           setAttendanceStatus("error");
           setNotice({
@@ -324,6 +327,9 @@ export function ReportPanel() {
         res,
         "Gagal memuat daftar report mingguan.",
       );
+      if (recoverWorkspaceScopeViolation(error.code)) {
+        return;
+      }
       setReportsStatus("error");
       setReportsError(error);
       if (!opts.silent) {
@@ -378,6 +384,9 @@ export function ReportPanel() {
         res,
         "Gagal memproses trigger report mingguan.",
       );
+      if (recoverWorkspaceScopeViolation(error.code)) {
+        return;
+      }
       setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
       return;
     }
@@ -500,6 +509,9 @@ export function ReportPanel() {
     }
 
     const error = await parseApiErrorResponse(res, "Edit attendance gagal.");
+    if (recoverWorkspaceScopeViolation(error.code)) {
+      return;
+    }
     setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
     setRowActionLoading(false);
   };

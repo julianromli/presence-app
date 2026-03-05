@@ -1,16 +1,17 @@
 import {
   getConvexTokenOrNull,
   requireWorkspaceRoleApiFromDb,
-  requireWorkspaceApiContextForMigration,
+  requireWorkspaceApiContext,
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function GET(req: Request) {
-  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) {
     return workspaceContext.error;
   }
+  const workspaceId = workspaceContext.workspace.workspaceId;
 
   const result = await requireWorkspaceRoleApiFromDb(
     ["device-qr"],
@@ -37,9 +38,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const issued = await convex.mutation("qrTokens:issue", {});
+    const issued = await convex.mutation("qrTokens:issue", { workspaceId });
     return Response.json(issued);
   } catch (error) {
     return convexErrorResponse(error, "Gagal membuat QR token.");
   }
 }
+

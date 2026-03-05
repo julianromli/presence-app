@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internalMutation, mutation } from './_generated/server';
-import { requireRole } from './helpers';
+import { requireWorkspaceRole } from './helpers';
 import { QR_TOKEN_ROTATION_INTERVAL_MS, QR_TOKEN_TTL_MS } from './qrPolicy';
 
 async function sha256Hex(input) {
@@ -12,7 +12,7 @@ async function sha256Hex(input) {
     .join('');
 }
 
-async function issueToken(ctx, deviceUserId) {
+async function issueToken(ctx, workspaceId, deviceUserId) {
   const issuedAt = Date.now();
   const ttlMs = QR_TOKEN_TTL_MS;
   const expiresAt = issuedAt + ttlMs;
@@ -21,6 +21,7 @@ async function issueToken(ctx, deviceUserId) {
   const tokenHash = await sha256Hex(rawToken);
 
   await ctx.db.insert('qr_tokens', {
+    workspaceId,
     tokenHash,
     deviceUserId,
     issuedAt,
@@ -40,7 +41,9 @@ async function issueToken(ctx, deviceUserId) {
 }
 
 export const issue = mutation({
-  args: {},
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
   returns: v.object({
     token: v.string(),
     expiresAt: v.number(),
@@ -49,14 +52,17 @@ export const issue = mutation({
     rotationIntervalMs: v.number(),
     serverTime: v.number(),
   }),
-  handler: async (ctx) => {
-    const deviceUser = await requireRole(ctx, ['device-qr']);
-    return await issueToken(ctx, deviceUser._id);
+  handler: async (ctx, args) => {
+    const { user: deviceUser } = await requireWorkspaceRole(ctx, args.workspaceId, [
+      'device-qr',
+    ]);
+    return await issueToken(ctx, args.workspaceId, deviceUser._id);
   },
 });
 
 export const validateAndConsume = internalMutation({
   args: {
+    workspaceId: v.id("workspaces"),
     token: v.string(),
   },
   returns: v.object({
@@ -68,7 +74,9 @@ export const validateAndConsume = internalMutation({
     const tokenHash = await sha256Hex(args.token);
     const tokenRow = await ctx.db
       .query('qr_tokens')
-      .withIndex('by_token_hash', (q) => q.eq('tokenHash', tokenHash))
+      .withIndex('by_workspace_token_hash', (q) =>
+        q.eq('workspaceId', args.workspaceId).eq('tokenHash', tokenHash),
+      )
       .unique();
 
     if (!tokenRow) {

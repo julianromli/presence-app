@@ -20,6 +20,8 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   USER_NOT_FOUND: 'Data user tidak ditemukan. Silakan sinkronisasi ulang akun.',
   INACTIVE_USER: 'Akun Anda tidak aktif. Hubungi superadmin.',
   VALIDATION_ERROR: 'Input tidak valid. Periksa lagi data yang dimasukkan.',
+  WORKSPACE_REQUIRED: 'Workspace aktif belum dipilih. Pilih workspace terlebih dahulu.',
+  WORKSPACE_INVALID: 'Workspace aktif tidak valid. Pilih ulang workspace Anda.',
   BAD_REQUEST: 'Permintaan tidak valid.',
   NOT_FOUND: 'Data yang diminta tidak ditemukan.',
   WRITE_CONFLICT: 'Terjadi konflik data. Silakan coba lagi.',

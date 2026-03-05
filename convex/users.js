@@ -2,13 +2,17 @@ import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 
 import { internalMutation, mutation, query } from "./_generated/server";
-import { getCurrentDbUser, requireIdentity, requireRole } from "./helpers";
+import {
+  getCurrentDbUser,
+  requireIdentity,
+  requireRole,
+  requireWorkspaceRole,
+} from "./helpers";
 import { isAdminManagedActivationAllowed, isSelfDeactivation } from "./usersPolicy";
 import {
   buildUsersMetricsFromRows,
   filterUsers,
   paginateFilteredRows,
-  summarizeFromMetrics,
   summarizeUsers,
 } from "./usersList";
 
@@ -120,30 +124,6 @@ async function patchUsersMetrics(ctx, updater) {
   await ctx.db.patch(metricsId, next);
 }
 
-function buildUsersQueryBuilder(ctx, args) {
-  if (args.role !== undefined && args.isActive !== undefined) {
-    return ctx.db
-      .query("users")
-      .withIndex("by_role_and_active", (q) =>
-        q.eq("role", args.role).eq("isActive", args.isActive),
-      );
-  }
-
-  if (args.role !== undefined) {
-    return ctx.db
-      .query("users")
-      .withIndex("by_role_and_active", (q) => q.eq("role", args.role));
-  }
-
-  if (args.isActive !== undefined) {
-    return ctx.db
-      .query("users")
-      .withIndex("by_active", (q) => q.eq("isActive", args.isActive));
-  }
-
-  return ctx.db.query("users");
-}
-
 function assertAdminManagedTargetPolicy(actorRole, targetRole, nextActive) {
   if (actorRole !== "admin" || nextActive === undefined) {
     return;
@@ -239,7 +219,7 @@ export const upsertFromClerk = mutation({
 
 export const listPaginated = query({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
     q: v.optional(v.string()),
     role: v.optional(roleValidator),
     isActive: v.optional(v.boolean()),
@@ -250,229 +230,101 @@ export const listPaginated = query({
     summary: summaryValidator,
   }),
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["admin", "superadmin"]);
+    await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
 
-    if (args.workspaceId !== undefined) {
-      const memberships = await ctx.db
-        .query("workspace_members")
-        .withIndex("by_workspace_role_active", (q) =>
-          q.eq("workspaceId", args.workspaceId),
-        )
-        .collect();
+    const memberships = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspace_role_active", (q) =>
+        q.eq("workspaceId", args.workspaceId),
+      )
+      .collect();
 
-      const scopedMemberships = memberships.filter((membership) => {
-        if (args.role !== undefined && membership.role !== args.role) {
-          return false;
-        }
-        if (args.isActive !== undefined && membership.isActive !== args.isActive) {
-          return false;
-        }
-        return true;
-      });
-
-      const userIds = [...new Set(scopedMemberships.map((item) => String(item.userId)))];
-      const userDocs = await Promise.all(userIds.map((id) => ctx.db.get(id)));
-      const userById = new Map(userIds.map((id, idx) => [id, userDocs[idx]]));
-
-      const rows = scopedMemberships
-        .map((membership) => {
-          const user = userById.get(String(membership.userId));
-          if (!user) {
-            return null;
-          }
-          return {
-            _id: user._id,
-            _creationTime: user._creationTime,
-            clerkUserId: user.clerkUserId,
-            name: user.name,
-            email: user.email,
-            role: membership.role,
-            isActive: membership.isActive,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-          };
-        })
-        .filter((item) => item !== null);
-
-      const filteredRows = filterUsers(rows, {
-        q: args.q,
-        role: args.role,
-        isActive: args.isActive,
-      });
-      const rowsPage = paginateFilteredRows(filteredRows, args.paginationOpts);
-
-      return {
-        rowsPage,
-        summary: summarizeUsers(filteredRows),
-      };
-    }
-
-    const hasSearch = args.q?.trim().length;
-    const queryBuilder = buildUsersQueryBuilder(ctx, args).order("desc");
-
-    if (hasSearch) {
-      const scopedRows = await queryBuilder.collect();
-      const filteredRows = filterUsers(scopedRows, {
-        q: args.q,
-        role: args.role,
-        isActive: args.isActive,
-      });
-      const rowsPage = paginateFilteredRows(filteredRows, args.paginationOpts);
-
-      return {
-        rowsPage,
-        summary: summarizeUsers(filteredRows),
-      };
-    }
-
-    const rowsPage = await queryBuilder.paginate({
-      ...args.paginationOpts,
-      maximumRowsRead: args.paginationOpts.maximumRowsRead ?? 2_000,
+    const scopedMemberships = memberships.filter((membership) => {
+      if (args.role !== undefined && membership.role !== args.role) {
+        return false;
+      }
+      if (args.isActive !== undefined && membership.isActive !== args.isActive) {
+        return false;
+      }
+      return true;
     });
 
-    const metricsId = await getOrRebuildUsersMetrics(ctx);
-    if (!metricsId) {
-      const scopedRows = await buildUsersQueryBuilder(ctx, args).order("desc").collect();
-      return {
-        rowsPage,
-        summary: summarizeUsers(scopedRows),
-      };
-    }
+    const userIds = [...new Set(scopedMemberships.map((item) => String(item.userId)))];
+    const userDocs = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+    const userById = new Map(userIds.map((id, idx) => [id, userDocs[idx]]));
 
-    const metrics = await ctx.db.get(metricsId);
-    if (!metrics) {
-      const scopedRows = await buildUsersQueryBuilder(ctx, args).order("desc").collect();
-      return {
-        rowsPage,
-        summary: summarizeUsers(scopedRows),
-      };
-    }
+    const rows = scopedMemberships
+      .map((membership) => {
+        const user = userById.get(String(membership.userId));
+        if (!user) {
+          return null;
+        }
+        return {
+          _id: user._id,
+          _creationTime: user._creationTime,
+          clerkUserId: user.clerkUserId,
+          name: user.name,
+          email: user.email,
+          role: membership.role,
+          isActive: membership.isActive,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        };
+      })
+      .filter((item) => item !== null);
+
+    const filteredRows = filterUsers(rows, {
+      q: args.q,
+      role: args.role,
+      isActive: args.isActive,
+    });
+    const rowsPage = paginateFilteredRows(filteredRows, args.paginationOpts);
 
     return {
       rowsPage,
-      summary: summarizeFromMetrics(metrics, {
-        role: args.role,
-        isActive: args.isActive,
-      }),
+      summary: summarizeUsers(filteredRows),
     };
   },
 });
 
 export const updateAdminManagedFields = mutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
     userId: v.id("users"),
     role: v.optional(roleValidator),
     isActive: v.optional(v.boolean()),
   },
   returns: userRowValidator,
   handler: async (ctx, args) => {
-    const actor = await requireRole(ctx, ["admin", "superadmin"]);
+    const { user: actor, membership: actorMembership } = await requireWorkspaceRole(
+      ctx,
+      args.workspaceId,
+      ["admin", "superadmin"],
+    );
 
-    if (args.workspaceId !== undefined) {
-      const targetUser = await ctx.db.get(args.userId);
-      if (!targetUser) {
-        throw new ConvexError({
-          code: "NOT_FOUND",
-          message: "User tidak ditemukan.",
-        });
-      }
-
-      const membership = await ctx.db
-        .query("workspace_members")
-        .withIndex("by_workspace_and_user", (q) =>
-          q.eq("workspaceId", args.workspaceId).eq("userId", args.userId),
-        )
-        .unique();
-
-      if (!membership) {
-        throw new ConvexError({
-          code: "NOT_FOUND",
-          message: "Membership workspace tidak ditemukan.",
-        });
-      }
-
-      if (args.role !== undefined && actor.role !== "superadmin") {
-        throw new ConvexError({
-          code: "FORBIDDEN",
-          message: "Hanya superadmin yang dapat mengubah role.",
-        });
-      }
-
-      if (args.role === undefined && args.isActive === undefined) {
-        throw new ConvexError({
-          code: "VALIDATION_ERROR",
-          message: "Tidak ada field yang diubah.",
-        });
-      }
-
-      assertAdminManagedTargetPolicy(actor.role, membership.role, args.isActive);
-      assertSelfDeactivate(actor._id, membership.userId, args.isActive);
-
-      const nextRole = args.role ?? membership.role;
-      const nextActive = args.isActive ?? membership.isActive;
-      const roleChanged = nextRole !== membership.role;
-      const activeChanged = nextActive !== membership.isActive;
-      if (!roleChanged && !activeChanged) {
-        return {
-          _id: targetUser._id,
-          _creationTime: targetUser._creationTime,
-          clerkUserId: targetUser.clerkUserId,
-          name: targetUser.name,
-          email: targetUser.email,
-          role: membership.role,
-          isActive: membership.isActive,
-          createdAt: targetUser.createdAt,
-          updatedAt: targetUser.updatedAt,
-        };
-      }
-
-      const now = Date.now();
-      const patch = { updatedAt: now };
-      if (roleChanged) {
-        patch.role = nextRole;
-      }
-      if (activeChanged) {
-        patch.isActive = nextActive;
-      }
-      await ctx.db.patch(membership._id, patch);
-
-      await ctx.db.insert("audit_logs", {
-        actorUserId: actor._id,
-        workspaceId: args.workspaceId,
-        action: "workspace_members.admin_managed_fields.updated",
-        targetType: "workspace_members",
-        targetId: String(membership._id),
-        payload: {
-          role: roleChanged ? nextRole : undefined,
-          isActive: activeChanged ? nextActive : undefined,
-        },
-        createdAt: now,
-      });
-
-      return {
-        _id: targetUser._id,
-        _creationTime: targetUser._creationTime,
-        clerkUserId: targetUser.clerkUserId,
-        name: targetUser.name,
-        email: targetUser.email,
-        role: nextRole,
-        isActive: nextActive,
-        createdAt: targetUser.createdAt,
-        updatedAt: targetUser.updatedAt,
-      };
-    }
-
-    const target = await ctx.db.get(args.userId);
-
-    if (!target) {
+    const targetUser = await ctx.db.get(args.userId);
+    if (!targetUser) {
       throw new ConvexError({
         code: "NOT_FOUND",
         message: "User tidak ditemukan.",
       });
     }
 
-    if (args.role !== undefined && actor.role !== "superadmin") {
+    const membership = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspace_and_user", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("userId", args.userId),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Membership workspace tidak ditemukan.",
+      });
+    }
+
+    if (args.role !== undefined && actorMembership.role !== "superadmin") {
       throw new ConvexError({
         code: "FORBIDDEN",
         message: "Hanya superadmin yang dapat mengubah role.",
@@ -486,16 +338,26 @@ export const updateAdminManagedFields = mutation({
       });
     }
 
-    assertAdminManagedTargetPolicy(actor.role, target.role, args.isActive);
-    assertSelfDeactivate(actor._id, target._id, args.isActive);
+    assertAdminManagedTargetPolicy(actorMembership.role, membership.role, args.isActive);
+    assertSelfDeactivate(actor._id, membership.userId, args.isActive);
 
-    const nextRole = args.role ?? target.role;
-    const nextActive = args.isActive ?? target.isActive;
-    const roleChanged = nextRole !== target.role;
-    const activeChanged = nextActive !== target.isActive;
+    const nextRole = args.role ?? membership.role;
+    const nextActive = args.isActive ?? membership.isActive;
+    const roleChanged = nextRole !== membership.role;
+    const activeChanged = nextActive !== membership.isActive;
 
     if (!roleChanged && !activeChanged) {
-      return target;
+      return {
+        _id: targetUser._id,
+        _creationTime: targetUser._creationTime,
+        clerkUserId: targetUser.clerkUserId,
+        name: targetUser.name,
+        email: targetUser.email,
+        role: membership.role,
+        isActive: membership.isActive,
+        createdAt: targetUser.createdAt,
+        updatedAt: targetUser.updatedAt,
+      };
     }
 
     const now = Date.now();
@@ -507,20 +369,14 @@ export const updateAdminManagedFields = mutation({
       patch.isActive = nextActive;
     }
 
-    await ctx.db.patch(args.userId, patch);
-    await patchUsersMetrics(ctx, (metrics) => {
-      applyTransitionToMetrics(
-        metrics,
-        { role: target.role, isActive: target.isActive },
-        { role: nextRole, isActive: nextActive },
-      );
-    });
+    await ctx.db.patch(membership._id, patch);
 
     await ctx.db.insert("audit_logs", {
       actorUserId: actor._id,
-      action: "users.admin_managed_fields.updated",
-      targetType: "users",
-      targetId: String(args.userId),
+      workspaceId: args.workspaceId,
+      action: "workspace_members.admin_managed_fields.updated",
+      targetType: "workspace_members",
+      targetId: String(membership._id),
       payload: {
         role: roleChanged ? nextRole : undefined,
         isActive: activeChanged ? nextActive : undefined,
@@ -528,15 +384,17 @@ export const updateAdminManagedFields = mutation({
       createdAt: now,
     });
 
-    const updated = await ctx.db.get(args.userId);
-    if (!updated) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "User tidak ditemukan setelah update.",
-      });
-    }
-
-    return updated;
+    return {
+      _id: targetUser._id,
+      _creationTime: targetUser._creationTime,
+      clerkUserId: targetUser.clerkUserId,
+      name: targetUser.name,
+      email: targetUser.email,
+      role: nextRole,
+      isActive: nextActive,
+      createdAt: targetUser.createdAt,
+      updatedAt: targetUser.updatedAt,
+    };
   },
 });
 

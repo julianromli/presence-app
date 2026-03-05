@@ -1,18 +1,15 @@
 import {
   getConvexTokenOrNull,
   requireWorkspaceRoleApiFromDb,
-  requireWorkspaceApiContextForMigration,
+  requireWorkspaceApiContext,
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
 export async function GET(req: Request) {
-  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) return workspaceContext.error;
-  const workspaceId =
-    workspaceContext.workspace.workspaceId === "default-global"
-      ? undefined
-      : workspaceContext.workspace.workspaceId;
+  const workspaceId = workspaceContext.workspace.workspaceId;
 
   const role = await requireWorkspaceRoleApiFromDb(
     ["admin", "superadmin"],
@@ -43,12 +40,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) return workspaceContext.error;
-  const workspaceId =
-    workspaceContext.workspace.workspaceId === "default-global"
-      ? undefined
-      : workspaceContext.workspace.workspaceId;
+  const workspaceId = workspaceContext.workspace.workspaceId;
 
   const role = await requireWorkspaceRoleApiFromDb(
     ["admin", "superadmin"],
@@ -82,3 +76,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

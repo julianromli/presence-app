@@ -12,7 +12,7 @@ import {
   resolveUsersFilters,
   type UsersPanelFilters,
 } from '@/lib/users-filters';
-import { workspaceFetch } from '@/lib/workspace-client';
+import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 import type { AdminUsersPage, AdminUserRow } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
@@ -89,6 +89,9 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
 
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat data user.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setError(parsed);
         setStatus('error');
         setLoading(false);
@@ -151,6 +154,9 @@ export function UsersPanel({ viewerRole }: UsersPanelProps) {
 
     if (!res.ok) {
       const parsed = await parseApiErrorResponse(res, 'Gagal mengubah data user.');
+      if (recoverWorkspaceScopeViolation(parsed.code)) {
+        return;
+      }
       setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
       return;
     }

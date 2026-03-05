@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseApiErrorResponse } from '@/lib/client-error';
-import { workspaceFetch } from '@/lib/workspace-client';
+import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 
 type SettingsPayload = {
   timezone: string;
@@ -57,6 +57,9 @@ export function GeofencePanel() {
       const res = await workspaceFetch('/api/admin/settings', { cache: 'no-store' });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat data geofence.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         setInitialLoading(false);
         return;
@@ -89,6 +92,9 @@ export function GeofencePanel() {
 
     if (!res.ok) {
       const parsed = await parseApiErrorResponse(res, 'Gagal menyimpan pengaturan geofence.');
+      if (recoverWorkspaceScopeViolation(parsed.code)) {
+        return;
+      }
       setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
       setLoading(false);
       return;

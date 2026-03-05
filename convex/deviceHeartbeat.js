@@ -1,10 +1,11 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
-import { requireRole } from "./helpers";
+import { requireWorkspaceRole } from "./helpers";
 
 export const ping = mutation({
   args: {
+    workspaceId: v.id("workspaces"),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
   },
@@ -13,12 +14,16 @@ export const ping = mutation({
     lastSeenAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const actor = await requireRole(ctx, ["device-qr"]);
+    const { user: actor } = await requireWorkspaceRole(ctx, args.workspaceId, [
+      "device-qr",
+    ]);
     const now = Date.now();
 
     const existing = await ctx.db
       .query("device_heartbeats")
-      .withIndex("by_device_user_id", (q) => q.eq("deviceUserId", actor._id))
+      .withIndex("by_workspace_device_user_id", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("deviceUserId", actor._id),
+      )
       .unique();
 
     if (existing) {
@@ -30,6 +35,7 @@ export const ping = mutation({
       });
     } else {
       await ctx.db.insert("device_heartbeats", {
+        workspaceId: args.workspaceId,
         deviceUserId: actor._id,
         lastSeenAt: now,
         ipAddress: args.ipAddress,
@@ -53,25 +59,31 @@ const heartbeatItemValidator = v.object({
 });
 
 export const listStatus = query({
-  args: {},
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
   returns: v.array(heartbeatItemValidator),
-  handler: async (ctx) => {
-    await requireRole(ctx, ["admin", "superadmin"]);
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
     const now = Date.now();
     const onlineThreshold = now - 60_000;
-    const devices = await ctx.db
-      .query("users")
-      .withIndex("by_role_and_active", (q) =>
-        q.eq("role", "device-qr").eq("isActive", true),
+    const memberships = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspace_role_active", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("role", "device-qr").eq("isActive", true),
       )
       .collect();
+    const deviceIds = memberships.map((membership) => membership.userId);
+    const devices = (await Promise.all(deviceIds.map((id) => ctx.db.get(id)))).filter(
+      (user) => user !== null && user.isActive && user.role === "device-qr",
+    );
 
     const rows = await Promise.all(
       devices.map(async (device) => {
         const beat = await ctx.db
           .query("device_heartbeats")
-          .withIndex("by_device_user_id", (q) =>
-            q.eq("deviceUserId", device._id),
+          .withIndex("by_workspace_device_user_id", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("deviceUserId", device._id),
           )
           .unique();
 

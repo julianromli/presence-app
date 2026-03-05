@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { query } from './_generated/server';
-import { buildDateKey, getGlobalSettingsOrThrow, requireRole } from './helpers';
+import { buildDateKey, getGlobalSettingsOrThrow, requireWorkspaceRole } from './helpers';
 import { normalizeReportStatus, toHappenedAt } from './dashboardOverviewShape';
 
 const recentActivityValidator = v.object({
@@ -61,71 +61,49 @@ function buildLast7DateKeys(now, timezone) {
 
 export const getOverview = query({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: overviewValidator,
   handler: async (ctx, args) => {
-    await requireRole(ctx, ['admin', 'superadmin']);
+    await requireWorkspaceRole(ctx, args.workspaceId, ['admin', 'superadmin']);
 
     const settings = await getGlobalSettingsOrThrow(ctx, args.workspaceId);
     const now = Date.now();
     const todayDateKey = buildDateKey(now, settings.timezone);
     const trendDateKeys = buildLast7DateKeys(now, settings.timezone);
 
-    const activeEmployeeIds = args.workspaceId
-      ? (
-          await ctx.db
-            .query('workspace_members')
-            .withIndex('by_workspace_role_active', (q) =>
-              q.eq('workspaceId', args.workspaceId).eq('role', 'karyawan').eq('isActive', true),
-            )
-            .collect()
-        ).map((item) => String(item.userId))
-      : (
-          await ctx.db
-            .query('users')
-            .withIndex('by_role_and_active', (q) => q.eq('role', 'karyawan').eq('isActive', true))
-            .collect()
-        ).map((item) => String(item._id));
+    const activeEmployeeIds = (
+      await ctx.db
+        .query('workspace_members')
+        .withIndex('by_workspace_role_active', (q) =>
+          q.eq('workspaceId', args.workspaceId).eq('role', 'karyawan').eq('isActive', true),
+        )
+        .collect()
+    ).map((item) => String(item.userId));
 
     const onlineWindowStart = now - 60_000;
-    const onlineDeviceRows = args.workspaceId
-      ? (
-          await ctx.db
-            .query('device_heartbeats')
-            .withIndex('by_workspace_device_user_id', (q) => q.eq('workspaceId', args.workspaceId))
-            .collect()
-        ).filter((row) => row.lastSeenAt >= onlineWindowStart)
-      : await ctx.db
-          .query('device_heartbeats')
-          .withIndex('by_last_seen_at', (q) => q.gte('lastSeenAt', onlineWindowStart))
-          .collect();
+    const onlineDeviceRows = (
+      await ctx.db
+        .query('device_heartbeats')
+        .withIndex('by_workspace_device_user_id', (q) => q.eq('workspaceId', args.workspaceId))
+        .collect()
+    ).filter((row) => row.lastSeenAt >= onlineWindowStart);
 
-    const todayRows = args.workspaceId
-      ? await ctx.db
-          .query('attendance')
-          .withIndex('by_workspace_and_date_user', (q) =>
-            q.eq('workspaceId', args.workspaceId).eq('dateKey', todayDateKey),
-          )
-          .collect()
-      : await ctx.db
-          .query('attendance')
-          .withIndex('by_date_and_user', (q) => q.eq('dateKey', todayDateKey))
-          .collect();
+    const todayRows = await ctx.db
+      .query('attendance')
+      .withIndex('by_workspace_and_date_user', (q) =>
+        q.eq('workspaceId', args.workspaceId).eq('dateKey', todayDateKey),
+      )
+      .collect();
 
     const trendRowsByDate = await Promise.all(
       trendDateKeys.map((dateKey) =>
-        args.workspaceId
-          ? ctx.db
-              .query('attendance')
-              .withIndex('by_workspace_and_date_user', (q) =>
-                q.eq('workspaceId', args.workspaceId).eq('dateKey', dateKey),
-              )
-              .collect()
-          : ctx.db
-              .query('attendance')
-              .withIndex('by_date_and_user', (q) => q.eq('dateKey', dateKey))
-              .collect(),
+        ctx.db
+          .query('attendance')
+          .withIndex('by_workspace_and_date_user', (q) =>
+            q.eq('workspaceId', args.workspaceId).eq('dateKey', dateKey),
+          )
+          .collect(),
       ),
     );
 
@@ -173,13 +151,11 @@ export const getOverview = query({
         };
       });
 
-      const latestReport = args.workspaceId
-        ? await ctx.db
-            .query('weekly_reports')
-            .withIndex('by_workspace_week_key', (q) => q.eq('workspaceId', args.workspaceId))
-            .order('desc')
-            .first()
-        : await ctx.db.query('weekly_reports').order('desc').first();
+      const latestReport = await ctx.db
+        .query('weekly_reports')
+        .withIndex('by_workspace_week_key', (q) => q.eq('workspaceId', args.workspaceId))
+        .order('desc')
+        .first();
       const normalizedReportStatus = normalizeReportStatus(latestReport);
       if (latestReport && !normalizedReportStatus) {
         console.warn(

@@ -57,7 +57,7 @@ export const runWeeklyReport = internalAction({
   args: {
     triggerSource: v.union(v.literal("manual"), v.literal("cron")),
     triggeredBy: v.optional(v.id("users")),
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   returns: v.object({
     weekKey: v.string(),
@@ -172,5 +172,27 @@ export const runWeeklyReport = internalAction({
 
       return { weekKey, status: "failed", skipped: false };
     }
+  },
+});
+
+export const runWeeklyReportForAllWorkspaces = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const workspaceIds = await ctx.runQuery(internal.workspaces.listActiveWorkspaceIds, {});
+    for (const workspaceId of workspaceIds) {
+      try {
+        await ctx.runAction(internal.reportsNode.runWeeklyReport, {
+          triggerSource: "cron",
+          workspaceId,
+        });
+      } catch (error) {
+        console.error("[reportsNode:runWeeklyReportForAllWorkspaces] failed", {
+          workspaceId,
+          error: String(error),
+        });
+      }
+    }
+    return null;
   },
 });

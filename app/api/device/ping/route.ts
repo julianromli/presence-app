@@ -1,16 +1,17 @@
 import {
   getConvexTokenOrNull,
   requireWorkspaceRoleApiFromDb,
-  requireWorkspaceApiContextForMigration,
+  requireWorkspaceApiContext,
 } from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
 import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 
 export async function POST(req: Request) {
-  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  const workspaceContext = requireWorkspaceApiContext(req);
   if ('error' in workspaceContext) {
     return workspaceContext.error;
   }
+  const workspaceId = workspaceContext.workspace.workspaceId;
 
   const result = await requireWorkspaceRoleApiFromDb(
     ['device-qr'],
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
 
   try {
     const payload = await convex.mutation<{ ok: boolean; lastSeenAt: number }>('deviceHeartbeat:ping', {
+      workspaceId,
       ipAddress,
       userAgent,
     });
@@ -52,3 +54,4 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   return POST(req);
 }
+

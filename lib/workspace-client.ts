@@ -54,3 +54,16 @@ export async function workspaceFetch(
     headers,
   });
 }
+
+export function recoverWorkspaceScopeViolation(code: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (code !== "WORKSPACE_REQUIRED" && code !== "WORKSPACE_INVALID") {
+    return false;
+  }
+
+  window.location.assign("/onboarding/workspace");
+  return true;
+}

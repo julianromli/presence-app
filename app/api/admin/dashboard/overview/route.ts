@@ -1,19 +1,16 @@
 import {
   getConvexTokenOrNull,
   requireWorkspaceRoleApiFromDb,
-  requireWorkspaceApiContextForMigration,
+  requireWorkspaceApiContext,
 } from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
 import { getAuthedConvexHttpClient } from '@/lib/convex-http';
 import type { DashboardOverviewPayload } from '@/types/dashboard';
 
 export async function GET(req: Request) {
-  const workspaceContext = requireWorkspaceApiContextForMigration(req);
+  const workspaceContext = requireWorkspaceApiContext(req);
   if ('error' in workspaceContext) return workspaceContext.error;
-  const workspaceId =
-    workspaceContext.workspace.workspaceId === 'default-global'
-      ? undefined
-      : workspaceContext.workspace.workspaceId;
+  const workspaceId = workspaceContext.workspace.workspaceId;
 
   const role = await requireWorkspaceRoleApiFromDb(
     ['admin', 'superadmin'],
@@ -44,3 +41,4 @@ export async function GET(req: Request) {
     return convexErrorResponse(error, 'Gagal memuat ringkasan dashboard.');
   }
 }
+

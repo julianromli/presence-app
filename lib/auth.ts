@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
-import { ACTIVE_WORKSPACE_COOKIE } from "@/lib/workspace-context";
+import { ACTIVE_WORKSPACE_COOKIE, isValidWorkspaceId } from "@/lib/workspace-context";
 
 export const APP_ROLES = [
   "superadmin",
@@ -52,6 +52,16 @@ function forbiddenResponse() {
   );
 }
 
+function logWorkspaceViolation(
+  code: "WORKSPACE_REQUIRED" | "WORKSPACE_INVALID" | "FORBIDDEN",
+  detail: Record<string, string | boolean | null | undefined>,
+) {
+  console.warn("[workspace-policy-violation]", {
+    code,
+    ...detail,
+  });
+}
+
 function badRequestResponse(code: string, message: string) {
   return new Response(
     JSON.stringify({ code, message }),
@@ -88,43 +98,32 @@ export function getWorkspaceIdFromRequest(request: Request) {
 }
 
 function isWorkspaceIdHeaderValid(workspaceId: string) {
-  return /^[A-Za-z0-9_-]{6,128}$/.test(workspaceId);
+  return isValidWorkspaceId(workspaceId);
 }
 
 export function requireWorkspaceApiContext(request: Request) {
   const workspaceId = getWorkspaceIdFromRequest(request);
   if (!workspaceId) {
+    logWorkspaceViolation("WORKSPACE_REQUIRED", {
+      path: new URL(request.url).pathname,
+      hasHeader: false,
+    });
     return {
       error: badRequestResponse("WORKSPACE_REQUIRED", "Missing x-workspace-id header"),
     };
   }
 
   if (!isWorkspaceIdHeaderValid(workspaceId)) {
+    logWorkspaceViolation("WORKSPACE_INVALID", {
+      path: new URL(request.url).pathname,
+      workspaceId,
+    });
     return {
       error: badRequestResponse("WORKSPACE_INVALID", "Invalid x-workspace-id header"),
     };
   }
 
   return { workspace: { workspaceId } as WorkspaceApiContext };
-}
-
-export function requireWorkspaceApiContextForMigration(request: Request) {
-  const fromHeader = getWorkspaceIdFromRequest(request);
-  if (fromHeader) {
-    if (!isWorkspaceIdHeaderValid(fromHeader)) {
-      return {
-        error: badRequestResponse("WORKSPACE_INVALID", "Invalid x-workspace-id header"),
-      };
-    }
-    return { workspace: { workspaceId: fromHeader } as WorkspaceApiContext };
-  }
-
-  const fallbackWorkspaceId =
-    process.env.DEFAULT_WORKSPACE_ID ??
-    process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID ??
-    "default-global";
-
-  return { workspace: { workspaceId: fallbackWorkspaceId } as WorkspaceApiContext };
 }
 
 async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {
@@ -221,8 +220,8 @@ export async function requireWorkspaceRolePageFromDb(
   }
 
   const resolvedWorkspaceId = workspaceId ?? (await getWorkspaceIdFromCookie());
-  if (!resolvedWorkspaceId || resolvedWorkspaceId === "default-global") {
-    return await requireRolePageFromDb(roles);
+  if (!resolvedWorkspaceId) {
+    redirect("/onboarding/workspace");
   }
 
   const membership = await getCurrentWorkspaceMembershipFromConvex(resolvedWorkspaceId);
@@ -294,19 +293,20 @@ export async function requireRoleApiFromDb(roles: AppRole[]) {
 
 export async function requireWorkspaceRoleApiFromDb(
   roles: AppRole[],
-  workspaceId?: string,
+  workspaceId: string,
 ) {
   const clerkSession = await auth();
   if (!clerkSession.userId) {
     return { error: unauthorizedResponse() };
   }
 
-  if (!workspaceId || workspaceId === "default-global") {
-    return await requireRoleApiFromDb(roles);
-  }
-
   const membership = await getCurrentWorkspaceMembershipFromConvex(workspaceId);
   if (!membership || !membership.isActive || !roles.includes(membership.role)) {
+    logWorkspaceViolation("FORBIDDEN", {
+      workspaceId,
+      userId: clerkSession.userId,
+      reason: "MEMBERSHIP_OR_ROLE",
+    });
     return { error: forbiddenResponse() };
   }
 
