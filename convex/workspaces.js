@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireIdentityUser, requireWorkspaceRole } from "./helpers";
+import { toInviteCodeView } from "./workspaceInviteView";
 import { listActiveInviteCodeIds } from "./workspaceInvitePolicy";
 
 const workspaceRoleValidator = v.union(
@@ -145,7 +146,7 @@ async function getActiveInviteCodeByWorkspace(ctx, workspaceId) {
   const active = inviteCodes
     .filter((item) => item.isActive)
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
-  return active ?? null;
+  return toInviteCodeView(active ?? null);
 }
 
 export const myOnboardingState = query({
