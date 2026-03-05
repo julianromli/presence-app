@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowsClockwise,
   CaretDown,
@@ -11,6 +11,7 @@ import {
   PencilSimple,
   ShieldCheck,
 } from '@phosphor-icons/react/dist/ssr';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
@@ -53,6 +54,8 @@ function noticeClass(tone: NoticeTone) {
 }
 
 export function WorkspacePanel() {
+  const searchParams = useSearchParams();
+  const headerQuery = (searchParams.get('q') ?? '').trim();
   const [workspaceData, setWorkspaceData] = useState<WorkspaceManagementPayload | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [inviteVisible, setInviteVisible] = useState(false);
@@ -60,8 +63,15 @@ export function WorkspacePanel() {
   const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members'>('none');
   const [notice, setNotice] = useState<InlineNotice | null>(null);
 
-  const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
+  const initialFilters = useMemo<UsersPanelFilters>(
+    () => ({
+      ...DEFAULT_USERS_FILTERS,
+      q: headerQuery,
+    }),
+    [headerQuery],
+  );
+  const [filters, setFilters] = useState<UsersPanelFilters>(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(initialFilters);
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [summary, setSummary] = useState<AdminUsersPage['summary']>({
     total: 0,
@@ -71,6 +81,8 @@ export function WorkspacePanel() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLastPage, setIsLastPage] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const hasLoadedInitial = useRef(false);
+  const prevHeaderQueryRef = useRef(headerQuery);
 
   const hasFilter = useMemo(
     () =>
@@ -131,9 +143,26 @@ export function WorkspacePanel() {
   }, [appliedFilters]);
 
   useEffect(() => {
+    if (hasLoadedInitial.current) return;
+    hasLoadedInitial.current = true;
     void loadWorkspaceData();
-    void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS });
-  }, [loadMembers, loadWorkspaceData]);
+    void loadMembers({ append: false, cursor: null, activeFilters: initialFilters });
+  }, [initialFilters, loadMembers, loadWorkspaceData]);
+
+  useEffect(() => {
+    if (prevHeaderQueryRef.current === headerQuery) return;
+    prevHeaderQueryRef.current = headerQuery;
+    const nextFilters: UsersPanelFilters = {
+      ...appliedFilters,
+      q: headerQuery,
+    };
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    const timer = window.setTimeout(() => {
+      void loadMembers({ append: false, cursor: null, activeFilters: nextFilters });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [appliedFilters, headerQuery, loadMembers]);
 
   const handleRename = async () => {
     setBusyAction('rename');

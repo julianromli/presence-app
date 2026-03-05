@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CaretDown } from '@phosphor-icons/react/dist/ssr';
+import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,8 +53,17 @@ type UsersPanelProps = {
 };
 
 export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
-  const [filters, setFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(DEFAULT_USERS_FILTERS);
+  const searchParams = useSearchParams();
+  const headerQuery = (searchParams.get('q') ?? '').trim();
+  const initialFilters = useMemo<UsersPanelFilters>(
+    () => ({
+      ...DEFAULT_USERS_FILTERS,
+      q: headerQuery,
+    }),
+    [headerQuery],
+  );
+  const [filters, setFilters] = useState<UsersPanelFilters>(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(initialFilters);
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [summary, setSummary] = useState<AdminUsersPage['summary']>({
@@ -66,13 +76,30 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
+  const hasLoadedInitial = useRef(false);
+  const prevHeaderQueryRef = useRef(headerQuery);
+
+  const filtersWithHeaderQuery = useMemo<UsersPanelFilters>(
+    () => ({
+      ...filters,
+      q: headerQuery,
+    }),
+    [filters, headerQuery],
+  );
+  const appliedFiltersWithHeaderQuery = useMemo<UsersPanelFilters>(
+    () => ({
+      ...appliedFilters,
+      q: headerQuery,
+    }),
+    [appliedFilters, headerQuery],
+  );
 
   const hasFilters = useMemo(
     () =>
-      appliedFilters.q.trim().length > 0 ||
-      appliedFilters.role !== 'all' ||
-      appliedFilters.isActive !== 'all',
-    [appliedFilters],
+      appliedFiltersWithHeaderQuery.q.trim().length > 0 ||
+      appliedFiltersWithHeaderQuery.role !== 'all' ||
+      appliedFiltersWithHeaderQuery.isActive !== 'all',
+    [appliedFiltersWithHeaderQuery],
   );
 
   const loadUsers = useCallback(
@@ -127,31 +154,47 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   );
 
   useEffect(() => {
+    if (hasLoadedInitial.current) return;
+    hasLoadedInitial.current = true;
+
     const frameId = requestAnimationFrame(() => {
       void loadUsers({
         append: false,
         cursor: null,
-        activeFilters: DEFAULT_USERS_FILTERS,
+        activeFilters: initialFilters,
       });
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [loadUsers]);
+  }, [initialFilters, loadUsers]);
+
+  useEffect(() => {
+    if (prevHeaderQueryRef.current === headerQuery) return;
+    prevHeaderQueryRef.current = headerQuery;
+    const nextFilters: UsersPanelFilters = {
+      ...appliedFilters,
+      q: headerQuery,
+    };
+    const timer = window.setTimeout(() => {
+      void loadUsers({ append: false, cursor: null, activeFilters: nextFilters });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [appliedFilters, headerQuery, loadUsers]);
 
   useEffect(() => {
     const handleRefresh = () => {
-      void loadUsers({ append: false, cursor: null, activeFilters: appliedFilters });
+      void loadUsers({ append: false, cursor: null, activeFilters: appliedFiltersWithHeaderQuery });
     };
 
     window.addEventListener('dashboard:refresh', handleRefresh as EventListener);
     return () => {
       window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
     };
-  }, [loadUsers, appliedFilters]);
+  }, [appliedFiltersWithHeaderQuery, loadUsers]);
 
   const handleFilterSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const nextFilters = resolveUsersFilters(filters);
+    const nextFilters = resolveUsersFilters(filtersWithHeaderQuery);
     setAppliedFilters(nextFilters);
     await loadUsers({ append: false, cursor: null, activeFilters: nextFilters });
   };
@@ -173,7 +216,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
     }
 
     setNotice({ tone: 'success', text: 'Perubahan data user berhasil disimpan.' });
-    await loadUsers({ append: false, cursor: null, activeFilters: appliedFilters });
+    await loadUsers({ append: false, cursor: null, activeFilters: appliedFiltersWithHeaderQuery });
   };
 
   return (
@@ -210,9 +253,9 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
           <label className="space-y-1.5">
             <span className="text-xs font-medium text-zinc-700">Cari User</span>
             <Input
-              value={filters.q}
-              onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
-              placeholder="Nama atau email"
+              value={filtersWithHeaderQuery.q}
+              readOnly
+              placeholder="Ikuti search global di header"
               className="h-9 transition-colors border-zinc-200 bg-white text-sm"
             />
           </label>
@@ -299,7 +342,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
               type="button"
               variant="outline"
               onClick={() => {
-                const resetFilters = { ...DEFAULT_USERS_FILTERS };
+                const resetFilters = { ...DEFAULT_USERS_FILTERS, q: headerQuery };
                 setFilters(resetFilters);
                 setAppliedFilters(resetFilters);
                 void loadUsers({ append: false, cursor: null, activeFilters: resetFilters });
@@ -441,7 +484,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
                 void loadUsers({
                   append: true,
                   cursor: nextCursor,
-                  activeFilters: appliedFilters,
+                  activeFilters: appliedFiltersWithHeaderQuery,
                 })
               }
               disabled={loading || !nextCursor}

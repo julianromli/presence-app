@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, ChevronDown } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -185,6 +186,8 @@ function sectionTitle(title: string, description: string, countLabel?: string) {
 }
 
 export function ReportPanel() {
+  const searchParams = useSearchParams();
+  const headerQuery = (searchParams.get("q") ?? "").trim();
   const [dateKey, setDateKey] = useState(() => getLocalDateKey());
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary>({
@@ -193,7 +196,7 @@ export function ReportPanel() {
     checkedOut: 0,
     edited: 0,
   });
-  const [employeeName, setEmployeeName] = useState("");
+  const [employeeName, setEmployeeName] = useState(headerQuery);
   const [editedFilter, setEditedFilter] = useState<"all" | "true" | "false">(
     "all",
   );
@@ -226,6 +229,8 @@ export function ReportPanel() {
   const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
   const [deviceRows, setDeviceRows] = useState<DeviceHeartbeatRow[]>([]);
   const [deviceStatus, setDeviceStatus] = useState<PanelStatus>("idle");
+  const hasLoadedInitial = useRef(false);
+  const prevHeaderQueryRef = useRef(headerQuery);
   const [sectionOpen, setSectionOpen] = useState<Record<SectionKey, boolean>>({
     attendance: true,
     scanEvents: true,
@@ -534,11 +539,23 @@ export function ReportPanel() {
   };
 
   useEffect(() => {
+    if (hasLoadedInitial.current) return;
+    hasLoadedInitial.current = true;
     void loadAttendance({ append: false, cursor: null });
     void loadReports();
     void loadScanEvents();
     void loadDeviceHeartbeat();
   }, [loadAttendance, loadReports, loadScanEvents, loadDeviceHeartbeat]);
+
+  useEffect(() => {
+    if (prevHeaderQueryRef.current === headerQuery) return;
+    prevHeaderQueryRef.current = headerQuery;
+    setEmployeeName(headerQuery);
+    const timer = window.setTimeout(() => {
+      void loadAttendance({ append: false, cursor: null });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [headerQuery, loadAttendance]);
 
   useEffect(() => {
     const handleRefresh = () => {
