@@ -49,6 +49,11 @@ const workspaceManagementValidator = v.object({
       expiresAt: v.optional(v.number()),
     }),
   ),
+  memberSummary: v.object({
+    totalCount: v.number(),
+    activeCount: v.number(),
+    activeCountExcludingCurrentUser: v.number(),
+  }),
 });
 
 function normalizeWorkspaceName(value) {
@@ -149,6 +154,25 @@ async function getActiveInviteCodeByWorkspace(ctx, workspaceId) {
   return toInviteCodeView(active ?? null);
 }
 
+async function listWorkspaceMembershipsByWorkspace(ctx, workspaceId) {
+  return await ctx.db
+    .query("workspace_members")
+    .withIndex("by_workspace_role_active", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+}
+
+function summarizeWorkspaceMembers(memberships, currentUserId) {
+  const activeMemberships = memberships.filter((membership) => membership.isActive);
+
+  return {
+    totalCount: memberships.length,
+    activeCount: activeMemberships.length,
+    activeCountExcludingCurrentUser: activeMemberships.filter(
+      (membership) => membership.userId !== currentUserId,
+    ).length,
+  };
+}
+
 export const myOnboardingState = query({
   args: {},
   returns: onboardingStateValidator,
@@ -209,7 +233,7 @@ export const workspaceManagementDetail = query({
   },
   returns: workspaceManagementValidator,
   handler: async (ctx, args) => {
-    await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+    const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
 
     const workspace = await ctx.db.get(args.workspaceId);
     if (!workspace || !workspace.isActive) {
@@ -220,9 +244,11 @@ export const workspaceManagementDetail = query({
     }
 
     const activeInviteCode = await getActiveInviteCodeByWorkspace(ctx, args.workspaceId);
+    const memberships = await listWorkspaceMembershipsByWorkspace(ctx, args.workspaceId);
     return {
       workspace,
       activeInviteCode,
+      memberSummary: summarizeWorkspaceMembers(memberships, user._id),
     };
   },
 });
@@ -513,6 +539,84 @@ export const rotateWorkspaceInviteCode = mutation({
     return {
       code,
       rotatedAt: now,
+    };
+  },
+});
+
+export const deleteWorkspace = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.object({
+    workspaceId: v.id("workspaces"),
+    deletedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const { user, membership } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    const memberships = await listWorkspaceMembershipsByWorkspace(ctx, args.workspaceId);
+    const activeMemberCountExcludingActor = memberships.filter(
+      (item) => item.isActive && item.userId !== user._id,
+    ).length;
+
+    if (activeMemberCountExcludingActor > 0) {
+      throw new ConvexError({
+        code: "WORKSPACE_DELETE_BLOCKED",
+        message: "Kick atau nonaktifkan semua member lain sebelum menghapus workspace.",
+      });
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(workspace._id, {
+      isActive: false,
+      updatedAt: now,
+    });
+
+    const inviteCodes = await ctx.db
+      .query("workspace_invite_codes")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspace._id))
+      .collect();
+
+    await Promise.all(
+      inviteCodes
+        .filter((inviteCode) => inviteCode.isActive)
+        .map((inviteCode) =>
+          ctx.db.patch(inviteCode._id, {
+            isActive: false,
+            updatedAt: now,
+          }),
+        ),
+    );
+
+    await ctx.db.patch(membership._id, {
+      isActive: false,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("audit_logs", {
+      actorUserId: user._id,
+      workspaceId: workspace._id,
+      action: "workspace.deleted",
+      targetType: "workspaces",
+      targetId: String(workspace._id),
+      payload: {
+        slug: workspace.slug,
+        name: workspace.name,
+      },
+      createdAt: now,
+    });
+
+    return {
+      workspaceId: workspace._id,
+      deletedAt: now,
     };
   },
 });

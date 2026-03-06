@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type SetupOptions = {
+  currentUserRole?: "superadmin" | "admin" | "karyawan" | "device-qr";
+  cookieValue?: string | null;
   memberships?: Array<{
     membershipId: string;
     role: "superadmin" | "admin" | "karyawan" | "device-qr";
@@ -16,6 +18,21 @@ type SetupOptions = {
       createdByUserId?: string;
     };
   }>;
+  membershipByWorkspace?: {
+    membershipId: string;
+    role: "superadmin" | "admin" | "karyawan" | "device-qr";
+    isActive: boolean;
+    workspace: {
+      _id: string;
+      _creationTime: number;
+      slug: string;
+      name: string;
+      isActive: boolean;
+      createdAt: number;
+      updatedAt: number;
+      createdByUserId?: string;
+    };
+  } | null;
 };
 
 function redirectError(path: string) {
@@ -26,6 +43,7 @@ async function setupAuthModule(options: SetupOptions = {}) {
   vi.resetModules();
 
   const memberships = options.memberships ?? [];
+  const membershipByWorkspace = options.membershipByWorkspace ?? null;
   const query = vi.fn(async (name: string) => {
     if (name === "users:me") {
       return {
@@ -33,7 +51,7 @@ async function setupAuthModule(options: SetupOptions = {}) {
         _creationTime: 1,
         name: "Faiz",
         email: "faiz@example.com",
-        role: "admin",
+        role: options.currentUserRole ?? "admin",
         isActive: true,
         clerkUserId: "clerk_u1",
         createdAt: 1,
@@ -47,7 +65,7 @@ async function setupAuthModule(options: SetupOptions = {}) {
       };
     }
     if (name === "workspaces:myMembershipByWorkspace") {
-      return null;
+      return membershipByWorkspace;
     }
     return null;
   });
@@ -60,7 +78,11 @@ async function setupAuthModule(options: SetupOptions = {}) {
   }));
   vi.doMock("next/headers", () => ({
     cookies: vi.fn(async () => ({
-      get: vi.fn(() => undefined),
+      get: vi.fn(() =>
+        options.cookieValue === undefined || options.cookieValue === null
+          ? undefined
+          : { value: options.cookieValue },
+      ),
     })),
   }));
   vi.doMock("next/navigation", () => ({
@@ -116,5 +138,88 @@ describe("auth workspace fallback", () => {
     await expect(
       authModule.requireWorkspaceRolePageFromDb(["admin", "superadmin"]),
     ).rejects.toThrow("REDIRECT:/onboarding/workspace");
+  });
+
+  it("returns onboarding required for API role checks when user has no active memberships", async () => {
+    const { authModule } = await setupAuthModule({
+      memberships: [],
+      membershipByWorkspace: null,
+    });
+
+    const result = await authModule.requireWorkspaceRoleApiFromDb(["superadmin"], "workspace_123456");
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.status).toBe(409);
+      await expect(result.error.json()).resolves.toEqual({
+        code: "ONBOARDING_REQUIRED",
+        message: "Anda belum memiliki akses workspace aktif.",
+      });
+    }
+  });
+
+  it("returns forbidden for API role checks when target workspace membership is missing but another workspace remains", async () => {
+    const { authModule } = await setupAuthModule({
+      cookieValue: "workspace_123456",
+      memberships: [
+        {
+          membershipId: "m2",
+          role: "admin",
+          isActive: true,
+          workspace: {
+            _id: "workspace_654321",
+            _creationTime: 2,
+            slug: "presence-branch",
+            name: "Presence Branch",
+            isActive: true,
+            createdAt: 2,
+            updatedAt: 2,
+          },
+        },
+      ],
+      membershipByWorkspace: null,
+    });
+
+    const result = await authModule.requireWorkspaceRoleApiFromDb(["superadmin"], "workspace_123456");
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.status).toBe(403);
+      await expect(result.error.json()).resolves.toEqual({
+        code: "FORBIDDEN",
+        message: "Forbidden",
+      });
+    }
+  });
+
+  it("keeps true forbidden for API role checks against a foreign workspace", async () => {
+    const { authModule } = await setupAuthModule({
+      cookieValue: "workspace_654321",
+      memberships: [
+        {
+          membershipId: "m2",
+          role: "admin",
+          isActive: true,
+          workspace: {
+            _id: "workspace_654321",
+            _creationTime: 2,
+            slug: "presence-branch",
+            name: "Presence Branch",
+            isActive: true,
+            createdAt: 2,
+            updatedAt: 2,
+          },
+        },
+      ],
+      membershipByWorkspace: null,
+    });
+
+    const result = await authModule.requireWorkspaceRoleApiFromDb(["superadmin"], "workspace_123456");
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.status).toBe(403);
+      await expect(result.error.json()).resolves.toEqual({
+        code: "FORBIDDEN",
+        message: "Forbidden",
+      });
+    }
   });
 });

@@ -64,6 +64,8 @@ export async function GET() {
         path: "/",
         maxAge: 60 * 60 * 24 * 180,
       });
+    } else if (!activeWorkspaceId && activeFromCookie) {
+      response.cookies.delete(ACTIVE_WORKSPACE_COOKIE);
     }
 
     return response;

@@ -24,7 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { WorkspaceManagementPayload, AdminUsersPage, AdminUserRow } from '@/types/dashboard';
-import { workspaceFetch } from '@/lib/workspace-client';
+import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import {
   buildUsersQueryString,
@@ -60,7 +60,7 @@ export function WorkspacePanel() {
   const [renameValue, setRenameValue] = useState('');
   const [inviteVisible, setInviteVisible] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
-  const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members'>('none');
+  const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members' | 'delete'>('none');
   const [notice, setNotice] = useState<InlineNotice | null>(null);
 
   const initialFilters = useMemo<UsersPanelFilters>(
@@ -98,6 +98,9 @@ export function WorkspacePanel() {
       const res = await workspaceFetch('/api/admin/workspace', { cache: 'no-store' });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat data workspace.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
@@ -126,6 +129,9 @@ export function WorkspacePanel() {
       });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memuat member workspace.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
@@ -175,6 +181,9 @@ export function WorkspacePanel() {
       });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal mengubah nama workspace.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
@@ -196,12 +205,59 @@ export function WorkspacePanel() {
       });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal merotasi invitation code.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
       await loadWorkspaceData();
       setInviteVisible(true);
       setNotice({ tone: 'success', text: 'Invitation code baru berhasil dibuat.' });
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!workspaceData) {
+      return;
+    }
+
+    if (workspaceData.memberSummary.activeCountExcludingCurrentUser > 0) {
+      setNotice({
+        tone: 'warning',
+        text: 'Kick atau nonaktifkan semua member lain sebelum menghapus workspace ini.',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Hapus workspace "${workspaceData.workspace.name}"? Workspace akan dinonaktifkan dan akses Anda akan ditutup.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyAction('delete');
+    setNotice(null);
+    try {
+      const res = await workspaceFetch('/api/admin/workspace', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteWorkspace' }),
+      });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal menghapus workspace.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+
+      setNotice({ tone: 'info', text: 'Workspace berhasil dihapus. Mengalihkan akses...' });
+      recoverWorkspaceScopeViolation('WORKSPACE_ACCESS_LOST');
     } finally {
       setBusyAction('none');
     }
@@ -230,10 +286,16 @@ export function WorkspacePanel() {
       });
       if (!res.ok) {
         const parsed = await parseApiErrorResponse(res, 'Gagal memperbarui member workspace.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
-      await loadMembers({ append: false, cursor: null, activeFilters: appliedFilters });
+      await Promise.all([
+        loadMembers({ append: false, cursor: null, activeFilters: appliedFilters }),
+        loadWorkspaceData(),
+      ]);
       setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
     } finally {
       setBusyAction('none');
@@ -252,6 +314,8 @@ export function WorkspacePanel() {
   const maskedCode = workspaceData?.activeInviteCode?.code
     ? `${workspaceData.activeInviteCode.code.slice(0, 4)}-****-********`
     : '-';
+  const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
+  const deleteBlocked = activeMembersExcludingCurrentUser > 0;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -337,6 +401,42 @@ export function WorkspacePanel() {
             </Button>
           </div>
         </article>
+      </section>
+
+      <section className="rounded-xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-rose-950">Danger Zone</h2>
+            <p className="mt-1 text-sm text-rose-900/80">
+              Workspace hanya bisa dihapus setelah semua member lain sudah di-kick atau dinonaktifkan.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-rose-300 text-rose-900 hover:bg-rose-100"
+            disabled={busyAction !== 'none' || deleteBlocked}
+            onClick={() => void handleDeleteWorkspace()}
+          >
+            Hapus Workspace
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 text-sm text-rose-950/85 md:grid-cols-3">
+          <div className="rounded-lg border border-rose-200 bg-white/80 px-3 py-2">
+            Member total: <span className="font-semibold">{workspaceData?.memberSummary.totalCount ?? 0}</span>
+          </div>
+          <div className="rounded-lg border border-rose-200 bg-white/80 px-3 py-2">
+            Member aktif: <span className="font-semibold">{workspaceData?.memberSummary.activeCount ?? 0}</span>
+          </div>
+          <div className="rounded-lg border border-rose-200 bg-white/80 px-3 py-2">
+            Member aktif lain: <span className="font-semibold">{activeMembersExcludingCurrentUser}</span>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-rose-900/75">
+          {deleteBlocked
+            ? 'Workspace belum dapat dihapus karena masih ada member aktif selain Anda.'
+            : 'Workspace siap dihapus. Setelah berhasil, Anda akan dialihkan ke workspace lain atau onboarding.'}
+        </p>
       </section>
 
 

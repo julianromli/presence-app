@@ -122,7 +122,7 @@ export async function POST(req: Request) {
   }
 
   const action = typeof body === "object" && body !== null ? (body as { action?: unknown }).action : undefined;
-  if (action !== "rotateInviteCode") {
+  if (action !== "rotateInviteCode" && action !== "deleteWorkspace") {
     return Response.json(
       { code: "VALIDATION_ERROR", message: "Action tidak valid." },
       { status: 400 },
@@ -130,14 +130,29 @@ export async function POST(req: Request) {
   }
 
   try {
-    const payload = await convex.mutation("workspaces:rotateWorkspaceInviteCode", {
-      workspaceId,
-    });
+    const payload =
+      action === "deleteWorkspace"
+        ? await convex.mutation("workspaces:deleteWorkspace", {
+            workspaceId,
+          })
+        : await convex.mutation("workspaces:rotateWorkspaceInviteCode", {
+            workspaceId,
+          });
     return Response.json(payload);
   } catch (error) {
     if (error instanceof ConvexError) {
-      return convexErrorResponse(error, "Gagal merotasi invitation code.");
+      return convexErrorResponse(
+        error,
+        action === "deleteWorkspace"
+          ? "Gagal menghapus workspace."
+          : "Gagal merotasi invitation code.",
+      );
     }
-    return convexErrorResponse(error, "Gagal merotasi invitation code.");
+    return convexErrorResponse(
+      error,
+      action === "deleteWorkspace"
+        ? "Gagal menghapus workspace."
+        : "Gagal merotasi invitation code.",
+    );
   }
 }

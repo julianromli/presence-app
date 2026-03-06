@@ -110,6 +110,7 @@ describe("workspaces memberships route", () => {
 
   it("returns null activeWorkspaceId when no memberships", async () => {
     const { GET } = await setupMembershipsRoute({
+      cookieValue: "workspace_stale",
       memberships: [],
     });
 
@@ -118,6 +119,6 @@ describe("workspaces memberships route", () => {
     await expect(response.json()).resolves.toMatchObject({
       activeWorkspaceId: null,
     });
-    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("set-cookie")).toContain("active_workspace_id=;");
   });
 });

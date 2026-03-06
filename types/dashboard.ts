@@ -78,6 +78,11 @@ export type WorkspaceManagementPayload = {
     lastRotatedAt?: number;
     expiresAt?: number;
   } | null;
+  memberSummary: {
+    totalCount: number;
+    activeCount: number;
+    activeCountExcludingCurrentUser: number;
+  };
 };
 
 export type EmployeeTrendPoint = {

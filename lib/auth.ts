@@ -81,6 +81,16 @@ function unauthorizedResponse() {
   );
 }
 
+function workspaceRecoveryResponse(
+  code: "ONBOARDING_REQUIRED" | "WORKSPACE_ACCESS_LOST",
+  message: string,
+) {
+  return new Response(JSON.stringify({ code, message }), {
+    status: 409,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 export async function getConvexTokenOrNull() {
   const session = await auth();
   if (!session.userId) {
@@ -348,11 +358,39 @@ export async function requireWorkspaceRoleApiFromDb(
   }
 
   const membership = await getCurrentWorkspaceMembershipFromConvex(workspaceId);
-  if (!membership || !membership.isActive || !roles.includes(membership.role)) {
+  if (!membership || !membership.isActive || !membership.workspace.isActive) {
+    const memberships = await getOnboardingMembershipsFromConvex();
+    const hasAnyActiveMembership = memberships.some(
+      (item) => item.isActive && item.workspace.isActive,
+    );
+
+    if (!hasAnyActiveMembership) {
+      logWorkspaceViolation("FORBIDDEN", {
+        workspaceId,
+        userId: clerkSession.userId,
+        reason: "NO_ACTIVE_MEMBERSHIPS",
+      });
+      return {
+        error: workspaceRecoveryResponse(
+          "ONBOARDING_REQUIRED",
+          "Anda belum memiliki akses workspace aktif.",
+        ),
+      };
+    }
+
     logWorkspaceViolation("FORBIDDEN", {
       workspaceId,
       userId: clerkSession.userId,
-      reason: "MEMBERSHIP_OR_ROLE",
+      reason: "MEMBERSHIP_REQUIRED",
+    });
+    return { error: forbiddenResponse() };
+  }
+
+  if (!roles.includes(membership.role)) {
+    logWorkspaceViolation("FORBIDDEN", {
+      workspaceId,
+      userId: clerkSession.userId,
+      reason: "ROLE_MISMATCH",
     });
     return { error: forbiddenResponse() };
   }

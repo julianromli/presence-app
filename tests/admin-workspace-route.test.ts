@@ -37,6 +37,11 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
       updatedAt: 2000,
       lastRotatedAt: 2000,
     },
+    memberSummary: {
+      totalCount: 1,
+      activeCount: 1,
+      activeCountExcludingCurrentUser: 0,
+    },
   }));
   const mutation = vi.fn(async () => ({ ok: true }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
@@ -173,6 +178,22 @@ describe("admin workspace route", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.mutation).toHaveBeenCalledWith("workspaces:rotateWorkspaceInviteCode", {
+      workspaceId: "workspace_123456",
+    });
+  });
+
+  it("calls delete mutation on POST", async () => {
+    const { POST, mocks } = await setupWorkspaceRoute();
+    const response = await POST(
+      new Request("http://localhost/api/admin/workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "deleteWorkspace" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("workspaces:deleteWorkspace", {
       workspaceId: "workspace_123456",
     });
   });
