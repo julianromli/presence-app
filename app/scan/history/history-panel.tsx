@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
 import { Bell, MapPin, CalendarIcon, RefreshCw, AlertCircle, Loader2, Wifi, ChevronRight } from 'lucide-react';
 import { motion, useAnimation } from 'framer-motion';
@@ -258,7 +259,7 @@ export function HistoryPanel() {
 
             {/* Sheet Detail */}
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-                <SheetPopup className="bg-background border-border max-w-md mx-auto">
+                <SheetPopup side="bottom" className="bg-background border-border max-w-md mx-auto">
                     <SheetHeader className="text-left border-b border-border/50 pb-4">
                         <div className="flex items-center gap-3">
                             <div className={cn(
@@ -313,7 +314,14 @@ export function HistoryPanel() {
 
                         {selectedRecord?.photoUrl && (
                             <div className="flex items-center gap-4 bg-secondary/30 p-3 rounded-2xl border border-border/50">
-                                <img src={selectedRecord.photoUrl} alt="Bukti Absen" className="w-12 h-12 rounded-xl object-cover" />
+                                <Image
+                                    src={selectedRecord.photoUrl}
+                                    alt="Bukti Absen"
+                                    width={48}
+                                    height={48}
+                                    sizes="48px"
+                                    className="w-12 h-12 rounded-xl object-cover"
+                                />
                                 <div>
                                     <p className="text-sm font-semibold text-foreground">Bukti Swafoto Tersimpan</p>
                                     <p className="text-xs text-muted-foreground">Diunggah pada {selectedRecord?.time}</p>

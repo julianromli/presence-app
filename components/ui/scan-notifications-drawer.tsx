@@ -83,7 +83,7 @@ export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotification
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetPopup className="max-w-md mx-auto h-[85vh]">
+            <SheetPopup side="top" className="max-w-md mx-auto h-[85vh] rounded-b-[28px]">
                 <SheetHeader className="border-b border-border/50 pb-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

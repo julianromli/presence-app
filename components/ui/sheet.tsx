@@ -10,6 +10,33 @@ const Sheet = DrawerPrimitive.Root;
 const SheetTrigger = DrawerPrimitive.Trigger;
 const SheetClose = DrawerPrimitive.Close;
 const SheetPortal = DrawerPrimitive.Portal;
+const sheetPopupSides = {
+  bottom: {
+    viewport: "items-end justify-center",
+    popup:
+      "h-auto max-h-[85vh] w-full max-w-md rounded-t-lg border-x border-t border-b-0 data-ending-style:translate-y-full data-starting-style:translate-y-full",
+    handle: true,
+  },
+  left: {
+    viewport: "items-stretch justify-start",
+    popup:
+      "h-full w-full max-w-md rounded-r-lg border-y border-r border-l-0 data-ending-style:-translate-x-full data-starting-style:-translate-x-full",
+    handle: false,
+  },
+  right: {
+    viewport: "items-stretch justify-end",
+    popup:
+      "h-full w-full max-w-md rounded-l-lg border-y border-l border-r-0 data-ending-style:translate-x-full data-starting-style:translate-x-full",
+    handle: false,
+  },
+  top: {
+    viewport: "items-start justify-center",
+    popup:
+      "h-auto max-h-[85vh] w-full max-w-md rounded-b-lg border-x border-b border-t-0 data-ending-style:-translate-y-full data-starting-style:-translate-y-full",
+    handle: true,
+  },
+} as const;
+type SheetSide = keyof typeof sheetPopupSides;
 
 function SheetOverlay({
   className,
@@ -19,7 +46,7 @@ function SheetOverlay({
     <DrawerPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
+        "fixed inset-0 z-50 bg-black/50 transition-opacity data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       {...props}
@@ -30,24 +57,36 @@ function SheetOverlay({
 function SheetPopup({
   className,
   children,
+  side = "right",
   showCloseButton = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Popup> & {
+  side?: SheetSide;
   showCloseButton?: boolean;
 }) {
+  const sideConfig = sheetPopupSides[side];
+
   return (
     <SheetPortal data-slot="sheet-portal">
       <SheetOverlay />
-      <DrawerPrimitive.Viewport className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
+      <DrawerPrimitive.Viewport
+        className={cn(
+          "fixed inset-0 z-50 flex pointer-events-none",
+          sideConfig.viewport,
+        )}
+      >
         <DrawerPrimitive.Popup
           data-slot="sheet-popup"
           className={cn(
-            "pointer-events-auto group/sheet-popup relative flex h-auto max-h-[85vh] w-full max-w-md flex-col rounded-t-lg border border-border bg-background shadow-lg transition-[transform,opacity] data-[ending-style]:translate-y-full data-[ending-style]:opacity-0 data-[starting-style]:translate-y-full data-[starting-style]:opacity-0",
+            "pointer-events-auto group/sheet-popup relative flex flex-col border-border bg-background shadow-lg transition-[transform,opacity] data-ending-style:opacity-0 data-starting-style:opacity-0",
+            sideConfig.popup,
             className,
           )}
           {...props}
         >
-          <div className="mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full bg-muted" />
+          {sideConfig.handle ? (
+            <div className="mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full bg-muted" />
+          ) : null}
           {children}
           {showCloseButton ? (
             <DrawerPrimitive.Close
@@ -63,6 +102,8 @@ function SheetPopup({
     </SheetPortal>
   );
 }
+
+const SheetContent = SheetPopup;
 
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -123,6 +164,7 @@ function SheetDescription({
 export {
   Sheet,
   SheetClose,
+  SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
