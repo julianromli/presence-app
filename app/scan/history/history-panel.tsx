@@ -259,7 +259,7 @@ export function HistoryPanel() {
 
             {/* Sheet Detail */}
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-                <SheetPopup side="bottom" className="bg-background border-border max-w-md mx-auto">
+                <SheetPopup side="bottom" className="bg-background border-border max-w-md mx-auto overflow-hidden rounded-t-[32px]">
                     <SheetHeader className="text-left border-b border-border/50 pb-4">
                         <div className="flex items-center gap-3">
                             <div className={cn(

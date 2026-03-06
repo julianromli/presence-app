@@ -83,7 +83,7 @@ export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotification
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetPopup side="top" className="max-w-md mx-auto h-[85vh] rounded-b-[28px]">
+            <SheetPopup side="top" className="max-w-md mx-auto h-[85vh] overflow-hidden rounded-b-[28px]">
                 <SheetHeader className="border-b border-border/50 pb-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotification
                     )}
                 </SheetPanel>
 
-                <SheetFooter className="border-t border-border/40 p-4">
+                <SheetFooter className="rounded-b-[28px] border-t border-border/40 p-4">
                     <div className="flex gap-2 w-full">
                         <Button variant="outline" className="flex-1 rounded-xl h-12 font-semibold" onClick={clearAll}>
                             <Trash2 className="w-4 h-4 mr-2" /> Hapus Semua
