@@ -1,6 +1,7 @@
 import { getConvexTokenOrNull } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { ensureCurrentUserInConvex } from "@/lib/user-sync";
 
 export async function GET() {
   const token = await getConvexTokenOrNull();
@@ -20,6 +21,11 @@ export async function GET() {
   }
 
   try {
+    const syncResponse = await ensureCurrentUserInConvex(token);
+    if (syncResponse) {
+      return syncResponse;
+    }
+
     const state = await convex.query("workspaces:myOnboardingState", {});
     return Response.json(state);
   } catch (error) {

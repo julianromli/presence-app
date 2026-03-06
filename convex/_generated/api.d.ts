@@ -26,6 +26,7 @@ import type * as reportsNode from "../reportsNode.js";
 import type * as settings from "../settings.js";
 import type * as users from "../users.js";
 import type * as usersList from "../usersList.js";
+import type * as usersMetrics from "../usersMetrics.js";
 import type * as usersPolicy from "../usersPolicy.js";
 import type * as workspaceInvitePolicy from "../workspaceInvitePolicy.js";
 import type * as workspaceInviteView from "../workspaceInviteView.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   settings: typeof settings;
   users: typeof users;
   usersList: typeof usersList;
+  usersMetrics: typeof usersMetrics;
   usersPolicy: typeof usersPolicy;
   workspaceInvitePolicy: typeof workspaceInvitePolicy;
   workspaceInviteView: typeof workspaceInviteView;

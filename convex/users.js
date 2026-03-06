@@ -11,11 +11,15 @@ import {
 import { isAdminManagedActivationAllowed, isSelfDeactivation } from "./usersPolicy";
 import { isLastActiveSuperadminTransition } from "./workspaceMembersPolicy";
 import {
-  buildUsersMetricsFromRows,
   filterUsers,
   paginateFilteredRows,
   summarizeUsers,
 } from "./usersList";
+import {
+  buildGlobalUsersMetricsSnapshot,
+  listGlobalUsersMetricsRows,
+  pickCanonicalUsersMetricsRow,
+} from "./usersMetrics";
 
 const roleValidator = v.union(
   v.literal("superadmin"),
@@ -23,8 +27,6 @@ const roleValidator = v.union(
   v.literal("karyawan"),
   v.literal("device-qr"),
 );
-const ROLE_KEYS = ["superadmin", "admin", "karyawan", "device-qr"];
-const EMPTY_ROLE_BUCKET = { total: 0, active: 0 };
 
 const summaryValidator = v.object({
   total: v.number(),
@@ -43,87 +45,6 @@ const userRowValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
 });
-
-function getRoleBucket(metrics, role) {
-  return metrics.byRole?.[role] ?? EMPTY_ROLE_BUCKET;
-}
-
-function applyTransitionToMetrics(metrics, before, after) {
-  const beforeRole = getRoleBucket(metrics, before.role);
-  beforeRole.total -= 1;
-  if (before.isActive) {
-    beforeRole.active -= 1;
-    metrics.active -= 1;
-  } else {
-    metrics.inactive -= 1;
-  }
-
-  const afterRole = getRoleBucket(metrics, after.role);
-  afterRole.total += 1;
-  if (after.isActive) {
-    afterRole.active += 1;
-    metrics.active += 1;
-  } else {
-    metrics.inactive += 1;
-  }
-}
-
-async function getOrRebuildUsersMetrics(ctx) {
-  const existing = await ctx.db
-    .query("users_metrics")
-    .withIndex("by_key", (q) => q.eq("key", "global"))
-    .unique();
-
-  if (existing) {
-    return existing._id;
-  }
-  return null;
-}
-
-async function ensureUsersMetricsForMutation(ctx) {
-  const existingId = await getOrRebuildUsersMetrics(ctx);
-  if (existingId) {
-    return {
-      metricsId: existingId,
-      createdFromSnapshot: false,
-    };
-  }
-
-  const allUsers = await ctx.db.query("users").collect();
-  const metricsId = await ctx.db.insert(
-    "users_metrics",
-    buildUsersMetricsFromRows(allUsers, Date.now()),
-  );
-  return {
-    metricsId,
-    createdFromSnapshot: true,
-  };
-}
-
-async function patchUsersMetrics(ctx, updater) {
-  const { metricsId, createdFromSnapshot } = await ensureUsersMetricsForMutation(ctx);
-  if (createdFromSnapshot) {
-    return;
-  }
-
-  const metrics = await ctx.db.get(metricsId);
-  if (!metrics) {
-    return;
-  }
-
-  const next = {
-    total: metrics.total,
-    active: metrics.active,
-    inactive: metrics.inactive,
-    byRole: Object.fromEntries(
-      ROLE_KEYS.map((role) => [role, { ...getRoleBucket(metrics, role) }]),
-    ),
-    updatedAt: Date.now(),
-  };
-
-  updater(next);
-  await ctx.db.patch(metricsId, next);
-}
 
 function assertAdminManagedTargetPolicy(actorRole, targetRole, nextActive) {
   if (actorRole !== "admin" || nextActive === undefined) {
@@ -229,13 +150,6 @@ export const upsertFromClerk = mutation({
       isActive: true,
       createdAt: now,
       updatedAt: now,
-    });
-
-    await patchUsersMetrics(ctx, (metrics) => {
-      metrics.total += 1;
-      metrics.active += 1;
-      metrics.byRole.karyawan.total += 1;
-      metrics.byRole.karyawan.active += 1;
     });
 
     return inserted;
@@ -455,13 +369,6 @@ export const updateRole = mutation({
       role: args.role,
       updatedAt: Date.now(),
     });
-    await patchUsersMetrics(ctx, (metrics) => {
-      applyTransitionToMetrics(
-        metrics,
-        { role: target.role, isActive: target.isActive },
-        { role: args.role, isActive: target.isActive },
-      );
-    });
     return null;
   },
 });
@@ -472,14 +379,17 @@ export const rebuildUsersMetrics = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     const users = await ctx.db.query("users").collect();
-    const rebuilt = buildUsersMetricsFromRows(users, now);
-    const existing = await ctx.db
-      .query("users_metrics")
-      .withIndex("by_key", (q) => q.eq("key", "global"))
-      .unique();
+    const rebuilt = buildGlobalUsersMetricsSnapshot(users, now);
+    const globalRows = await listGlobalUsersMetricsRows(ctx);
+    const canonical = pickCanonicalUsersMetricsRow(globalRows);
 
-    if (existing) {
-      await ctx.db.patch(existing._id, rebuilt);
+    if (canonical) {
+      await ctx.db.patch(canonical._id, rebuilt);
+      for (const row of globalRows) {
+        if (row._id !== canonical._id) {
+          await ctx.db.delete(row._id);
+        }
+      }
     } else {
       await ctx.db.insert("users_metrics", rebuilt);
     }

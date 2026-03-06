@@ -1,7 +1,7 @@
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 
 import { getConvexTokenOrNull } from '@/lib/auth';
-import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { syncCurrentUserToConvex } from '@/lib/user-sync';
 
 export async function POST() {
   const { userId } = await auth();
@@ -12,11 +12,6 @@ export async function POST() {
     );
   }
 
-  const user = await currentUser();
-  if (!user) {
-    return Response.json({ code: 'NOT_FOUND', message: 'User not found' }, { status: 404 });
-  }
-
   const token = await getConvexTokenOrNull();
   if (!token) {
     return Response.json(
@@ -24,15 +19,11 @@ export async function POST() {
       { status: 401 },
     );
   }
-  const convex = getAuthedConvexHttpClient(token);
-  if (!convex) {
-    return Response.json({ message: 'Convex URL missing, skip sync' }, { status: 200 });
-  }
 
-  await convex.mutation('users:upsertFromClerk', {
-    name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'Unknown',
-    email: user.primaryEmailAddress?.emailAddress ?? `${user.id}@unknown.local`,
-  });
+  const syncResponse = await syncCurrentUserToConvex(token);
+  if (syncResponse) {
+    return syncResponse;
+  }
 
   return Response.json({ ok: true });
 }
