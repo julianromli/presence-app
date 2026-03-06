@@ -27,19 +27,19 @@ const MetafiCta = () => {
         <div className="mt-8 flex flex-col flex-wrap items-center justify-center gap-4 sm:flex-row">
           {/* Primary button */}
           <Button
-            asChild
+            render={<Link href="/sign-up" />}
             className="bg-primary-foreground text-tagline hover:bg-primary-foreground/90 h-12 w-full rounded-[12px] sm:w-auto"
           >
-            <Link href="/sign-up">Daftar sekarang</Link>
+            Daftar sekarang
           </Button>
 
           {/* Transparent button */}
           <Button
-            asChild
+            render={<Link href="/scan" />}
             variant="ghost"
             className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 h-12 w-full rounded-[12px] border bg-transparent sm:w-auto"
           >
-            <Link href="/scan">Lihat demo scan</Link>
+            Lihat demo scan
           </Button>
         </div>
       </div>

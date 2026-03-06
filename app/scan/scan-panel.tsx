@@ -4,9 +4,6 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Bell,
   MapPin,
-  ScanLine,
-  History,
-  User,
   CheckCircle2,
   XCircle,
   CameraOff,
@@ -16,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
-  CollapsibleContent,
+  CollapsiblePanel,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
@@ -26,9 +23,10 @@ import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
 import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogPanel,
+  DialogPopup,
   DialogTitle,
 } from '@/components/ui/dialog';
 
@@ -107,9 +105,6 @@ export function ScanPanel() {
   >('unknown');
   const [cameraError, setCameraError] = useState('none');
   const [autoPauseSecondsLeft, setAutoPauseSecondsLeft] = useState(0);
-  const [lastSubmitLatencyMs, setLastSubmitLatencyMs] = useState<number | null>(
-    null,
-  );
   const [lastRejectCode, setLastRejectCode] = useState<string>('none');
   const [debugOpen, setDebugOpen] = useState(false);
 
@@ -123,12 +118,6 @@ export function ScanPanel() {
     message: string;
     metadata?: string;
   } | null>(null);
-  const [scanResult, setScanResult] = useState<{
-    success: boolean;
-    title: string;
-    message: string;
-  } | null>(null);
-
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -347,11 +336,9 @@ export function ScanPanel() {
 
   const submitScan = async (value: string, source: 'auto' | 'manual') => {
     setLoading(true);
-    setLastSubmitLatencyMs(null);
     setLastRejectCode('none');
     lastSubmittedRef.current = { token: value, at: Date.now() };
 
-    const start = Date.now();
     let res = await sendScan(value, {}, buildIdempotencyKey());
     let data = (await res.json()) as Partial<ScanResponse> & {
       code?: string;
@@ -390,7 +377,6 @@ export function ScanPanel() {
       return;
     }
 
-    setLastSubmitLatencyMs(Date.now() - start);
     if (source === 'auto') {
       const pauseSeconds = Math.max(5, data.policy?.cooldownSeconds ?? 30);
       autoPauseUntilRef.current = Date.now() + pauseSeconds * 1000;
@@ -559,7 +545,7 @@ export function ScanPanel() {
                 {debugOpen ? 'Tutup' : 'Buka'}
               </span>
             </CollapsibleTrigger>
-            <CollapsibleContent className="border-t border-border px-4 py-4 space-y-4 bg-muted/20">
+            <CollapsiblePanel className="border-t border-border px-4 py-4 space-y-4 bg-muted/20">
               <form onSubmit={onSubmit} className="flex gap-2">
                 <Input
                   id="qr-token"
@@ -590,7 +576,7 @@ export function ScanPanel() {
                 <p>State: {scannerState}</p>
                 <p>Last reject code: {lastRejectCode}</p>
               </div>
-            </CollapsibleContent>
+            </CollapsiblePanel>
           </Collapsible>
         </div>
       </div>
@@ -600,37 +586,39 @@ export function ScanPanel() {
 
       {/* Dialog Result */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent showCloseButton={false} className="w-[90vw] md:w-full md:max-w-md bg-card border-border rounded-3xl p-6 text-center focus:outline-none focus-visible:outline-none flex flex-col items-center justify-center shadow-2xl">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted/50 mb-2 border border-border shadow-sm">
-            {modalContent?.type === 'success' ? (
-              <CheckCircle2 className="h-10 w-10 text-success" />
-            ) : (
-              <XCircle className="h-10 w-10 text-destructive" />
-            )}
-          </div>
-          <DialogHeader className="w-full flex-col flex items-center">
-            <DialogTitle className="text-2xl font-bold tracking-tight text-center">
-              {modalContent?.title}
-            </DialogTitle>
-            <DialogDescription className="text-center text-sm mt-3 w-[260px]">
-              {modalContent?.message}
-            </DialogDescription>
-          </DialogHeader>
-
-          {modalContent?.metadata && (
-            <div className="mt-6 w-full rounded-xl py-3 px-4 border border-border bg-secondary/50 text-sm font-medium text-foreground text-center shadow-inner">
-              {modalContent.metadata}
+        <DialogPopup showCloseButton={false} className="w-[90vw] md:w-full md:max-w-md bg-card border-border rounded-3xl p-6 text-center focus:outline-none focus-visible:outline-none flex flex-col items-center justify-center shadow-2xl">
+          <DialogPanel className="items-center">
+            <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border border-border bg-muted/50 shadow-sm">
+              {modalContent?.type === 'success' ? (
+                <CheckCircle2 className="h-10 w-10 text-success" />
+              ) : (
+                <XCircle className="h-10 w-10 text-destructive" />
+              )}
             </div>
-          )}
+            <DialogHeader className="flex w-full flex-col items-center">
+              <DialogTitle className="text-2xl font-bold tracking-tight text-center">
+                {modalContent?.title}
+              </DialogTitle>
+              <DialogDescription className="mt-3 w-[260px] text-center text-sm">
+                {modalContent?.message}
+              </DialogDescription>
+            </DialogHeader>
 
-          <Button
-            onClick={() => setIsModalOpen(false)}
-            className="mt-8 w-full rounded-2xl py-6 text-base font-semibold shadow-md active:scale-[0.98] transition-all"
-            variant={modalContent?.type === 'success' ? 'default' : 'destructive'}
-          >
-            {modalContent?.type === 'success' ? 'Lanjut' : 'Tutup'}
-          </Button>
-        </DialogContent>
+            {modalContent?.metadata && (
+              <div className="mt-6 w-full rounded-xl border border-border bg-secondary/50 px-4 py-3 text-center text-sm font-medium text-foreground shadow-inner">
+                {modalContent.metadata}
+              </div>
+            )}
+
+            <Button
+              onClick={() => setIsModalOpen(false)}
+              className="mt-8 w-full rounded-2xl py-6 text-base font-semibold shadow-md active:scale-[0.98] transition-all"
+              variant={modalContent?.type === 'success' ? 'default' : 'destructive'}
+            >
+              {modalContent?.type === 'success' ? 'Lanjut' : 'Tutup'}
+            </Button>
+          </DialogPanel>
+        </DialogPopup>
       </Dialog>
     </div >
   );

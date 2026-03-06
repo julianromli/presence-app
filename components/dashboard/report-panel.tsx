@@ -17,12 +17,12 @@ import {
 } from "@/components/ui/table";
 import {
   Popover,
-  PopoverContent,
+  PopoverPopup,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
   Collapsible,
-  CollapsibleContent,
+  CollapsiblePanel,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -651,7 +651,7 @@ export function ReportPanel() {
                 <CalendarIcon className="mr-2 h-4 w-4 opacity-70" />
                 {dateKey ? format(new Date(dateKey + "T00:00:00"), "dd MMM yyyy") : <span>Pilih tanggal</span>}
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverPopup className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={dateKey ? new Date(dateKey + "T00:00:00") : undefined}
@@ -660,7 +660,7 @@ export function ReportPanel() {
                   }}
                   initialFocus
                 />
-              </PopoverContent>
+              </PopoverPopup>
             </Popover>
           </div>
           <div className="space-y-1">
@@ -752,7 +752,7 @@ export function ReportPanel() {
             `${rows.length} baris`,
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsiblePanel>
           {isLoadingAttendance && rows.length > 0 ? (
             <div className="border-b px-4 py-2 text-xs text-zinc-500">
               Memuat data attendance terbaru...
@@ -939,7 +939,7 @@ export function ReportPanel() {
               </Button>
             </div>
           ) : null}
-        </CollapsibleContent>
+        </CollapsiblePanel>
       </Collapsible>
 
       <Collapsible
@@ -954,7 +954,7 @@ export function ReportPanel() {
             `${scanEvents.length} event`,
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsiblePanel>
           <div className="border-b border-zinc-200 p-4">
             <div className="flex flex-wrap gap-2 text-xs">
               {scanEventSummary.byReason.slice(0, 8).map((item) => (
@@ -1022,7 +1022,7 @@ export function ReportPanel() {
               )}
             </TableBody>
           </Table>
-        </CollapsibleContent>
+        </CollapsiblePanel>
       </Collapsible>
 
       <Collapsible
@@ -1037,7 +1037,7 @@ export function ReportPanel() {
             `${deviceRows.length} device`,
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsiblePanel>
           <Table className="min-w-[700px]">
             <TableHeader>
               <TableRow>
@@ -1076,7 +1076,7 @@ export function ReportPanel() {
               )}
             </TableBody>
           </Table>
-        </CollapsibleContent>
+        </CollapsiblePanel>
       </Collapsible>
 
       <Collapsible
@@ -1091,7 +1091,7 @@ export function ReportPanel() {
             `${reports.length} report`,
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsiblePanel>
           <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow>
@@ -1177,7 +1177,7 @@ export function ReportPanel() {
               )}
             </TableBody>
           </Table>
-        </CollapsibleContent>
+        </CollapsiblePanel>
       </Collapsible>
     </div>
   );

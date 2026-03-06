@@ -239,7 +239,7 @@ export default function MetafiPricingHero() {
                     {/* CTA spans both columns */}
                     <div className="lg:col-span-2">
                       <Button
-                        asChild
+                        render={<Link href={plan.ctaHref ?? "#"} />}
                         className={cn(
                           'h-12 w-full rounded-[12px]',
                           plan.highlight &&
@@ -247,7 +247,7 @@ export default function MetafiPricingHero() {
                         )}
                         variant={plan.highlight ? 'default' : 'default'}
                       >
-                        <Link href={plan.ctaHref ?? '#'}>{plan.ctaLabel}</Link>
+                        {plan.ctaLabel}
                       </Button>
                     </div>
                   </div>

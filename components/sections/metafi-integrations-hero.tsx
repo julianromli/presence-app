@@ -42,12 +42,12 @@ export default function MetafiIntegrationsHero({
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
-              <Button asChild className="w-full sm:w-auto">
-                <Link href={primaryCtaHref}>{primaryCtaLabel}</Link>
+              <Button render={<Link href={primaryCtaHref} />} className="w-full sm:w-auto">
+                {primaryCtaLabel}
               </Button>
 
-              <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link href={secondaryCtaHref}>{secondaryCtaLabel}</Link>
+              <Button render={<Link href={secondaryCtaHref} />} variant="outline" className="w-full sm:w-auto">
+                {secondaryCtaLabel}
               </Button>
             </div>
           </div>

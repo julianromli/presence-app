@@ -40,8 +40,8 @@ export default function MetafiAboutHero({
             </p>
 
             <div className="mt-8">
-              <Button asChild className="w-full sm:w-auto">
-                <Link href={ctaHref}>{ctaLabel}</Link>
+              <Button render={<Link href={ctaHref} />} className="w-full sm:w-auto">
+                {ctaLabel}
               </Button>
             </div>
           </div>

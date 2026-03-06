@@ -195,36 +195,7 @@ function MenuShortcut({
   );
 }
 
-const DropdownMenu = Menu;
-const DropdownMenuTrigger = MenuTrigger;
-const DropdownMenuContent = MenuPopup;
-const DropdownMenuGroup = MenuGroup;
-const DropdownMenuItem = MenuItem;
-const DropdownMenuCheckboxItem = MenuCheckboxItem;
-const DropdownMenuRadioGroup = MenuRadioGroup;
-const DropdownMenuRadioItem = MenuRadioItem;
-const DropdownMenuLabel = MenuGroupLabel;
-const DropdownMenuSeparator = MenuSeparator;
-const DropdownMenuShortcut = MenuShortcut;
-const DropdownMenuSub = MenuSub;
-const DropdownMenuSubTrigger = MenuSubTrigger;
-const DropdownMenuSubContent = MenuSubPopup;
-
 export {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
   Menu,
   MenuCheckboxItem,
   MenuGroup,

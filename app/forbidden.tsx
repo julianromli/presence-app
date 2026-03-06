@@ -14,14 +14,14 @@ export default function ForbiddenPage() {
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild variant="outline">
-            <Link href="/scan">Halaman Scan</Link>
+          <Button render={<Link href="/scan" />} variant="outline">
+            Halaman Scan
           </Button>
-          <Button asChild variant="outline">
-            <Link href="/device-qr">Halaman QR Device</Link>
+          <Button render={<Link href="/device-qr" />} variant="outline">
+            Halaman QR Device
           </Button>
-          <Button asChild>
-            <Link href="/">Kembali ke Beranda</Link>
+          <Button render={<Link href="/" />}>
+            Kembali ke Beranda
           </Button>
         </div>
       </div>

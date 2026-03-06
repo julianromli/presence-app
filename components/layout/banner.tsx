@@ -20,8 +20,8 @@ const Banner = () => {
           <span className="text-primary-foreground text-center text-sm font-medium">
             Presence siap dipakai untuk absensi QR dinamis real-time
           </span>
-          <Button size="sm" variant="secondary" asChild>
-            <a href="/scan">Coba Scan</a>
+          <Button size="sm" variant="secondary" render={<a href="/scan" />}>
+            Coba Scan
           </Button>
         </div>
         <button

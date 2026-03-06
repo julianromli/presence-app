@@ -10,17 +10,29 @@ import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
 import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
 import { Card } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverPopup, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Sheet, SheetDescription, SheetHeader, SheetPanel, SheetPopup, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+
+type HistoryRecord = {
+    id: number;
+    type: 'check-in' | 'check-out';
+    time: string;
+    date: string;
+    location: string;
+    latLng: string;
+    network: string;
+    status: 'success' | 'late';
+    photoUrl?: string;
+};
 
 export function HistoryPanel() {
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [date, setDate] = useState<Date | undefined>(new Date());
-    const [selectedRecord, setSelectedRecord] = useState<any>(null);
+    const [selectedRecord, setSelectedRecord] = useState<HistoryRecord | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -47,7 +59,7 @@ export function HistoryPanel() {
         controls.start({ y: -50, opacity: 0 }); // Reset spinner position
     };
 
-    const dummyHistory = [
+    const dummyHistory: HistoryRecord[] = [
         {
             id: 1,
             type: 'check-in',
@@ -84,7 +96,7 @@ export function HistoryPanel() {
     // Dummy empty state condition
     const data = date && format(date, 'd') === '15' ? [] : dummyHistory;
 
-    const openDetail = (item: any) => {
+    const openDetail = (item: HistoryRecord) => {
         setSelectedRecord(item);
         setDrawerOpen(true);
     };
@@ -160,7 +172,7 @@ export function HistoryPanel() {
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {date ? format(date, "PPP", { locale: id }) : <span>Pilih Tanggal</span>}
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 rounded-[20px] shadow-xl" align="start">
+                        <PopoverPopup className="w-auto p-0 rounded-[20px] shadow-xl" align="start">
                             <Calendar
                                 mode="single"
                                 selected={date}
@@ -168,7 +180,7 @@ export function HistoryPanel() {
                                 initialFocus
                                 className="p-3"
                             />
-                        </PopoverContent>
+                        </PopoverPopup>
                     </Popover>
 
                     <Button variant="outline" size="icon" className="rounded-full bg-background border-border/50" onClick={handleRefresh}>
@@ -244,10 +256,10 @@ export function HistoryPanel() {
 
             <ScanBottomNav />
 
-            {/* Drawer Detail */}
-            <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-                <DrawerContent className="bg-background border-border max-w-md mx-auto">
-                    <DrawerHeader className="text-left border-b border-border/50 pb-4">
+            {/* Sheet Detail */}
+            <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+                <SheetPopup className="bg-background border-border max-w-md mx-auto">
+                    <SheetHeader className="text-left border-b border-border/50 pb-4">
                         <div className="flex items-center gap-3">
                             <div className={cn(
                                 "w-14 h-14 rounded-full flex items-center justify-center",
@@ -258,12 +270,12 @@ export function HistoryPanel() {
                                 </span>
                             </div>
                             <div>
-                                <DrawerTitle className="text-2xl font-bold">
+                                <SheetTitle className="text-2xl font-bold">
                                     {selectedRecord?.time}
-                                </DrawerTitle>
-                                <DrawerDescription className="text-muted-foreground mt-0.5 font-medium">
+                                </SheetTitle>
+                                <SheetDescription className="text-muted-foreground mt-0.5 font-medium">
                                     {selectedRecord?.date}
-                                </DrawerDescription>
+                                </SheetDescription>
                             </div>
                             <span className={cn(
                                 "ml-auto text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full",
@@ -272,9 +284,9 @@ export function HistoryPanel() {
                                 {selectedRecord?.status === 'success' ? 'Tepat Waktu' : 'Terlambat'}
                             </span>
                         </div>
-                    </DrawerHeader>
+                    </SheetHeader>
 
-                    <div className="p-6 space-y-6">
+                    <SheetPanel className="p-6 space-y-6">
                         <div className="w-full bg-secondary/50 rounded-[20px] aspect-video border border-border/50 overflow-hidden relative flex flex-col items-center justify-center">
                             <MapPin className="w-8 h-8 text-muted-foreground opacity-50 mb-2" />
                             <p className="text-xs text-muted-foreground font-medium">Data Peta Tersedia ({selectedRecord?.latLng})</p>
@@ -309,15 +321,14 @@ export function HistoryPanel() {
                                 <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
                             </div>
                         )}
-                    </div>
-
-                    <div className="p-4 pt-0">
+                        <div className="p-4 pt-0">
                         <Button className="w-full rounded-2xl py-6 font-semibold shadow-md" onClick={() => setDrawerOpen(false)}>
                             Tutup Detail
                         </Button>
-                    </div>
-                </DrawerContent>
-            </Drawer>
+                        </div>
+                    </SheetPanel>
+                </SheetPopup>
+            </Sheet>
         </div>
     );
 }

@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { Bell, Check, Clock, Info, AlertTriangle, CheckCircle2, MoreVertical, Trash2 } from 'lucide-react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from '@/components/ui/drawer';
+import { Bell, Clock, Info, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
+import { Sheet, SheetClose, SheetDescription, SheetFooter, SheetHeader, SheetPanel, SheetPopup, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -82,12 +82,12 @@ export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotification
     };
 
     return (
-        <Drawer open={open} onOpenChange={onOpenChange}>
-            <DrawerContent className="max-w-md mx-auto h-[85vh]">
-                <DrawerHeader className="border-b border-border/50 pb-4">
+        <Sheet open={open} onOpenChange={onOpenChange}>
+            <SheetPopup className="max-w-md mx-auto h-[85vh]">
+                <SheetHeader className="border-b border-border/50 pb-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <DrawerTitle className="text-xl font-bold">Notifikasi</DrawerTitle>
+                            <SheetTitle className="text-xl font-bold">Notifikasi</SheetTitle>
                             {unreadCount > 0 && (
                                 <span className="bg-primary text-background text-[10px] font-bold px-2 py-0.5 rounded-full">
                                     {unreadCount} Baru
@@ -100,12 +100,12 @@ export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotification
                             </Button>
                         )}
                     </div>
-                    <DrawerDescription className="text-xs">
+                    <SheetDescription className="text-xs">
                         Informasi aktivitas dan berita terbaru untuk Anda.
-                    </DrawerDescription>
-                </DrawerHeader>
+                    </SheetDescription>
+                </SheetHeader>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <SheetPanel className="flex-1 overflow-y-auto p-4 space-y-3">
                     {notifications.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center py-20 opacity-60">
                             <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mb-4">
@@ -151,21 +151,19 @@ export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotification
                             </div>
                         ))
                     )}
-                </div>
+                </SheetPanel>
 
-                <DrawerFooter className="border-t border-border/40 p-4">
+                <SheetFooter className="border-t border-border/40 p-4">
                     <div className="flex gap-2 w-full">
                         <Button variant="outline" className="flex-1 rounded-xl h-12 font-semibold" onClick={clearAll}>
                             <Trash2 className="w-4 h-4 mr-2" /> Hapus Semua
                         </Button>
-                        <DrawerClose asChild>
-                            <Button className="flex-1 rounded-xl h-12 font-bold shadow-lg shadow-primary/20">
-                                Tutup
-                            </Button>
-                        </DrawerClose>
+                        <SheetClose render={<Button className="flex-1 rounded-xl h-12 font-bold shadow-lg shadow-primary/20" />}>
+                            Tutup
+                        </SheetClose>
                     </div>
-                </DrawerFooter>
-            </DrawerContent>
-        </Drawer>
+                </SheetFooter>
+            </SheetPopup>
+        </Sheet>
     );
 }

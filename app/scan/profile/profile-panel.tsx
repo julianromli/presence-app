@@ -7,7 +7,7 @@ import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-draw
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function ProfilePanel() {
@@ -163,7 +163,7 @@ export function ProfilePanel() {
 
             {/* Logout Confirmation Dialog */}
             <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-                <DialogContent className="max-w-[340px] rounded-[24px] p-6 text-center">
+                <DialogPopup className="max-w-[340px] rounded-[24px] p-6 text-center">
                     <DialogHeader>
                         <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
                             <LogOut className="w-6 h-6 text-destructive" />
@@ -173,22 +173,22 @@ export function ProfilePanel() {
                             Anda harus melakukan login kembali untuk menggunakan aplikasi absensi.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="flex flex-col sm:flex-col gap-2 mt-2">
-                        <Button
-                            variant="destructive"
-                            className="w-full rounded-xl py-6 font-bold"
-                            onClick={handleLogout}
-                            disabled={isLoggingOut}
-                        >
-                            {isLoggingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Ya, Keluar Akun'}
-                        </Button>
-                        <DialogClose asChild>
-                            <Button variant="ghost" className="w-full rounded-xl py-6 font-semibold" disabled={isLoggingOut}>
-                                Batal
+                    <DialogPanel>
+                        <DialogFooter className="mt-2 flex flex-col gap-2 sm:flex-col">
+                            <Button
+                                variant="destructive"
+                                className="w-full rounded-xl py-6 font-bold"
+                                onClick={handleLogout}
+                                disabled={isLoggingOut}
+                            >
+                                {isLoggingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Ya, Keluar Akun'}
                             </Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
+                            <DialogClose render={<Button variant="ghost" className="w-full rounded-xl py-6 font-semibold" disabled={isLoggingOut} />}>
+                                Batal
+                            </DialogClose>
+                        </DialogFooter>
+                    </DialogPanel>
+                </DialogPopup>
             </Dialog>
 
         </div>

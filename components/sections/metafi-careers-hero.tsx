@@ -37,8 +37,8 @@ export default function MetafiCareersHero({
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Button asChild>
-                <Link href={primaryCtaHref}>{primaryCtaLabel}</Link>
+              <Button render={<Link href={primaryCtaHref} />}>
+                {primaryCtaLabel}
               </Button>
             </div>
           </div>
