@@ -73,6 +73,7 @@ export function OnboardingWorkspacePanel() {
   }, [router]);
 
   async function handleCreateWorkspace() {
+    setMode("create");
     setSubmitting(true);
     setError(null);
     try {
@@ -109,6 +110,7 @@ export function OnboardingWorkspacePanel() {
   }
 
   async function handleJoinWorkspace() {
+    setMode("join");
     setSubmitting(true);
     setError(null);
     try {
@@ -146,105 +148,185 @@ export function OnboardingWorkspacePanel() {
 
   if (loadingState) {
     return (
-      <main className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center px-6 py-10">
-        <p className="text-sm text-muted-foreground">Memuat onboarding workspace...</p>
+      <main className="flex min-h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Memuat workspace Anda...
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-[70vh] w-full max-w-xl flex-col justify-center px-6 py-10">
-      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-foreground">Pilih cara mulai</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Buat workspace baru atau gabung ke workspace yang sudah ada.
-        </p>
+    <main className="flex min-h-screen w-full flex-col lg:flex-row">
+      {/* Left Branding Panel */}
+      <div className="hidden lg:flex lg:w-1/2 lg:flex-col lg:justify-between bg-zinc-950 p-12 text-zinc-50 relative overflow-hidden">
+        {/* Subtle background decoration */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
 
-        <div className="mt-6 grid grid-cols-2 gap-2 rounded-lg border border-border bg-muted/30 p-1">
-          <button
-            type="button"
-            className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-              mode === "create"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => {
-              setMode("create");
-              setError(null);
-            }}
-          >
-            Create new workspace
-          </button>
-          <button
-            type="button"
-            className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-              mode === "join"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => {
-              setMode("join");
-              setError(null);
-            }}
-          >
-            Join existing workspace
-          </button>
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 font-bold text-2xl tracking-tighter">
+            <div className="h-8 w-8 rounded-lg bg-white text-zinc-950 flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-5 h-5"
+              >
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </div>
+            Presence
+          </div>
         </div>
 
-        {mode === "create" ? (
-          <div className="mt-6 space-y-3">
-            <label className="block text-sm font-medium text-foreground" htmlFor="workspace-name">
-              Workspace name
-            </label>
-            <input
-              id="workspace-name"
-              type="text"
-              value={workspaceName}
-              onChange={(event) => setWorkspaceName(event.target.value)}
-              placeholder="Contoh: Isometricon HQ"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-offset-2 placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40"
-            />
-            <button
-              type="button"
-              onClick={handleCreateWorkspace}
-              disabled={submitting || workspaceName.trim().length < 3}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Creating..." : "Create workspace"}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-6 space-y-3">
-            <label className="block text-sm font-medium text-foreground" htmlFor="workspace-code">
-              Invitation code
-            </label>
-            <input
-              id="workspace-code"
-              type="text"
-              value={invitationCode}
-              onChange={(event) => setInvitationCode(event.target.value.toUpperCase())}
-              placeholder="Contoh: TEAM-7K4M-PRESENCE"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm uppercase outline-none ring-offset-2 placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40"
-            />
-            <p className="text-xs text-muted-foreground">
-              Minta kode undangan ke superadmin workspace Anda.
-            </p>
-            <button
-              type="button"
-              onClick={handleJoinWorkspace}
-              disabled={submitting || invitationCode.trim().length < 3}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Joining..." : "Join workspace"}
-            </button>
-          </div>
-        )}
-
-        {error ? (
-          <p className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {error}
+        <div className="relative z-10 max-w-lg">
+          <h2 className="text-4xl font-semibold tracking-tight leading-tight mb-4">
+            Kelola tim dan presensi dengan cara yang lebih modern.
+          </h2>
+          <p className="text-zinc-400 text-lg">
+            Buat ruang kerja untuk perusahaan Anda, atau bergabung dengan tim
+            yang sudah ada dalam hitungan detik.
           </p>
-        ) : null}
+        </div>
+      </div>
+
+      {/* Right Interaction Panel */}
+      <div className="flex w-full lg:w-1/2 flex-col items-center justify-center p-6 sm:p-12 bg-background">
+        <div className="w-full max-w-md space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              Selamat Datang
+            </h1>
+            <p className="text-muted-foreground">
+              Silakan pilih cara untuk memulai di Presence.
+            </p>
+          </div>
+
+          {/* Custom Segmented Control */}
+          <div className="flex rounded-xl bg-muted/50 p-1">
+            <button
+              onClick={() => {
+                setMode("create");
+                setError(null);
+              }}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-all ${
+                mode === "create"
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Buat Workspace
+            </button>
+            <button
+              onClick={() => {
+                setMode("join");
+                setError(null);
+              }}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-all ${
+                mode === "join"
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Gabung Workspace
+            </button>
+          </div>
+
+          {/* Forms */}
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {mode === "create" ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label
+                    className="text-sm font-medium text-foreground"
+                    htmlFor="workspace-name"
+                  >
+                    Nama Workspace Baru
+                  </label>
+                  <input
+                    id="workspace-name"
+                    type="text"
+                    value={workspaceName}
+                    onChange={(event) => setWorkspaceName(event.target.value)}
+                    placeholder="Contoh: Isometricon HQ"
+                    className="flex h-12 w-full rounded-xl border border-input bg-transparent px-4 py-2 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateWorkspace}
+                  disabled={submitting || workspaceName.trim().length < 3}
+                  className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary px-8 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {submitting ? "Membuat workspace..." : "Mulai Buat Workspace"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label
+                      className="text-sm font-medium text-foreground"
+                      htmlFor="workspace-code"
+                    >
+                      Kode Undangan
+                    </label>
+                  </div>
+                  <input
+                    id="workspace-code"
+                    type="text"
+                    value={invitationCode}
+                    onChange={(event) =>
+                      setInvitationCode(event.target.value.toUpperCase())
+                    }
+                    placeholder="Contoh: TEAM-7K4M-PRESENCE"
+                    className="flex h-12 w-full rounded-xl border border-input bg-transparent px-4 py-2 text-sm uppercase shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <p className="text-[13px] text-muted-foreground">
+                    Dapatkan kode undangan dari superadmin workspace Anda.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleJoinWorkspace}
+                  disabled={submitting || invitationCode.trim().length < 3}
+                  className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary px-8 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {submitting ? "Memverifikasi kode..." : "Bergabung Sekarang"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="animate-in fade-in zoom-in-95 duration-200 mt-4">
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5 shrink-0"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <p>{error}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
