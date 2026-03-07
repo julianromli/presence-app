@@ -66,8 +66,8 @@ describe("workspaces memberships route", () => {
           isActive: true,
           workspace: {
             _id: "workspace_123456",
-            name: "Presence HQ",
-            slug: "presence-hq",
+            name: "Absensi.id HQ",
+            slug: "absensi-id-hq",
             isActive: true,
           },
         },
@@ -92,8 +92,8 @@ describe("workspaces memberships route", () => {
           isActive: true,
           workspace: {
             _id: "workspace_ABCDEF",
-            name: "Presence Core",
-            slug: "presence-core",
+            name: "Absensi.id Core",
+            slug: "absensi-id-core",
             isActive: true,
           },
         },

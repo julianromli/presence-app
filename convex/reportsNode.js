@@ -120,7 +120,7 @@ export const runWeeklyReport = internalAction({
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(worksheetData);
-      XLSX.utils.book_append_sheet(wb, ws, "Presence");
+      XLSX.utils.book_append_sheet(wb, ws, "Absensi.id");
       const fileArrayBuffer = XLSX.write(wb, {
         type: "array",
         bookType: "xlsx",
@@ -128,7 +128,7 @@ export const runWeeklyReport = internalAction({
       const fileBlob = new Blob([fileArrayBuffer], { type: XLSX_MIME });
       const storageId = await ctx.storage.store(fileBlob);
       const fileUrl = await ctx.storage.getUrl(storageId);
-      const fileName = `presence_${weekKey}.xlsx`;
+      const fileName = `absensi_id_${weekKey}.xlsx`;
       const finishedAt = Date.now();
 
       await ctx.runMutation(internal.reports.markWeeklyReport, {

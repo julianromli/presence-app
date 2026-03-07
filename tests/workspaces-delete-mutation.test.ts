@@ -30,8 +30,8 @@ describe("workspaces delete mutation", () => {
       db: {
         get: vi.fn(async () => ({
           _id: "workspace_123456",
-          slug: "presence-hq",
-          name: "Presence HQ",
+          slug: "absensi-id-hq",
+          name: "Absensi.id HQ",
           isActive: true,
         })),
         patch,
@@ -78,8 +78,8 @@ describe("workspaces delete mutation", () => {
       db: {
         get: vi.fn(async () => ({
           _id: "workspace_123456",
-          slug: "presence-hq",
-          name: "Presence HQ",
+          slug: "absensi-id-hq",
+          name: "Absensi.id HQ",
           isActive: true,
         })),
         patch,

@@ -68,7 +68,7 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
     <header className="bg-background border-border sticky top-0 z-50 border-b px-2.5 lg:px-0">
       <div className="container flex h-20 items-center justify-between">
         <Link href="/" className="text-xl font-bold tracking-tight">
-          Presence
+          Absensi.id
         </Link>
 
         <nav className="hidden items-center gap-8 lg:flex">

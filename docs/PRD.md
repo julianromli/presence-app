@@ -1,11 +1,11 @@
-# PRD - Presence (Absensi Digital)
+# PRD - Absensi.id (Absensi Digital)
 
 Tanggal dokumen: **March 5, 2026**  
 Status: **Aktif (post-MVP hardening pass)**
 
 ## 1. Ringkasan Produk
 
-Presence adalah sistem absensi digital untuk kantor dengan fokus:
+Absensi.id adalah sistem absensi digital untuk kantor dengan fokus:
 - alur scan cepat untuk `karyawan`,
 - kontrol kebijakan ketat oleh `superadmin`,
 - observabilitas operasional untuk `admin`.

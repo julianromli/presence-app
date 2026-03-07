@@ -30,8 +30,8 @@ const REACT_GRAB_VERSION = '0.1.22';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Presence - Absensi Digital',
-    template: '%s | Presence',
+    default: 'Absensi.id - Absensi Digital',
+    template: '%s | Absensi.id',
   },
   description:
     'Sistem absensi digital berbasis QR dinamis dengan guard role, dashboard operasional, dan report mingguan.',

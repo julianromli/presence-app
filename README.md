@@ -1,6 +1,6 @@
-# Presence App
+# Absensi.id App
 
-Presence adalah aplikasi absensi digital berbasis Next.js + Clerk + Convex dengan alur:
+Absensi.id adalah aplikasi absensi digital berbasis Next.js + Clerk + Convex dengan alur:
 - QR dinamis untuk akun `device-qr` (rotasi 5 detik, valid 20 detik, single-use token).
 - Scan oleh `karyawan` dengan guardrail keamanan (replay protection, anti-spam, geofence/IP whitelist opsional).
 - Dashboard admin/superadmin untuk attendance, scan events, users, device heartbeat, dan report mingguan.
@@ -110,4 +110,4 @@ npx @next/codemod agents-md --output AGENTS.md
 ## Operational Notes
 - Auth boundary file untuk Next.js 16: `proxy.ts`.
 - Device heartbeat enforcement bisa diaktifkan dari settings (`enforceDeviceHeartbeat`).
-- Report mingguan jalan via Convex cron (`weekly_presence_report`).
+- Report mingguan jalan via Convex cron (`weekly_absensi_id_report`).

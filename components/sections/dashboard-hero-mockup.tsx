@@ -112,7 +112,7 @@ export function DashboardHeroMockup() {
           <div className="mb-6 flex items-center gap-3">
             <div className="grid size-8 place-items-center rounded-xl bg-zinc-950 text-xs font-semibold text-white">P</div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-zinc-900">Presence Studio</p>
+              <p className="truncate text-sm font-semibold text-zinc-900">Absensi.id Studio</p>
               <p className="text-xs text-zinc-500">Marketing Preview</p>
             </div>
           </div>

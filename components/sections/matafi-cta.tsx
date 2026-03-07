@@ -21,7 +21,7 @@ const MetafiCta = () => {
         </h2>
 
         <p className="text-primary-foreground/80 mx-auto mt-4 max-w-2xl text-base font-normal sm:text-lg">
-          Jalankan Presence dalam hitungan menit dan pantau kehadiran tim secara real-time.
+          Jalankan Absensi.id dalam hitungan menit dan pantau kehadiran tim secara real-time.
         </p>
 
         <div className="mt-8 flex flex-col flex-wrap items-center justify-center gap-4 sm:flex-row">

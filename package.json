@@ -1,5 +1,5 @@
 {
-  "name": "presence-app",
+  "name": "absensi-id-app",
   "version": "0.1.0",
   "private": true,
   "packageManager": "bun@1.3.3",

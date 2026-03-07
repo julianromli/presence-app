@@ -1,3 +1,3 @@
 export async function GET() {
-  return Response.json({ ok: true, service: 'presence-app' });
+  return Response.json({ ok: true, service: 'absensi.id-app' });
 }

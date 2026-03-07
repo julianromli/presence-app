@@ -1,7 +1,7 @@
 # Karyawan Dashboard Design (MVP)
 
 Date: 2026-03-05  
-Project: Presence App  
+Project: Absensi.id App  
 Scope: Dashboard khusus role `karyawan` untuk monitoring absensi personal dengan analytics, tabel, dan gamifikasi ringan.
 
 ## 1. Context and Goals

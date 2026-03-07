@@ -7,7 +7,7 @@ type QA = { question: string; answer: string };
 
 const FAQS: QA[] = [
   {
-    question: 'Bagaimana alur check-in dan check-out di Presence?',
+    question: 'Bagaimana alur check-in dan check-out di Absensi.id?',
     answer:
       'Karyawan memindai QR dari perangkat scanner. Sistem memvalidasi token, user, dan status sesi untuk menandai check-in atau check-out secara otomatis.',
   },
@@ -19,7 +19,7 @@ const FAQS: QA[] = [
   {
     question: 'Apakah akses dashboard bisa dibatasi per role?',
     answer:
-      'Bisa. Presence mendukung role superadmin, admin, karyawan, dan device-qr. Setiap role hanya bisa mengakses area yang relevan.',
+      'Bisa. Absensi.id mendukung role superadmin, admin, karyawan, dan device-qr. Setiap role hanya bisa mengakses area yang relevan.',
   },
   {
     question: 'Apakah laporan absensi bisa diekspor?',
@@ -151,7 +151,7 @@ export default function MetafiFaq() {
         </h2>
 
         <p className="text-muted-foreground mx-auto max-w-2xl text-center text-base font-normal sm:text-lg">
-          Ringkasan singkat untuk membantu tim Anda memahami cara kerja Presence
+          Ringkasan singkat untuk membantu tim Anda memahami cara kerja Absensi.id
           sebelum mulai implementasi.
         </p>
 
