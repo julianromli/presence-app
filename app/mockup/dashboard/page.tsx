@@ -9,7 +9,7 @@ export default function DashboardMockupPage() {
             Marketing Mockup
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-            Dashboard Absensi.id Interactive Preview
+            Dashboard Absenin.id Interactive Preview
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-zinc-600 sm:text-base">
             Halaman ini dipakai sebagai mockup interaktif untuk kebutuhan landing

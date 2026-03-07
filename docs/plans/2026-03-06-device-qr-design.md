@@ -1,7 +1,7 @@
 # Device QR Registration Design
 
 Date: 2026-03-06  
-Project: Absensi.id App  
+Project: Absenin.id App  
 Scope: Redesign flow `device-qr` dari model role-based auth menjadi public bootstrap dengan device permanen yang dikelola eksklusif oleh `superadmin`.
 
 ## 1. Context and Goals
@@ -252,7 +252,7 @@ Test yang wajib:
 ## 12. Open Implementation Notes
 
 Keputusan implementasi yang dipakai:
-- Local secret disimpan di `localStorage` dengan key `absensi.id.deviceSession`.
+- Local secret disimpan di `localStorage` dengan key `absenin.id.deviceSession`.
 - Header autentikasi device memakai `x-device-key` dengan format `<deviceId>.<secret>`.
 - Endpoint publik tetap terikat ke workspace lewat header `x-workspace-id`.
 - Cleanup expired registration code dijalankan berkala lewat cron `cleanup_expired_device_registration_codes`.

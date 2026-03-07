@@ -32,7 +32,7 @@ const MetafiHero = () => {
             Absensi QR yang cepat untuk tim yang terus bergerak
           </h1>
           <p className="text-muted-foreground md:text-md mx-auto max-w-2xl text-base sm:text-lg">
-            Absensi.id membantu kantor mencatat check-in dan check-out real-time,
+            Absenin.id membantu kantor mencatat check-in dan check-out real-time,
             menjaga keamanan akses berbasis role, dan menyiapkan laporan mingguan
             tanpa proses manual.
           </p>

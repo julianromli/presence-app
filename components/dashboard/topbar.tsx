@@ -29,7 +29,7 @@ function getPageTitle(pathname: string) {
     return 'Manajemen Karyawan';
   }
 
-  return 'Absensi.id';
+  return 'Absenin.id';
 }
 
 type DashboardTopbarProps = {

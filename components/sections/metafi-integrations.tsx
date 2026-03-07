@@ -83,7 +83,7 @@ const MetafiIntegrations = () => {
         </p>
 
         <h2 className="text-foreground mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-          Absensi.id siap terhubung
+          Absenin.id siap terhubung
           <br className="hidden sm:block" /> ke alur kerja tim Anda
         </h2>
 

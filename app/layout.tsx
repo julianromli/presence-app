@@ -13,7 +13,6 @@ const CLERK_SIGN_UP_URL = '/sign-up';
 const CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = '/dashboard';
 const CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = '/onboarding/workspace';
 const CLERK_SIGN_UP_FORCE_REDIRECT_URL = '/onboarding/workspace';
-
 const geist = Geist({
   subsets: ['latin'],
   variable: '--font-geist',
@@ -30,8 +29,8 @@ const REACT_GRAB_VERSION = '0.1.22';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Absensi.id - Absensi Digital',
-    template: '%s | Absensi.id',
+    default: 'Absenin.id - Absensi Digital',
+    template: '%s | Absenin.id',
   },
   description:
     'Sistem absensi digital berbasis QR dinamis dengan guard role, dashboard operasional, dan report mingguan.',

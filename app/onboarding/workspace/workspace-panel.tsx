@@ -182,7 +182,7 @@ export function OnboardingWorkspacePanel() {
                 <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             </div>
-            Absensi.id
+            Absenin.id
           </div>
         </div>
 
@@ -205,7 +205,7 @@ export function OnboardingWorkspacePanel() {
               Selamat Datang
             </h1>
             <p className="text-muted-foreground">
-              Silakan pilih cara untuk memulai di Absensi.id.
+              Silakan pilih cara untuk memulai di Absenin.id.
             </p>
           </div>
 
@@ -286,7 +286,7 @@ export function OnboardingWorkspacePanel() {
                     onChange={(event) =>
                       setInvitationCode(event.target.value.toUpperCase())
                     }
-                    placeholder="Contoh: TEAM-7K4M-ABSENSI"
+                    placeholder="Contoh: TEAM-7K4M-ABSENIN"
                     className="flex h-12 w-full rounded-xl border border-input bg-transparent px-4 py-2 text-sm uppercase shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <p className="text-[13px] text-muted-foreground">

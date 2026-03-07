@@ -86,7 +86,7 @@ export const getDownloadUrl = query({
 
     return {
       url,
-      fileName: report.fileName ?? `absensi_id_${report.weekKey}.xlsx`,
+      fileName: report.fileName ?? `absenin_id_${report.weekKey}.xlsx`,
     };
   },
 });

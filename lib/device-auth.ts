@@ -1,5 +1,5 @@
 export const DEVICE_KEY_HEADER = "x-device-key";
-export const DEVICE_SESSION_STORAGE_KEY = "absensi.id.deviceSession";
+export const DEVICE_SESSION_STORAGE_KEY = "absenin.id.deviceSession";
 export const WORKSPACE_ID_HEADER = "x-workspace-id";
 
 export const DEVICE_STATUS = ["active", "revoked"] as const;

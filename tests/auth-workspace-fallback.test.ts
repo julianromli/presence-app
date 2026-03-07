@@ -167,8 +167,8 @@ describe("auth workspace fallback", () => {
           workspace: {
             _id: "workspace_123456",
             _creationTime: 1,
-            slug: "absensi-id-hq",
-            name: "Absensi.id HQ",
+            slug: "absenin-id-hq",
+            name: "Absenin.id HQ",
             isActive: true,
             createdAt: 1,
             updatedAt: 1,
@@ -218,8 +218,8 @@ describe("auth workspace fallback", () => {
           workspace: {
             _id: "workspace_654321",
             _creationTime: 2,
-            slug: "absensi-id-branch",
-            name: "Absensi.id Branch",
+            slug: "absenin-id-branch",
+            name: "Absenin.id Branch",
             isActive: true,
             createdAt: 2,
             updatedAt: 2,
@@ -251,8 +251,8 @@ describe("auth workspace fallback", () => {
           workspace: {
             _id: "workspace_654321",
             _creationTime: 2,
-            slug: "absensi-id-branch",
-            name: "Absensi.id Branch",
+            slug: "absenin-id-branch",
+            name: "Absenin.id Branch",
             isActive: true,
             createdAt: 2,
             updatedAt: 2,

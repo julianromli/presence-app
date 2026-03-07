@@ -12,7 +12,7 @@ export default function SignUpPage() {
   return (
     <AuthPageShell
       activeTab="sign-up"
-      title="Buat akun Absensi.id"
+      title="Buat akun Absenin.id"
       description="Daftarkan akun baru lalu lanjutkan ke proses onboarding workspace."
     >
       <SignedOut>

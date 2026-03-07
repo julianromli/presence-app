@@ -22,8 +22,8 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
     workspace: {
       _id: "workspace_123456",
       _creationTime: 1,
-      slug: "absensi-id-hq",
-      name: "Absensi.id HQ",
+      slug: "absenin-id-hq",
+      name: "Absenin.id HQ",
       isActive: true,
       createdAt: 1000,
       updatedAt: 2000,
@@ -97,7 +97,7 @@ describe("admin workspace route", () => {
       workspaceId: "workspace_123456",
     });
     const payload = await response.json();
-    expect(payload.workspace.slug).toBe("absensi-id-hq");
+    expect(payload.workspace.slug).toBe("absenin-id-hq");
     expect(payload.activeInviteCode.code).toBe("PRESENCE-ABC123-PRESENCE");
   });
 
@@ -137,14 +137,14 @@ describe("admin workspace route", () => {
       new Request("http://localhost/api/admin/workspace", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "Absensi.id New Name" }),
+        body: JSON.stringify({ name: "Absenin.id New Name" }),
       }),
     );
 
     expect(response.status).toBe(200);
     expect(mocks.mutation).toHaveBeenCalledWith("workspaces:renameWorkspace", {
       workspaceId: "workspace_123456",
-      name: "Absensi.id New Name",
+      name: "Absenin.id New Name",
     });
   });
 

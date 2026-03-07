@@ -144,7 +144,7 @@ export default function MetafiTestimonials() {
         </h2>
 
         <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-base font-normal sm:text-lg">
-          Umpan balik dari tim operasional dan HR yang menjalankan Absensi.id setiap hari.
+          Umpan balik dari tim operasional dan HR yang menjalankan Absenin.id setiap hari.
         </p>
 
         <div className="relative mt-10 md:mt-14">

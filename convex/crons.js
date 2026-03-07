@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 const crons = cronJobs();
 
 crons.cron(
-  "weekly_absensi_id_report",
+  "weekly_absenin_id_report",
   "0 1 * * 1",
   internal.reportsNode.runWeeklyReportForAllWorkspaces,
 );

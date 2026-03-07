@@ -1,11 +1,11 @@
-# PRD - Absensi.id (Absensi Digital)
+# PRD - Absenin.id (Absensi Digital)
 
 Tanggal dokumen: **March 5, 2026**  
 Status: **Aktif (post-MVP hardening pass)**
 
 ## 1. Ringkasan Produk
 
-Absensi.id adalah sistem absensi digital untuk kantor dengan fokus:
+Absenin.id adalah sistem absensi digital untuk kantor dengan fokus:
 - alur scan cepat untuk `karyawan`,
 - kontrol kebijakan ketat oleh `superadmin`,
 - observabilitas operasional untuk `admin`.

@@ -57,7 +57,7 @@ describe("device auth helpers", () => {
 
   it("exports stable header and local storage keys", () => {
     expect(DEVICE_KEY_HEADER).toBe("x-device-key");
-    expect(DEVICE_SESSION_STORAGE_KEY).toBe("absensi.id.deviceSession");
+    expect(DEVICE_SESSION_STORAGE_KEY).toBe("absenin.id.deviceSession");
   });
 
   it("builds explicit workspace-scoped headers for fresh device bootstrap", () => {

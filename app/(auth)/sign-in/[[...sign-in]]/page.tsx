@@ -11,8 +11,8 @@ export default function SignInPage() {
   return (
     <AuthPageShell
       activeTab="sign-in"
-      title="Masuk ke Absensi.id"
-      description="Lanjutkan ke dashboard Absensi.id dengan akun Clerk Anda."
+      title="Masuk ke Absenin.id"
+      description="Lanjutkan ke dashboard Absenin.id dengan akun Clerk Anda."
     >
       <SignedOut>
         <div className="flex justify-center">

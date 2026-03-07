@@ -24,7 +24,7 @@ const columns = [
     links: [
       { name: 'Daftar', href: '/sign-up' },
       { name: 'Masuk', href: '/sign-in' },
-      { name: 'Kontak', href: 'mailto:hello@absensi.id' },
+      { name: 'Kontak', href: 'mailto:hello@absenin.id' },
     ],
   },
 ];
@@ -41,8 +41,8 @@ export const Footer = () => {
       <div className="container py-12 md:py-16">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="md:min-w-[140px]">
-            <Link href="/" aria-label="Absensi.id" className="text-2xl font-bold tracking-tight">
-              Absensi.id
+            <Link href="/" aria-label="Absenin.id" className="text-2xl font-bold tracking-tight">
+              Absenin.id
             </Link>
           </div>
 
@@ -73,7 +73,7 @@ export const Footer = () => {
 
         <div className="mt-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <p className="text-muted-foreground text-sm font-normal">
-            © {new Date().getFullYear()} Absensi.id. All rights reserved.
+            © {new Date().getFullYear()} Absenin.id. All rights reserved.
           </p>
 
           <div className="flex items-center gap-4">

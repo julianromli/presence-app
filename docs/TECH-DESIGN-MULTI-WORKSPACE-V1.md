@@ -1,8 +1,8 @@
-# Technical Design v1: Multi-Workspace for Absensi.id
+# Technical Design v1: Multi-Workspace for Absenin.id
 
 Tanggal: 4 Maret 2026
 Status: Final draft implementable
-Target: Mengubah Absensi.id dari single-tenant operasional menjadi multi-workspace SaaS dengan isolasi data per workspace.
+Target: Mengubah Absenin.id dari single-tenant operasional menjadi multi-workspace SaaS dengan isolasi data per workspace.
 
 ## 1. Tujuan dan Scope
 
@@ -412,7 +412,7 @@ Aksi superadmin:
 
 ### 8.6.7 Microcopy default (locked)
 - Input label: `Invitation code`
-- Placeholder: `Contoh: TEAM-7K4M-ABSENSI`
+- Placeholder: `Contoh: TEAM-7K4M-ABSENIN`
 - CTA join: `Join workspace`
 - CTA create: `Create new workspace`
 - Success toast join: `Berhasil bergabung ke {workspaceName}`
