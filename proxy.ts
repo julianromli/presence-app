@@ -3,8 +3,10 @@ import { NextResponse } from 'next/server';
 
 const isPublicRoute = createRouteMatcher([
   '/',
+  '/device-qr(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/api/device(.*)',
   '/api/health(.*)',
 ]);
 
