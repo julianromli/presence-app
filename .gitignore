@@ -48,3 +48,6 @@ next-env.d.ts
 # local runtime artifacts
 .clerk/
 cloudflared.log
+
+# Sentry Config File
+.env.sentry-build-plugin
