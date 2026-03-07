@@ -251,8 +251,19 @@ Test yang wajib:
 
 ## 12. Open Implementation Notes
 
-Catatan untuk fase implementasi nanti:
-- Tentukan media penyimpanan local secret di browser dan trade-off persistensinya.
-- Tentukan format header device auth, misalnya `x-device-key`.
-- Pastikan endpoint publik tetap terikat ke workspace secara aman.
-- Review cleanup dan indexing schema agar query code/device tetap efisien.
+Keputusan implementasi yang dipakai:
+- Local secret disimpan di `localStorage` dengan key `presence.deviceSession`.
+- Header autentikasi device memakai `x-device-key` dengan format `<deviceId>.<secret>`.
+- Endpoint publik tetap terikat ke workspace lewat header `x-workspace-id`.
+- Cleanup expired registration code dijalankan berkala lewat cron `cleanup_expired_device_registration_codes`.
+
+Urutan migrasi yang diterapkan:
+1. Tambah tabel `device_registration_codes` dan `devices`, plus helper hashing/session device.
+2. Tambah bootstrap endpoint publik dan restore auth device tanpa Clerk.
+3. Alihkan issue QR token dan heartbeat ke `deviceId`.
+4. Alihkan sumber scan attendance dan metadata ke `deviceId`.
+5. Tambah API dan UI manajemen device untuk `superadmin`.
+
+Catatan rollback:
+- Role legacy `device-qr` tetap dipertahankan di schema agar rollback operasional masih memungkinkan.
+- Jika bootstrap publik perlu dimatikan, route runtime baru dapat dinonaktifkan tanpa menghapus tabel device permanen lebih dulu.

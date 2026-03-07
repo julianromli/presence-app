@@ -1,10 +1,16 @@
-import { requireWorkspaceOnboardingPage, requireWorkspaceRolePageFromDb } from '@/lib/auth';
+import { DeviceQrPanel } from "./device-qr-panel";
 
-import { DeviceQrPanel } from './device-qr-panel';
+function readSingleSearchParam(value: string | string[] | undefined) {
+  if (typeof value === "string") {
+    return value;
+  }
 
-export default async function DeviceQrPage() {
-  await requireWorkspaceOnboardingPage();
-  await requireWorkspaceRolePageFromDb(['device-qr']);
+  return value?.[0] ?? null;
+}
 
-  return <DeviceQrPanel />;
+export default async function DeviceQrPage(props: PageProps<"/device-qr">) {
+  const searchParams = await props.searchParams;
+  const workspaceId = readSingleSearchParam(searchParams.workspaceId)?.trim() ?? null;
+
+  return <DeviceQrPanel initialWorkspaceId={workspaceId} />;
 }

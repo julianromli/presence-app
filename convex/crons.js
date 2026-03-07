@@ -10,4 +10,10 @@ crons.cron(
   internal.reportsNode.runWeeklyReportForAllWorkspaces,
 );
 
+crons.cron(
+  "cleanup_expired_device_registration_codes",
+  "15 * * * *",
+  internal.devices.cleanupExpiredRegistrationCodes,
+);
+
 export default crons;

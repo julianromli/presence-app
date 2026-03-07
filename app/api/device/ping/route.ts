@@ -1,32 +1,16 @@
 import {
-  getConvexTokenOrNull,
-  requireWorkspaceRoleApiFromDb,
-  requireWorkspaceApiContext,
+  requireWorkspaceDeviceApi,
 } from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
-import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { getPublicConvexHttpClient } from '@/lib/convex-http';
 
 export async function POST(req: Request) {
-  const workspaceContext = requireWorkspaceApiContext(req);
-  if ('error' in workspaceContext) {
-    return workspaceContext.error;
-  }
-  const workspaceId = workspaceContext.workspace.workspaceId;
-
-  const result = await requireWorkspaceRoleApiFromDb(
-    ['device-qr'],
-    workspaceContext.workspace.workspaceId,
-  );
+  const result = await requireWorkspaceDeviceApi(req);
   if ('error' in result) {
     return result.error;
   }
 
-  const token = await getConvexTokenOrNull();
-  if (!token) {
-    return Response.json({ code: 'UNAUTHENTICATED', message: 'Unauthorized' }, { status: 401 });
-  }
-
-  const convex = getAuthedConvexHttpClient(token);
+  const convex = getPublicConvexHttpClient();
   if (!convex) {
     return Response.json({ code: 'INTERNAL_ERROR', message: 'Convex URL missing' }, { status: 500 });
   }
@@ -36,7 +20,8 @@ export async function POST(req: Request) {
 
   try {
     const payload = await convex.mutation<{ ok: boolean; lastSeenAt: number }>('deviceHeartbeat:ping', {
-      workspaceId,
+      workspaceId: result.workspace.workspaceId,
+      deviceId: result.device.deviceId,
       ipAddress,
       userAgent,
     });
@@ -44,7 +29,6 @@ export async function POST(req: Request) {
     return Response.json({
       ok: payload.ok,
       lastSeenAt: payload.lastSeenAt,
-      role: result.session.role,
     });
   } catch (error) {
     return convexErrorResponse(error, 'Gagal mengirim heartbeat device.');

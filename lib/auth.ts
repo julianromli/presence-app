@@ -2,6 +2,11 @@ import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
 
+import {
+  DEVICE_KEY_HEADER,
+  parseDeviceKey,
+  type ParsedDeviceKey,
+} from "./device-auth";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import { ACTIVE_WORKSPACE_COOKIE, isValidWorkspaceId } from "@/lib/workspace-context";
 
@@ -27,6 +32,12 @@ export type DbUserSession = {
 
 export type WorkspaceApiContext = {
   workspaceId: string;
+};
+
+export type DeviceApiSession = {
+  deviceId: string;
+  label: string;
+  claimedAt: number;
 };
 
 type WorkspaceMembershipSession = {
@@ -77,6 +88,13 @@ function badRequestResponse(code: string, message: string) {
 function unauthorizedResponse() {
   return new Response(
     JSON.stringify({ code: "UNAUTHENTICATED", message: "Unauthorized" }),
+    { status: 401 },
+  );
+}
+
+function deviceUnauthorizedResponse() {
+  return new Response(
+    JSON.stringify({ code: "DEVICE_UNAUTHORIZED", message: "Unauthorized device" }),
     { status: 401 },
   );
 }
@@ -139,6 +157,10 @@ export function requireWorkspaceApiContext(request: Request) {
   }
 
   return { workspace: { workspaceId } as WorkspaceApiContext };
+}
+
+export function getDeviceKeyFromRequest(request: Request): ParsedDeviceKey | null {
+  return parseDeviceKey(request.headers.get(DEVICE_KEY_HEADER));
 }
 
 async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {
@@ -408,6 +430,53 @@ export async function requireWorkspaceRoleApiFromDb(
       workspace: membership.workspace,
     },
   };
+}
+
+export async function requireWorkspaceDeviceApi(request: Request) {
+  const workspaceContext = requireWorkspaceApiContext(request);
+  if ("error" in workspaceContext) {
+    return workspaceContext;
+  }
+
+  const deviceKey = getDeviceKeyFromRequest(request);
+  if (!deviceKey) {
+    return { error: deviceUnauthorizedResponse() };
+  }
+
+  const { getPublicConvexHttpClient } = await import("@/lib/convex-http");
+  const convex = getPublicConvexHttpClient();
+  if (!convex) {
+    return {
+      error: Response.json(
+        { code: "INTERNAL_ERROR", message: "Convex URL missing" },
+        { status: 500 },
+      ),
+    };
+  }
+
+  try {
+    const device = await convex.query<DeviceApiSession | null>("devices:authenticateDevice", {
+      workspaceId: workspaceContext.workspace.workspaceId,
+      deviceId: deviceKey.deviceId,
+      secret: deviceKey.secret,
+    });
+
+    if (!device) {
+      return { error: deviceUnauthorizedResponse() };
+    }
+
+    return {
+      workspace: workspaceContext.workspace,
+      device,
+    };
+  } catch {
+    return {
+      error: Response.json(
+        { code: "INTERNAL_ERROR", message: "Gagal memverifikasi device." },
+        { status: 500 },
+      ),
+    };
+  }
 }
 
 export const requireRolePage = requireRolePageFromDb;

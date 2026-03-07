@@ -85,6 +85,26 @@ export type WorkspaceManagementPayload = {
   };
 };
 
+export type DeviceRegistrationCodeRow = {
+  codeId: string;
+  createdAt: number;
+  expiresAt: number;
+  claimedAt?: number;
+  claimedByDeviceId?: string;
+  revokedAt?: number;
+  status: "pending" | "claimed" | "expired" | "revoked";
+};
+
+export type ManagedDeviceRow = {
+  deviceId: string;
+  label: string;
+  status: "active" | "revoked";
+  online: boolean;
+  lastSeenAt?: number;
+  claimedAt: number;
+  claimedFromCodeId: string;
+};
+
 export type EmployeeTrendPoint = {
   dateKey: string;
   checkInMinute: number | null;

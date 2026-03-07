@@ -16,6 +16,7 @@ import type * as dashboardEmployee from "../dashboardEmployee.js";
 import type * as dashboardOverviewShape from "../dashboardOverviewShape.js";
 import type * as deviceHeartbeat from "../deviceHeartbeat.js";
 import type * as deviceHeartbeatPolicy from "../deviceHeartbeatPolicy.js";
+import type * as devices from "../devices.js";
 import type * as employeeDashboardKpi from "../employeeDashboardKpi.js";
 import type * as helpers from "../helpers.js";
 import type * as qrPolicy from "../qrPolicy.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   dashboardOverviewShape: typeof dashboardOverviewShape;
   deviceHeartbeat: typeof deviceHeartbeat;
   deviceHeartbeatPolicy: typeof deviceHeartbeatPolicy;
+  devices: typeof devices;
   employeeDashboardKpi: typeof employeeDashboardKpi;
   helpers: typeof helpers;
   qrPolicy: typeof qrPolicy;

@@ -102,7 +102,14 @@ export function DashboardSidebar({ role = 'karyawan' }: SidebarProps) {
               canAccess(role, item) ? (
                 <SidebarItem
                   key={item.href}
-                  item={{ ...item, href: resolveItemHref(item.href) }}
+                  item={{
+                    ...item,
+                    href: resolveItemHref(item.href),
+                    label:
+                      role === 'superadmin' && item.href === '/dashboard/report'
+                        ? 'Laporan & Device'
+                        : item.label,
+                  }}
                   active={isActive(pathname, item.href)}
                   isCollapsed={isCollapsed}
                 />

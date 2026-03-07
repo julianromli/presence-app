@@ -26,11 +26,21 @@ function buildWorkspaceContextMock(options: CommonSetupOptions) {
 async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   vi.resetModules();
 
-  const requireWorkspaceRoleApiFromDb = vi.fn(
-    async () => options.roleResult ?? { session: { role: "device-qr" } },
-  );
-  const getConvexTokenOrNull = vi.fn(async () =>
-    options.convexToken === undefined ? "convex-token" : options.convexToken,
+  const requireWorkspaceDeviceApi = vi.fn(
+    async () => {
+      if (options.workspaceContext && "error" in options.workspaceContext) {
+        return options.workspaceContext;
+      }
+
+      return options.roleResult ?? {
+        workspace: { workspaceId: "workspace_123456" },
+        device: {
+          deviceId: "device_123",
+          label: "Front Desk Tablet",
+          claimedAt: 1_234_567_890,
+        },
+      };
+    },
   );
   const mutation =
     options.convexClient?.mutation ??
@@ -40,12 +50,11 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   );
 
   vi.doMock("@/lib/auth", () => ({
-    requireWorkspaceRoleApiFromDb,
-    getConvexTokenOrNull,
-    requireWorkspaceApiContext: buildWorkspaceContextMock(options),
+    requireWorkspaceDeviceApi,
   }));
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
+    getPublicConvexHttpClient: getAuthedConvexHttpClient,
   }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
@@ -63,8 +72,7 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
   return {
     GET: routeModule.GET,
     mocks: {
-      requireWorkspaceRoleApiFromDb,
-      getConvexTokenOrNull,
+      requireWorkspaceDeviceApi,
       getAuthedConvexHttpClient,
       mutation,
     },
@@ -180,7 +188,7 @@ describe("security auth and rbac routes", () => {
     expect(mocks.mutation).not.toHaveBeenCalled();
   });
 
-  it("allows /api/device/qr-token for device-qr role", async () => {
+  it("allows /api/device/qr-token for authenticated device", async () => {
     const { GET, mocks } = await setupDeviceQrTokenRoute();
 
     const response = await GET(
@@ -194,6 +202,7 @@ describe("security auth and rbac routes", () => {
     });
     expect(mocks.mutation).toHaveBeenCalledWith("qrTokens:issue", {
       workspaceId: "workspace_123456",
+      deviceId: "device_123",
     });
   });
 

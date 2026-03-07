@@ -27,3 +27,7 @@ export function getAuthedConvexHttpClient(token: string): ConvexHttpClientCompat
   client.setAuth(token);
   return client;
 }
+
+export function getPublicConvexHttpClient() {
+  return getConvexHttpClient();
+}

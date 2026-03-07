@@ -1,188 +1,573 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { workspaceFetch } from '@/lib/workspace-client';
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
+
+import { DeviceActivePanel } from "@/components/device-qr/device-active-panel";
+import { DeviceBootstrapForm } from "@/components/device-qr/device-bootstrap-form";
+import {
+  advanceToDeviceNaming,
+  finalizeDeviceClaim,
+  getInitialDeviceQrPanelState,
+  resolveDeviceAuthRestore,
+} from "@/components/device-qr/device-panel-state";
+import {
+  getVisibleDevicePanelError,
+  getSecondsUntilRefresh,
+  shouldResetStoredDeviceSession,
+} from "@/components/device-qr/device-runtime-state";
+import {
+  buildDeviceRequestHeaders,
+  buildDeviceKey,
+  DEVICE_SESSION_STORAGE_KEY,
+  parseStoredDeviceSession,
+  serializeStoredDeviceSession,
+  type StoredDeviceSession,
+} from "@/lib/device-auth";
+import {
+  getActiveWorkspaceIdFromBrowser,
+  setActiveWorkspaceIdInBrowser,
+  workspaceFetch,
+} from "@/lib/workspace-client";
+
+function readStoredDeviceSession() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return parseStoredDeviceSession(
+      window.localStorage.getItem(DEVICE_SESSION_STORAGE_KEY),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function persistStoredDeviceSession(session: StoredDeviceSession) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      DEVICE_SESSION_STORAGE_KEY,
+      serializeStoredDeviceSession(session),
+    );
+  } catch {
+    // Ignore storage failures and let the current session continue in memory.
+  }
+}
+
+function clearStoredDeviceSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(DEVICE_SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+type ValidateCodeResponse = {
+  ok: boolean;
+  message?: string;
+};
+
+type ClaimDeviceResponse = {
+  deviceId: string;
+  label: string;
+  secret: string;
+  claimedAt: number;
+};
+
+type DeviceAuthResponse = {
+  ok: true;
+  device: {
+    deviceId: string;
+    label: string;
+    claimedAt: number;
+  };
+};
 
 type DeviceQrTokenResponse = {
   token: string;
   expiresAt: number;
-  ttlMs?: number;
-  rotationIntervalMs?: number;
+  issuedAt: number;
+  ttlMs: number;
+  rotationIntervalMs: number;
+  serverTime: number;
 };
 
-const DEFAULT_ROTATION_INTERVAL_MS = 5_000;
-const DEFAULT_TTL_MS = 20_000;
+const DEVICE_HEARTBEAT_INTERVAL_MS = 20_000;
+const DEVICE_QR_RETRY_DELAY_MS = 5_000;
 
-export function DeviceQrPanel() {
-  const [token, setToken] = useState('');
-  const [expiresAt, setExpiresAt] = useState(0);
-  const [qrDataUrl, setQrDataUrl] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [rotationIntervalMs, setRotationIntervalMs] = useState(DEFAULT_ROTATION_INTERVAL_MS);
-  const [ttlMs, setTtlMs] = useState(DEFAULT_TTL_MS);
-  const [heartbeat, setHeartbeat] = useState<'idle' | 'ok' | 'error'>('idle');
-  const [showToken, setShowToken] = useState(false);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+async function parseErrorPayload(response: Response) {
+  try {
+    return (await response.json()) as { code?: string; message?: string };
+  } catch {
+    return {};
+  }
+}
+
+type DeviceQrPanelProps = {
+  initialWorkspaceId?: string | null;
+};
+
+export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps) {
+  const [panelState, setPanelState] = useState(() =>
+    getInitialDeviceQrPanelState(null),
+  );
+  const [code, setCode] = useState("");
+  const [label, setLabel] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [runtimeErrorMessage, setRuntimeErrorMessage] = useState<string | null>(null);
+  const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
+  const [tokenIssuedAt, setTokenIssuedAt] = useState<number | null>(null);
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState<number | null>(null);
+  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState<string | null>(() =>
+    initialWorkspaceId ?? getActiveWorkspaceIdFromBrowser(),
+  );
+
+  useEffect(() => {
+    if (!initialWorkspaceId) {
+      return;
+    }
+
+    setResolvedWorkspaceId(initialWorkspaceId);
+    setActiveWorkspaceIdInBrowser(initialWorkspaceId);
+  }, [initialWorkspaceId]);
+
+  async function scopedWorkspaceFetch(input: RequestInfo | URL, init?: RequestInit) {
+    return await workspaceFetch(input, {
+      ...init,
+      headers: buildDeviceRequestHeaders({
+        workspaceId: resolvedWorkspaceId,
+        deviceKey: init?.headers
+          ? new Headers(init.headers).get("x-device-key")
+          : null,
+        contentType: init?.headers
+          ? new Headers(init.headers).get("content-type")
+          : null,
+      }),
+    });
+  }
 
   useEffect(() => {
     let active = true;
 
-    const loadToken = async () => {
-      const res = await workspaceFetch('/api/device/qr-token', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data = (await res.json()) as DeviceQrTokenResponse;
-      if (!active) return;
-      setToken(data.token);
-      setExpiresAt(data.expiresAt);
-      setRotationIntervalMs(
-        Number.isFinite(data.rotationIntervalMs)
-          ? Math.max(1_000, Math.trunc(data.rotationIntervalMs as number))
-          : DEFAULT_ROTATION_INTERVAL_MS,
-      );
-      setTtlMs(
-        Number.isFinite(data.ttlMs)
-          ? Math.max(1_000, Math.trunc(data.ttlMs as number))
-          : DEFAULT_TTL_MS,
-      );
+    const restore = async () => {
+      const storedSession = readStoredDeviceSession();
+      if (!storedSession) {
+        if (!active) {
+          return;
+        }
+        setPanelState(getInitialDeviceQrPanelState(null));
+        setIsRestoring(false);
+        return;
+      }
+
+      if (!active) {
+        return;
+      }
+
+      setPanelState(getInitialDeviceQrPanelState(storedSession));
+
+      try {
+        const response = await workspaceFetch("/api/device/auth", {
+          cache: "no-store",
+          headers: {
+            ...buildDeviceRequestHeaders({
+              workspaceId: resolvedWorkspaceId,
+              deviceKey: buildDeviceKey(storedSession),
+            }),
+          },
+        });
+
+        if (!response.ok) {
+          const payload = await parseErrorPayload(response);
+          const shouldReset = shouldResetStoredDeviceSession(
+            response.status,
+            payload.code ?? null,
+          );
+          if (shouldReset) {
+            clearStoredDeviceSession();
+          }
+          if (!active) {
+            return;
+          }
+          setPanelState(resolveDeviceAuthRestore(storedSession, !shouldReset));
+          setErrorMessage(
+            shouldReset
+              ? "Sesi device tidak valid lagi. Masukkan code baru untuk pairing ulang."
+              : payload.message ?? "Gagal memulihkan sesi device. Runtime akan mencoba lagi.",
+          );
+          return;
+        }
+
+        const payload = (await response.json()) as DeviceAuthResponse;
+        const restoredSession: StoredDeviceSession = {
+          ...storedSession,
+          deviceId: payload.device.deviceId,
+          label: payload.device.label,
+          claimedAt: payload.device.claimedAt,
+        };
+        persistStoredDeviceSession(restoredSession);
+        if (!active) {
+          return;
+        }
+        setPanelState(resolveDeviceAuthRestore(restoredSession, true));
+        setErrorMessage(null);
+        setRuntimeErrorMessage(null);
+      } catch {
+        if (!active) {
+          return;
+        }
+        setPanelState(resolveDeviceAuthRestore(storedSession, true));
+        setErrorMessage("Gagal memulihkan sesi device. Runtime akan mencoba lagi.");
+      } finally {
+        if (active) {
+          setIsRestoring(false);
+        }
+      }
     };
 
-    void loadToken();
-    const interval = setInterval(() => {
-      void loadToken();
-    }, rotationIntervalMs);
+    void restore();
 
     return () => {
       active = false;
-      clearInterval(interval);
     };
-  }, [rotationIntervalMs]);
+  }, [resolvedWorkspaceId]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
-    }, 250);
+    if (!tokenExpiresAt) {
+      setSecondsUntilRefresh(null);
+      return;
+    }
 
-    return () => clearInterval(timer);
-  }, [expiresAt]);
-
-  useEffect(() => {
-    setCopyState('idle');
-  }, [token]);
-
-  useEffect(() => {
-    let mounted = true;
-    const sendHeartbeat = async () => {
-      const res = await workspaceFetch('/api/device/ping', { method: 'POST' });
-      if (!mounted) return;
-      setHeartbeat(res.ok ? 'ok' : 'error');
-    };
-
-    void sendHeartbeat();
-    const interval = setInterval(() => {
-      void sendHeartbeat();
-    }, 15000);
+    setSecondsUntilRefresh(getSecondsUntilRefresh(tokenExpiresAt));
+    const intervalId = window.setInterval(() => {
+      setSecondsUntilRefresh(getSecondsUntilRefresh(tokenExpiresAt));
+    }, 1_000);
 
     return () => {
-      mounted = false;
-      clearInterval(interval);
+      window.clearInterval(intervalId);
     };
-  }, []);
+  }, [tokenExpiresAt]);
 
   useEffect(() => {
-    if (!token) return;
+    if (
+      panelState.step !== "active-device" ||
+      !panelState.session ||
+      isRestoring
+    ) {
+      return;
+    }
 
-    const createQr = async () => {
-      const QRCode = await import('qrcode');
-      const dataUrl = await QRCode.toDataURL(token, {
-        margin: 1,
-        width: 512,
-        color: {
-          dark: '#0D0D12',
-          light: '#FFFFFF',
-        },
-      });
-      setQrDataUrl(dataUrl);
+    const session = panelState.session;
+    const deviceKey = buildDeviceKey(session);
+    let active = true;
+    let refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+
+    const resetToBootstrap = (message: string) => {
+      clearStoredDeviceSession();
+      setQrCodeDataUrl(null);
+      setTokenExpiresAt(null);
+      setTokenIssuedAt(null);
+      setRuntimeErrorMessage(null);
+      setErrorMessage(message);
+      setPanelState(getInitialDeviceQrPanelState(null));
     };
 
-    void createQr();
-  }, [token]);
+    const scheduleNextRefresh = (delayMs: number) => {
+      if (!active) {
+        return;
+      }
+
+      if (refreshTimeoutId) {
+        window.clearTimeout(refreshTimeoutId);
+      }
+
+      refreshTimeoutId = window.setTimeout(() => {
+        void refreshQrToken();
+      }, delayMs);
+    };
+
+    const sendHeartbeat = async () => {
+      try {
+        const response = await workspaceFetch("/api/device/ping", {
+          cache: "no-store",
+          headers: {
+            ...buildDeviceRequestHeaders({
+              workspaceId: resolvedWorkspaceId,
+              deviceKey,
+            }),
+          },
+        });
+
+        if (!response.ok) {
+          const payload = await parseErrorPayload(response);
+          if (
+            shouldResetStoredDeviceSession(
+              response.status,
+              payload.code ?? null,
+            )
+          ) {
+            resetToBootstrap("Device ini sudah tidak valid. Masukkan code baru untuk pairing ulang.");
+            return;
+          }
+
+          setRuntimeErrorMessage(
+            payload.message ?? "Heartbeat device gagal sementara. Runtime akan mencoba lagi.",
+          );
+          return;
+        }
+
+        setRuntimeErrorMessage(null);
+      } catch {
+        setRuntimeErrorMessage("Heartbeat device gagal sementara. Runtime akan mencoba lagi.");
+      }
+    };
+
+    const refreshQrToken = async () => {
+      setIsRefreshingToken(true);
+
+      try {
+        const response = await workspaceFetch("/api/device/qr-token", {
+          cache: "no-store",
+          headers: {
+            ...buildDeviceRequestHeaders({
+              workspaceId: resolvedWorkspaceId,
+              deviceKey,
+            }),
+          },
+        });
+
+        if (!response.ok) {
+          const payload = await parseErrorPayload(response);
+          if (
+            shouldResetStoredDeviceSession(
+              response.status,
+              payload.code ?? null,
+            )
+          ) {
+            resetToBootstrap("Device ini sudah tidak valid. Masukkan code baru untuk pairing ulang.");
+            return;
+          }
+
+          setRuntimeErrorMessage(
+            payload.message ?? "Gagal membuat QR token. Runtime akan mencoba lagi.",
+          );
+          scheduleNextRefresh(DEVICE_QR_RETRY_DELAY_MS);
+          return;
+        }
+
+        const payload = (await response.json()) as DeviceQrTokenResponse;
+        const qrDataUrl = await QRCode.toDataURL(payload.token, {
+          errorCorrectionLevel: "M",
+          margin: 1,
+          width: 360,
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setQrCodeDataUrl(qrDataUrl);
+        setTokenExpiresAt(payload.expiresAt);
+        setTokenIssuedAt(payload.issuedAt);
+        setRuntimeErrorMessage(null);
+        scheduleNextRefresh(Math.max(1_000, payload.rotationIntervalMs));
+      } catch {
+        if (!active) {
+          return;
+        }
+        setRuntimeErrorMessage("Gagal membuat QR token. Runtime akan mencoba lagi.");
+        scheduleNextRefresh(DEVICE_QR_RETRY_DELAY_MS);
+      } finally {
+        if (active) {
+          setIsRefreshingToken(false);
+        }
+      }
+    };
+
+    void refreshQrToken();
+    void sendHeartbeat();
+    heartbeatIntervalId = window.setInterval(() => {
+      void sendHeartbeat();
+    }, DEVICE_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      if (refreshTimeoutId) {
+        window.clearTimeout(refreshTimeoutId);
+      }
+      if (heartbeatIntervalId) {
+        window.clearInterval(heartbeatIntervalId);
+      }
+    };
+  }, [isRestoring, panelState, resolvedWorkspaceId]);
+
+  async function handleValidateCode() {
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+      setErrorMessage("Registration code wajib diisi.");
+      return;
+    }
+
+    if (!resolvedWorkspaceId) {
+      setErrorMessage("Workspace belum ditentukan. Gunakan setup URL dari dashboard superadmin.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await scopedWorkspaceFetch("/api/device/bootstrap/validate-code", {
+        method: "POST",
+        headers: {
+          ...buildDeviceRequestHeaders({
+            workspaceId: resolvedWorkspaceId,
+            contentType: "application/json",
+          }),
+        },
+        body: JSON.stringify({ code: trimmedCode }),
+      });
+      const payload = (await response.json()) as ValidateCodeResponse;
+
+      if (!response.ok || !payload.ok) {
+        setErrorMessage(payload.message ?? "Kode tidak valid atau sudah tidak aktif.");
+        return;
+      }
+
+      setCode(trimmedCode);
+      setPanelState(advanceToDeviceNaming(trimmedCode));
+    } catch {
+      setErrorMessage("Gagal memvalidasi registration code.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleClaimDevice() {
+    const trimmedLabel = label.trim();
+    if (!panelState.pendingCode) {
+      setPanelState(getInitialDeviceQrPanelState(null));
+      setErrorMessage("Registration code tidak ditemukan. Ulangi proses dari awal.");
+      return;
+    }
+
+    if (!trimmedLabel) {
+      setErrorMessage("Nama device wajib diisi.");
+      return;
+    }
+
+    if (!resolvedWorkspaceId) {
+      setErrorMessage("Workspace belum ditentukan. Gunakan setup URL dari dashboard superadmin.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await scopedWorkspaceFetch("/api/device/bootstrap/claim", {
+        method: "POST",
+        headers: {
+          ...buildDeviceRequestHeaders({
+            workspaceId: resolvedWorkspaceId,
+            contentType: "application/json",
+          }),
+        },
+        body: JSON.stringify({
+          code: panelState.pendingCode,
+          label: trimmedLabel,
+        }),
+      });
+
+      const payload = (await response.json()) as
+        | ClaimDeviceResponse
+        | { code?: string; message?: string };
+
+      if (!response.ok || !("secret" in payload)) {
+        setErrorMessage(
+          "message" in payload && payload.message
+            ? payload.message
+            : "Gagal mengaktifkan device.",
+        );
+        return;
+      }
+
+      const storedSession: StoredDeviceSession = {
+        deviceId: payload.deviceId,
+        label: payload.label,
+        secret: payload.secret,
+        claimedAt: payload.claimedAt,
+      };
+      persistStoredDeviceSession(storedSession);
+      setActiveWorkspaceIdInBrowser(resolvedWorkspaceId);
+      setLabel("");
+      setErrorMessage(null);
+      setRuntimeErrorMessage(null);
+      setPanelState(finalizeDeviceClaim(storedSession));
+    } catch {
+      setErrorMessage("Gagal mengaktifkan device.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleBackToCodeEntry() {
+    setErrorMessage(null);
+    setLabel("");
+    setQrCodeDataUrl(null);
+    setRuntimeErrorMessage(null);
+    setTokenExpiresAt(null);
+    setTokenIssuedAt(null);
+    setPanelState(getInitialDeviceQrPanelState(null));
+  }
 
   return (
     <div className="container flex min-h-[80vh] items-center justify-center py-10">
-      <div className="w-full max-w-xl rounded-3xl border bg-white p-8 text-center shadow-sm dark:bg-zinc-900">
-        <p className="text-tagline text-xs font-semibold">MODE DEVICE-QR</p>
-        <h1 className="mt-2 text-3xl font-bold">QR Absensi Dinamis</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          Token refresh tiap {Math.round(rotationIntervalMs / 1000)} detik dengan masa berlaku{' '}
-          {Math.round(ttlMs / 1000)} detik. Hanya scan token aktif yang diterima.
-        </p>
-
-        <div className="mx-auto mt-6 w-full max-w-sm rounded-2xl border bg-white p-4">
-          {qrDataUrl ? (
-            <Image
-              src={qrDataUrl}
-              alt="QR Presence"
-              width={512}
-              height={512}
-              unoptimized
-              className="aspect-square w-full"
-            />
-          ) : (
-            <div className="grid aspect-square place-items-center text-sm text-zinc-500">Memuat QR...</div>
-          )}
-        </div>
-
-        <p className="mt-4 text-sm font-medium">Berlaku: {secondsLeft} detik</p>
-        <p className="mt-2 text-xs text-zinc-500">
-          Heartbeat device: {heartbeat === 'ok' ? 'online' : heartbeat === 'error' ? 'offline' : '...'}
-        </p>
-
-        <div className="mt-6 rounded-xl border bg-zinc-50 p-4 text-left dark:bg-zinc-800/40">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border px-3 py-1 text-xs font-medium"
-              onClick={() => setShowToken((prev) => !prev)}
-            >
-              {showToken ? 'Sembunyikan Token' : 'Tampilkan Token (Fallback)'}
-            </button>
-            <button
-              type="button"
-              className="rounded-md border px-3 py-1 text-xs font-medium"
-              disabled={!token}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(token);
-                  setCopyState('copied');
-                } catch {
-                  setCopyState('failed');
-                }
-              }}
-            >
-              Copy Token
-            </button>
-            <span className="text-xs text-zinc-500">
-              {copyState === 'copied'
-                ? 'Token tersalin.'
-                : copyState === 'failed'
-                  ? 'Gagal copy, coba manual select.'
-                  : ''}
-            </span>
-          </div>
-          {showToken ? (
-            <p className="mt-3 break-all rounded-md border bg-white p-2 font-mono text-[11px] text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-              {token || 'Memuat token...'}
-            </p>
-          ) : (
-            <p className="mt-3 text-xs text-zinc-500">
-              Gunakan hanya untuk fallback manual. Token berubah tiap{' '}
-              {Math.round(rotationIntervalMs / 1000)} detik dan kedaluwarsa sekitar{' '}
-              {Math.round(ttlMs / 1000)} detik.
-            </p>
-          )}
-        </div>
-      </div>
+      {panelState.step === "active-device" && panelState.session ? (
+        <DeviceActivePanel
+          isRefreshingToken={isRefreshingToken}
+          isRestoring={isRestoring}
+          qrCodeDataUrl={qrCodeDataUrl}
+          runtimeErrorMessage={getVisibleDevicePanelError({
+            step: panelState.step,
+            errorMessage,
+            runtimeErrorMessage,
+          })}
+          secondsUntilRefresh={secondsUntilRefresh}
+          session={panelState.session}
+          tokenIssuedAt={tokenIssuedAt}
+        />
+      ) : (
+        <DeviceBootstrapForm
+          code={code}
+          errorMessage={errorMessage}
+          isSubmitting={isSubmitting}
+          label={label}
+          onBack={handleBackToCodeEntry}
+          onCodeChange={setCode}
+          onLabelChange={setLabel}
+          onSubmit={
+            panelState.step === "name-device"
+              ? handleClaimDevice
+              : handleValidateCode
+          }
+          step={panelState.step === "name-device" ? "name-device" : "enter-code"}
+        />
+      )}
     </div>
   );
 }

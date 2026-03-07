@@ -6,6 +6,7 @@ import { requireWorkspaceRole } from "./helpers";
 export const ping = mutation({
   args: {
     workspaceId: v.id("workspaces"),
+    deviceId: v.id("devices"),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
   },
@@ -14,15 +15,17 @@ export const ping = mutation({
     lastSeenAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const { user: actor } = await requireWorkspaceRole(ctx, args.workspaceId, [
-      "device-qr",
-    ]);
+    const device = await ctx.db.get(args.deviceId);
+    if (!device || device.workspaceId !== args.workspaceId || device.status !== "active") {
+      throw new Error("forbidden");
+    }
+
     const now = Date.now();
 
     const existing = await ctx.db
       .query("device_heartbeats")
-      .withIndex("by_workspace_device_user_id", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("deviceUserId", actor._id),
+      .withIndex("by_workspace_device_id", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("deviceId", device._id),
       )
       .unique();
 
@@ -36,7 +39,7 @@ export const ping = mutation({
     } else {
       await ctx.db.insert("device_heartbeats", {
         workspaceId: args.workspaceId,
-        deviceUserId: actor._id,
+        deviceId: device._id,
         lastSeenAt: now,
         ipAddress: args.ipAddress,
         userAgent: args.userAgent,
@@ -44,16 +47,19 @@ export const ping = mutation({
       });
     }
 
+    await ctx.db.patch(device._id, {
+      lastSeenAt: now,
+      updatedAt: now,
+    });
+
     return { ok: true, lastSeenAt: now };
   },
 });
 
 const heartbeatItemValidator = v.object({
-  deviceUserId: v.id("users"),
-  name: v.string(),
-  email: v.string(),
-  isActive: v.boolean(),
-  role: v.literal("device-qr"),
+  deviceId: v.id("devices"),
+  label: v.string(),
+  status: v.union(v.literal("active"), v.literal("revoked")),
   lastSeenAt: v.optional(v.number()),
   online: v.boolean(),
 });
@@ -67,34 +73,29 @@ export const listStatus = query({
     await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
     const now = Date.now();
     const onlineThreshold = now - 60_000;
-    const memberships = await ctx.db
-      .query("workspace_members")
-      .withIndex("by_workspace_role_active", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("role", "device-qr").eq("isActive", true),
-      )
+    const devices = await ctx.db
+      .query("devices")
+      .withIndex("by_workspace_status", (q) => q.eq("workspaceId", args.workspaceId))
       .collect();
-    const deviceIds = memberships.map((membership) => membership.userId);
-    const devices = (await Promise.all(deviceIds.map((id) => ctx.db.get(id)))).filter(
-      (user) => user !== null && user.isActive && user.role === "device-qr",
-    );
 
     const rows = await Promise.all(
       devices.map(async (device) => {
         const beat = await ctx.db
           .query("device_heartbeats")
-          .withIndex("by_workspace_device_user_id", (q) =>
-            q.eq("workspaceId", args.workspaceId).eq("deviceUserId", device._id),
+          .withIndex("by_workspace_device_id", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("deviceId", device._id),
           )
           .unique();
 
         return {
-          deviceUserId: device._id,
-          name: device.name,
-          email: device.email,
-          isActive: device.isActive,
-          role: device.role,
+          deviceId: device._id,
+          label: device.label,
+          status: device.status,
           lastSeenAt: beat?.lastSeenAt,
-          online: beat ? beat.lastSeenAt >= onlineThreshold : false,
+          online:
+            device.status === "active"
+              ? (beat?.lastSeenAt ?? 0) >= onlineThreshold
+              : false,
         };
       }),
     );

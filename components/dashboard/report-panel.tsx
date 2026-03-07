@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { DeviceManagementPanel } from "@/components/dashboard/device-management-panel";
 import {
   Table,
   TableBody,
@@ -117,11 +118,9 @@ type ScanEventsResponse = {
 };
 
 type DeviceHeartbeatRow = {
-  deviceUserId: string;
-  name: string;
-  email: string;
-  role: "device-qr";
-  isActive: boolean;
+  deviceId: string;
+  label: string;
+  status: "active" | "revoked";
   lastSeenAt?: number;
   online: boolean;
 };
@@ -198,7 +197,7 @@ function sectionTitle(title: string, description: string, countLabel?: string) {
   );
 }
 
-export function ReportPanel() {
+export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get("q") ?? "").trim();
   const [dateKey, setDateKey] = useState(() => getLocalDateKey());
@@ -1033,7 +1032,7 @@ export function ReportPanel() {
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
             "Status device QR",
-            "Monitoring heartbeat akun device-qr.",
+            "Monitoring perangkat QR permanen.",
             `${deviceRows.length} device`,
           )}
         </CollapsibleTrigger>
@@ -1041,8 +1040,8 @@ export function ReportPanel() {
           <Table className="min-w-[700px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Nama</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Label</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Online</TableHead>
                 <TableHead>Last Seen</TableHead>
               </TableRow>
@@ -1057,14 +1056,14 @@ export function ReportPanel() {
               ) : deviceRows.length === 0 ? (
                 <TableRow>
                   <TableCell className="text-zinc-500" colSpan={4}>
-                    Tidak ada akun device-qr aktif.
+                    Belum ada device QR terdaftar.
                   </TableCell>
                 </TableRow>
               ) : (
                 deviceRows.map((row) => (
-                  <TableRow key={row.deviceUserId}>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell>{row.email}</TableCell>
+                  <TableRow key={row.deviceId}>
+                    <TableCell>{row.label}</TableCell>
+                    <TableCell>{row.status}</TableCell>
                     <TableCell>{row.online ? "Online" : "Offline"}</TableCell>
                     <TableCell className="tabular-nums">
                       {row.lastSeenAt
@@ -1078,6 +1077,8 @@ export function ReportPanel() {
           </Table>
         </CollapsiblePanel>
       </Collapsible>
+
+      <DeviceManagementPanel role={role} />
 
       <Collapsible
         open={sectionOpen.weekly}

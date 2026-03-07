@@ -28,7 +28,7 @@ const attendanceWithEmployeeValidator = v.object({
   dateKey: v.string(),
   checkInAt: v.optional(v.number()),
   checkOutAt: v.optional(v.number()),
-  sourceDeviceId: v.optional(v.id("users")),
+  sourceDeviceId: v.optional(v.id("devices")),
   edited: v.boolean(),
   editedBy: v.optional(v.id("users")),
   editedAt: v.optional(v.number()),
@@ -41,7 +41,7 @@ const attendanceWithEmployeeValidator = v.object({
       longitude: v.optional(v.number()),
       accuracyMeters: v.optional(v.number()),
       scannedAt: v.number(),
-      sourceDeviceId: v.id("users"),
+      sourceDeviceId: v.id("devices"),
     }),
   ),
   checkOutMeta: v.optional(
@@ -51,7 +51,7 @@ const attendanceWithEmployeeValidator = v.object({
       longitude: v.optional(v.number()),
       accuracyMeters: v.optional(v.number()),
       scannedAt: v.number(),
-      sourceDeviceId: v.id("users"),
+      sourceDeviceId: v.id("devices"),
     }),
   ),
   createdAt: v.number(),
@@ -71,7 +71,7 @@ const scanEventValidator = v.object({
   actorUserId: v.id("users"),
   actorName: v.string(),
   actorEmail: v.string(),
-  deviceUserId: v.optional(v.id("users")),
+  deviceId: v.optional(v.id("devices")),
   dateKey: v.string(),
   resultStatus: v.union(v.literal("accepted"), v.literal("rejected")),
   reasonCode: v.string(),
@@ -125,7 +125,7 @@ async function writeScanEvent(ctx, payload) {
   });
 }
 
-function buildScanMeta(args, scannedAt, sourceDeviceId) {
+export function buildScanMeta(args, scannedAt, sourceDeviceId) {
   return {
     ipAddress: args.ipAddress,
     latitude: args.latitude,
@@ -138,6 +138,25 @@ function buildScanMeta(args, scannedAt, sourceDeviceId) {
 
 function throwScanError(code, message) {
   throw new ConvexError({ code, message });
+}
+
+export function assertScanSourceDeviceAllowed(
+  device,
+  { enforceDeviceHeartbeat, heartbeat },
+  now = Date.now(),
+) {
+  if (!device || device.status !== "active") {
+    throwScanError("DEVICE_UNAUTHORIZED", "Perangkat QR tidak valid.");
+  }
+
+  if (enforceDeviceHeartbeat && !isDeviceHeartbeatFresh(heartbeat, now)) {
+    throwScanError(
+      "DEVICE_HEARTBEAT_STALE",
+      "Perangkat QR offline atau heartbeat kedaluwarsa",
+    );
+  }
+
+  return device._id;
 }
 
 async function processScan(ctx, actor, args, runtime) {
@@ -203,7 +222,7 @@ async function processScan(ctx, actor, args, runtime) {
           status: existingEvent.attendanceStatus,
           dateKey: existingEvent.dateKey,
           message: existingEvent.message ?? "Scan berhasil diproses sebelumnya",
-          sourceDeviceId: existingEvent.deviceUserId,
+          sourceDeviceId: existingEvent.deviceId,
           scanAt: existingEvent.scannedAt,
           cooldownSeconds: settings.scanCooldownSeconds,
         };
@@ -220,7 +239,7 @@ async function processScan(ctx, actor, args, runtime) {
     workspaceId: runtime.workspaceId,
     token: args.token,
   });
-  if (!tokenResult.valid || !tokenResult.deviceUserId) {
+  if (!tokenResult.valid || !tokenResult.deviceId) {
     const reasonCode = tokenResult.reason ?? "TOKEN_UNKNOWN";
     const reasonMessage =
       reasonCode === "TOKEN_EXPIRED"
@@ -230,23 +249,21 @@ async function processScan(ctx, actor, args, runtime) {
           : "Token tidak dikenal";
     throwScanError(reasonCode, reasonMessage);
   }
-  const sourceDeviceId = tokenResult.deviceUserId;
-
-  if (settings.enforceDeviceHeartbeat) {
-    const heartbeat = await ctx.db
-      .query("device_heartbeats")
-      .withIndex("by_workspace_device_user_id", (q) =>
-        q.eq("workspaceId", runtime.workspaceId).eq("deviceUserId", sourceDeviceId),
-      )
-      .unique();
-
-    if (!isDeviceHeartbeatFresh(heartbeat, now)) {
-      throwScanError(
-        "DEVICE_HEARTBEAT_STALE",
-        "Perangkat QR offline atau heartbeat kedaluwarsa",
-      );
-    }
-  }
+  const sourceDevice = await ctx.db.get(tokenResult.deviceId);
+  const heartbeat = await ctx.db
+    .query("device_heartbeats")
+    .withIndex("by_workspace_device_id", (q) =>
+      q.eq("workspaceId", runtime.workspaceId).eq("deviceId", tokenResult.deviceId),
+    )
+    .unique();
+  const sourceDeviceId = assertScanSourceDeviceAllowed(
+    sourceDevice,
+    {
+      enforceDeviceHeartbeat: Boolean(settings.enforceDeviceHeartbeat),
+      heartbeat,
+    },
+    now,
+  );
   const existing = await ctx.db
     .query("attendance")
     .withIndex("by_workspace_user_date", (q) =>
@@ -483,7 +500,7 @@ export const recordScan = mutation({
       await writeScanEvent(ctx, {
         actorUserId: actor._id,
         workspaceId: args.workspaceId,
-        deviceUserId: result.sourceDeviceId,
+        deviceId: result.sourceDeviceId,
         dateKey: result.dateKey,
         resultStatus: "accepted",
         reasonCode: "OK",
@@ -519,7 +536,7 @@ export const recordScan = mutation({
       await writeScanEvent(ctx, {
         actorUserId: actor._id,
         workspaceId: args.workspaceId,
-        deviceUserId: undefined,
+        deviceId: undefined,
         dateKey,
         resultStatus: "rejected",
         reasonCode: code,

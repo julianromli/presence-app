@@ -86,7 +86,7 @@ export default defineSchema({
         longitude: v.optional(v.number()),
         accuracyMeters: v.optional(v.number()),
         scannedAt: v.number(),
-        sourceDeviceId: v.id("users"),
+        sourceDeviceId: v.id("devices"),
       }),
     ),
     checkOutMeta: v.optional(
@@ -96,10 +96,10 @@ export default defineSchema({
         longitude: v.optional(v.number()),
         accuracyMeters: v.optional(v.number()),
         scannedAt: v.number(),
-        sourceDeviceId: v.id("users"),
+        sourceDeviceId: v.id("devices"),
       }),
     ),
-    sourceDeviceId: v.optional(v.id("users")),
+    sourceDeviceId: v.optional(v.id("devices")),
     edited: v.boolean(),
     editedBy: v.optional(v.id("users")),
     editedAt: v.optional(v.number()),
@@ -133,35 +133,66 @@ export default defineSchema({
     .index("by_key", ["key"])
     .index("by_workspace", ["workspaceId"]),
 
+  device_registration_codes: defineTable({
+    workspaceId: v.id("workspaces"),
+    codeHash: v.string(),
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    claimedAt: v.optional(v.number()),
+    claimedByDeviceId: v.optional(v.id("devices")),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_code_hash", ["workspaceId", "codeHash"])
+    .index("by_workspace_expires_at", ["workspaceId", "expiresAt"]),
+
+  devices: defineTable({
+    workspaceId: v.id("workspaces"),
+    label: v.string(),
+    deviceSecretHash: v.string(),
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    claimedFromCodeId: v.id("device_registration_codes"),
+    claimedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastSeenAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    revokedByUserId: v.optional(v.id("users")),
+    initialIpAddress: v.optional(v.string()),
+    initialUserAgent: v.optional(v.string()),
+  })
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_device_secret_hash", ["workspaceId", "deviceSecretHash"]),
+
   qr_tokens: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
     tokenHash: v.string(),
-    deviceUserId: v.id("users"),
+    deviceId: v.id("devices"),
     issuedAt: v.number(),
     expiresAt: v.number(),
     usedAt: v.optional(v.number()),
     nonce: v.string(),
   })
     .index("by_token_hash", ["tokenHash"])
-    .index("by_device_and_expiry", ["deviceUserId", "expiresAt"])
+    .index("by_device_and_expiry", ["deviceId", "expiresAt"])
     .index("by_workspace_token_hash", ["workspaceId", "tokenHash"]),
 
   device_heartbeats: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
-    deviceUserId: v.id("users"),
+    deviceId: v.id("devices"),
     lastSeenAt: v.number(),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
     updatedAt: v.number(),
   })
-    .index("by_device_user_id", ["deviceUserId"])
+    .index("by_device_id", ["deviceId"])
     .index("by_last_seen_at", ["lastSeenAt"])
-    .index("by_workspace_device_user_id", ["workspaceId", "deviceUserId"]),
+    .index("by_workspace_device_id", ["workspaceId", "deviceId"]),
 
   scan_events: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
     actorUserId: v.id("users"),
-    deviceUserId: v.optional(v.id("users")),
+    deviceId: v.optional(v.id("devices")),
     dateKey: v.string(),
     resultStatus: v.union(v.literal("accepted"), v.literal("rejected")),
     reasonCode: v.string(),
@@ -185,7 +216,7 @@ export default defineSchema({
 
   audit_logs: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
-    actorUserId: v.id("users"),
+    actorUserId: v.optional(v.id("users")),
     action: v.string(),
     targetType: v.string(),
     targetId: v.string(),

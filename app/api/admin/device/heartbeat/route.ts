@@ -36,7 +36,7 @@ export async function GET(req: Request) {
     const rows = await convex.query("deviceHeartbeat:listStatus", { workspaceId });
     return Response.json(rows);
   } catch (error) {
-    return convexErrorResponse(error, "Gagal memuat status device QR.");
+    return convexErrorResponse(error, "Gagal memuat status device permanen.");
   }
 }
 

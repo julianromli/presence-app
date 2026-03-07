@@ -1,18 +1,10 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internalMutation, mutation } from './_generated/server';
-import { requireWorkspaceRole } from './helpers';
+import { sha256Hex } from './helpers';
 import { QR_TOKEN_ROTATION_INTERVAL_MS, QR_TOKEN_TTL_MS } from './qrPolicy';
 
-async function sha256Hex(input) {
-  const bytes = new TextEncoder().encode(input);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function issueToken(ctx, workspaceId, deviceUserId) {
+async function issueToken(ctx, workspaceId, deviceId) {
   const issuedAt = Date.now();
   const ttlMs = QR_TOKEN_TTL_MS;
   const expiresAt = issuedAt + ttlMs;
@@ -23,7 +15,7 @@ async function issueToken(ctx, workspaceId, deviceUserId) {
   await ctx.db.insert('qr_tokens', {
     workspaceId,
     tokenHash,
-    deviceUserId,
+    deviceId,
     issuedAt,
     expiresAt,
     usedAt: undefined,
@@ -43,6 +35,7 @@ async function issueToken(ctx, workspaceId, deviceUserId) {
 export const issue = mutation({
   args: {
     workspaceId: v.id("workspaces"),
+    deviceId: v.id("devices"),
   },
   returns: v.object({
     token: v.string(),
@@ -53,10 +46,15 @@ export const issue = mutation({
     serverTime: v.number(),
   }),
   handler: async (ctx, args) => {
-    const { user: deviceUser } = await requireWorkspaceRole(ctx, args.workspaceId, [
-      'device-qr',
-    ]);
-    return await issueToken(ctx, args.workspaceId, deviceUser._id);
+    const device = await ctx.db.get(args.deviceId);
+    if (!device || device.workspaceId !== args.workspaceId || device.status !== "active") {
+      throw new ConvexError({
+        code: "DEVICE_UNAUTHORIZED",
+        message: "Unauthorized device",
+      });
+    }
+
+    return await issueToken(ctx, args.workspaceId, device._id);
   },
 });
 
@@ -68,7 +66,7 @@ export const validateAndConsume = internalMutation({
   returns: v.object({
     valid: v.boolean(),
     reason: v.optional(v.string()),
-    deviceUserId: v.optional(v.id('users')),
+    deviceId: v.optional(v.id('devices')),
   }),
   handler: async (ctx, args) => {
     const tokenHash = await sha256Hex(args.token);
@@ -97,7 +95,7 @@ export const validateAndConsume = internalMutation({
 
     return {
       valid: true,
-      deviceUserId: tokenRow.deviceUserId,
+      deviceId: tokenRow.deviceId,
     };
   },
 });
