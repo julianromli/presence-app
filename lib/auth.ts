@@ -72,6 +72,12 @@ type OnboardingState = {
   memberships: WorkspaceMembershipSession[];
 };
 
+type ClerkApiResponseErrorLike = {
+  clerkError?: boolean;
+  code?: string;
+  status?: number;
+};
+
 function forbiddenResponse() {
   return new Response(
     JSON.stringify({ code: "FORBIDDEN", message: "Forbidden" }),
@@ -120,13 +126,33 @@ function workspaceRecoveryResponse(
   });
 }
 
+function isMissingClerkTokenTemplateError(error: unknown): error is ClerkApiResponseErrorLike {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as ClerkApiResponseErrorLike;
+  return (
+    candidate.clerkError === true &&
+    candidate.code === "api_response_error" &&
+    candidate.status === 404
+  );
+}
+
 export async function getConvexTokenOrNull() {
   const session = await auth();
   if (!session.userId) {
     return null;
   }
 
-  return (await session.getToken({ template: "convex" })) ?? null;
+  try {
+    return (await session.getToken({ template: "convex" })) ?? null;
+  } catch (error) {
+    if (isMissingClerkTokenTemplateError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function getWorkspaceIdFromRequest(request: Request) {

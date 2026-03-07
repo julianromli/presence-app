@@ -107,6 +107,56 @@ describe("auth workspace fallback", () => {
     vi.restoreAllMocks();
   });
 
+  it("treats a missing Clerk convex token as an anonymous Convex session instead of throwing", async () => {
+    vi.resetModules();
+
+    vi.doMock("@clerk/nextjs/server", () => ({
+      auth: vi.fn(async () => ({
+        userId: "clerk_u1",
+        getToken: vi.fn(async () => {
+          throw {
+            clerkError: true,
+            status: 404,
+            code: "api_response_error",
+          };
+        }),
+      })),
+    }));
+    vi.doMock("next/headers", () => ({
+      cookies: vi.fn(async () => ({
+        get: vi.fn(() => undefined),
+      })),
+    }));
+    vi.doMock("next/navigation", () => ({
+      redirect: vi.fn((path: string) => {
+        throw redirectError(path);
+      }),
+      forbidden: vi.fn(() => {
+        throw new Error("FORBIDDEN");
+      }),
+    }));
+    const query = vi.fn();
+    const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
+    vi.doMock("@/lib/convex-http", () => ({
+      getAuthedConvexHttpClient,
+    }));
+    vi.doMock("@/lib/workspace-context", () => ({
+      ACTIVE_WORKSPACE_COOKIE: "active_workspace_id",
+      isValidWorkspaceId: vi.fn(() => true),
+    }));
+
+    const authModule = await import("../lib/auth");
+    const session = await authModule.getCurrentSession();
+
+    expect(session).toEqual({
+      userId: "clerk_u1",
+      role: null,
+      user: null,
+    });
+    expect(getAuthedConvexHttpClient).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("uses onboarding memberships fallback when active cookie is missing", async () => {
     const { authModule } = await setupAuthModule({
       memberships: [

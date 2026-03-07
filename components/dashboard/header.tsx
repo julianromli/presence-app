@@ -308,8 +308,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
                   <path d="M4 22V6C4 4.89543 4.89543 4 6 4H8C9.10457 4 10 4.89543 10 6V11L12 8L14 11V6C14 4.89543 14.89543 4 16 4H18C19.10457 4 20 4.89543 20 6V22" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <span className="hidden text-sm font-semibold tracking-tight sm:inline">AI Studio</span>
-              <CaretDown weight="bold" className="hidden h-3 w-3 text-zinc-500 sm:block" />
+              <span className="hidden text-sm font-semibold tracking-tight sm:inline">Absensi.id</span>
             </div>
 
             <button

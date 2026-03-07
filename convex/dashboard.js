@@ -85,7 +85,7 @@ export const getOverview = query({
     const onlineDeviceRows = (
       await ctx.db
         .query('device_heartbeats')
-        .withIndex('by_workspace_device_user_id', (q) => q.eq('workspaceId', args.workspaceId))
+        .withIndex('by_workspace_device_id', (q) => q.eq('workspaceId', args.workspaceId))
         .collect()
     ).filter((row) => row.lastSeenAt >= onlineWindowStart);
 

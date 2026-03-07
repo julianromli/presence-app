@@ -53,11 +53,21 @@ export function clearActiveWorkspaceIdInBrowser() {
   document.cookie = `${ACTIVE_WORKSPACE_COOKIE}=; path=/; max-age=0`;
 }
 
-async function healActiveWorkspaceFromServer(currentWorkspaceId: string | null) {
+type ActiveWorkspaceHealResult = {
+  changed: boolean;
+  activeWorkspaceId: string | null;
+};
+
+async function healActiveWorkspaceFromServer(
+  currentWorkspaceId: string | null,
+  options?: { navigate?: boolean },
+): Promise<ActiveWorkspaceHealResult> {
+  const navigate = options?.navigate ?? true;
+
   try {
     const res = await fetch("/api/workspaces/memberships", { cache: "no-store" });
     if (!res.ok) {
-      return false;
+      return { changed: false, activeWorkspaceId: currentWorkspaceId };
     }
 
     const payload = (await res.json()) as {
@@ -65,21 +75,35 @@ async function healActiveWorkspaceFromServer(currentWorkspaceId: string | null) 
     };
 
     if (payload.activeWorkspaceId === currentWorkspaceId) {
-      return false;
+      return { changed: false, activeWorkspaceId: currentWorkspaceId };
     }
 
     if (!payload.activeWorkspaceId) {
       clearActiveWorkspaceIdInBrowser();
-      window.location.assign("/onboarding/workspace");
-      return true;
+      if (navigate) {
+        window.location.assign("/onboarding/workspace");
+      }
+      return { changed: true, activeWorkspaceId: null };
     }
 
     setActiveWorkspaceIdInBrowser(payload.activeWorkspaceId);
-    window.location.assign("/dashboard");
-    return true;
+    if (navigate) {
+      window.location.assign("/dashboard");
+    }
+    return { changed: true, activeWorkspaceId: payload.activeWorkspaceId };
   } catch {
-    return false;
+    return { changed: false, activeWorkspaceId: currentWorkspaceId };
   }
+}
+
+async function resolveActiveWorkspaceIdForRequest() {
+  const currentWorkspaceId = getActiveWorkspaceIdFromBrowser();
+  if (currentWorkspaceId || typeof window === "undefined") {
+    return currentWorkspaceId;
+  }
+
+  const healed = await healActiveWorkspaceFromServer(null, { navigate: false });
+  return healed.activeWorkspaceId;
 }
 
 export async function workspaceFetch(
@@ -87,7 +111,7 @@ export async function workspaceFetch(
   init?: RequestInit,
 ) {
   const headers = new Headers(init?.headers ?? undefined);
-  const workspaceId = getActiveWorkspaceIdFromBrowser();
+  const workspaceId = await resolveActiveWorkspaceIdForRequest();
   if (workspaceId && !headers.has("x-workspace-id")) {
     headers.set("x-workspace-id", workspaceId);
   }
@@ -98,7 +122,19 @@ export async function workspaceFetch(
   });
 
   if (response.status === 403 && workspaceId && typeof window !== "undefined") {
-    void healActiveWorkspaceFromServer(workspaceId);
+    const healed = await healActiveWorkspaceFromServer(workspaceId, { navigate: false });
+    if (healed.changed && healed.activeWorkspaceId && healed.activeWorkspaceId !== workspaceId) {
+      const retryHeaders = new Headers(init?.headers ?? undefined);
+      retryHeaders.set("x-workspace-id", healed.activeWorkspaceId);
+      return await fetch(input, {
+        ...init,
+        headers: retryHeaders,
+      });
+    }
+
+    if (healed.changed && !healed.activeWorkspaceId) {
+      window.location.assign("/onboarding/workspace");
+    }
   }
 
   return response;
@@ -121,7 +157,7 @@ export function recoverWorkspaceScopeViolation(code: string) {
   void (async () => {
     try {
       const healed = await healActiveWorkspaceFromServer(getActiveWorkspaceIdFromBrowser());
-      if (healed) {
+      if (healed.changed) {
         return;
       }
       clearActiveWorkspaceIdInBrowser();

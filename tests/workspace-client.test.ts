@@ -36,7 +36,46 @@ describe("workspace-client", () => {
     vi.resetModules();
   });
 
-  it("heals to another active workspace after a 403 response on stale workspace", async () => {
+  it("bootstraps the active workspace before the first scoped request when browser state is empty", async () => {
+    const { windowMock, locationAssign } = createWindowMock(null);
+    vi.stubGlobal("window", windowMock);
+    vi.stubGlobal("document", { cookie: "" });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ activeWorkspaceId: "workspace_bootstrap" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { workspaceFetch } = await import("../lib/workspace-client");
+    const response = await workspaceFetch("/api/admin/users", { cache: "no-store" });
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/workspaces/memberships",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/admin/users",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: expect.any(Headers),
+      }),
+    );
+    const scopedHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Headers;
+    expect(scopedHeaders.get("x-workspace-id")).toBe("workspace_bootstrap");
+    expect(windowMock.localStorage.setItem).toHaveBeenCalledWith(
+      "active_workspace_id",
+      "workspace_bootstrap",
+    );
+    expect(locationAssign).not.toHaveBeenCalled();
+  });
+
+  it("retries with the healed workspace after a 403 response on stale workspace", async () => {
     const { windowMock, locationAssign } = createWindowMock("workspace_old");
     vi.stubGlobal("window", windowMock);
     vi.stubGlobal("document", { cookie: "active_workspace_id=workspace_old" });
@@ -46,14 +85,16 @@ describe("workspace-client", () => {
       .mockResolvedValueOnce(new Response("forbidden", { status: 403 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ activeWorkspaceId: "workspace_new" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), { status: 200 }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
     const { workspaceFetch } = await import("../lib/workspace-client");
     const response = await workspaceFetch("/api/admin/users", { cache: "no-store" });
 
-    expect(response.status).toBe(403);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(response.status).toBe(200);
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -70,11 +111,21 @@ describe("workspace-client", () => {
       "/api/workspaces/memberships",
       expect.objectContaining({ cache: "no-store" }),
     );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/admin/users",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: expect.any(Headers),
+      }),
+    );
+    const retriedHeaders = fetchMock.mock.calls[2]?.[1]?.headers as Headers;
+    expect(retriedHeaders.get("x-workspace-id")).toBe("workspace_new");
     expect(windowMock.localStorage.setItem).toHaveBeenCalledWith(
       "active_workspace_id",
       "workspace_new",
     );
-    expect(locationAssign).toHaveBeenCalledWith("/dashboard");
+    expect(locationAssign).not.toHaveBeenCalled();
   });
 
   it("does not redirect on ordinary forbidden when active workspace is still valid", async () => {
