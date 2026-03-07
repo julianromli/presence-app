@@ -5,7 +5,7 @@ import {
 } from "convex/server";
 
 import { internal } from "./_generated/api";
-import { mutation, query, internalQuery } from "./_generated/server";
+import { internalMutation, mutation, query, internalQuery } from "./_generated/server";
 import {
   buildDateKey,
   distanceMeters,
@@ -20,6 +20,22 @@ import {
 } from "./attendanceList";
 import { isDeviceHeartbeatFresh } from "./deviceHeartbeatPolicy";
 
+const legacyCompatibleSourceDeviceIdValidator = v.union(
+  v.id("devices"),
+  v.id("users"),
+);
+const optionalLegacyCompatibleSourceDeviceIdValidator = v.optional(
+  legacyCompatibleSourceDeviceIdValidator,
+);
+const scanMetaValidator = v.object({
+  ipAddress: v.optional(v.string()),
+  latitude: v.optional(v.number()),
+  longitude: v.optional(v.number()),
+  accuracyMeters: v.optional(v.number()),
+  scannedAt: v.number(),
+  sourceDeviceId: optionalLegacyCompatibleSourceDeviceIdValidator,
+});
+
 const attendanceWithEmployeeValidator = v.object({
   _id: v.id("attendance"),
   _creationTime: v.number(),
@@ -28,32 +44,14 @@ const attendanceWithEmployeeValidator = v.object({
   dateKey: v.string(),
   checkInAt: v.optional(v.number()),
   checkOutAt: v.optional(v.number()),
-  sourceDeviceId: v.optional(v.id("devices")),
+  sourceDeviceId: optionalLegacyCompatibleSourceDeviceIdValidator,
   edited: v.boolean(),
   editedBy: v.optional(v.id("users")),
   editedAt: v.optional(v.number()),
   editReason: v.optional(v.string()),
   lastScanAt: v.optional(v.number()),
-  checkInMeta: v.optional(
-    v.object({
-      ipAddress: v.optional(v.string()),
-      latitude: v.optional(v.number()),
-      longitude: v.optional(v.number()),
-      accuracyMeters: v.optional(v.number()),
-      scannedAt: v.number(),
-      sourceDeviceId: v.id("devices"),
-    }),
-  ),
-  checkOutMeta: v.optional(
-    v.object({
-      ipAddress: v.optional(v.string()),
-      latitude: v.optional(v.number()),
-      longitude: v.optional(v.number()),
-      accuracyMeters: v.optional(v.number()),
-      scannedAt: v.number(),
-      sourceDeviceId: v.id("devices"),
-    }),
-  ),
+  checkInMeta: v.optional(scanMetaValidator),
+  checkOutMeta: v.optional(scanMetaValidator),
   createdAt: v.number(),
   updatedAt: v.number(),
   employeeName: v.string(),
@@ -72,6 +70,7 @@ const scanEventValidator = v.object({
   actorName: v.string(),
   actorEmail: v.string(),
   deviceId: v.optional(v.id("devices")),
+  deviceUserId: v.optional(v.id("users")),
   dateKey: v.string(),
   resultStatus: v.union(v.literal("accepted"), v.literal("rejected")),
   reasonCode: v.string(),
@@ -134,6 +133,65 @@ export function buildScanMeta(args, scannedAt, sourceDeviceId) {
     scannedAt,
     sourceDeviceId,
   };
+}
+
+export function normalizeLegacySourceDeviceId(normalizeId, sourceDeviceId) {
+  if (!sourceDeviceId) {
+    return undefined;
+  }
+
+  return normalizeId("devices", sourceDeviceId) ?? undefined;
+}
+
+export function normalizeLegacyScanMeta(normalizeId, scanMeta) {
+  if (!scanMeta) {
+    return undefined;
+  }
+
+  const normalizedSourceDeviceId = normalizeLegacySourceDeviceId(
+    normalizeId,
+    scanMeta.sourceDeviceId,
+  );
+
+  if (normalizedSourceDeviceId === scanMeta.sourceDeviceId) {
+    return scanMeta;
+  }
+
+  const normalizedScanMeta = { ...scanMeta };
+  if (normalizedSourceDeviceId === undefined) {
+    delete normalizedScanMeta.sourceDeviceId;
+  } else {
+    normalizedScanMeta.sourceDeviceId = normalizedSourceDeviceId;
+  }
+  return normalizedScanMeta;
+}
+
+export function buildLegacyAttendanceSourcePatch(normalizeId, attendanceRow) {
+  const patch = {};
+  const normalizedSourceDeviceId = normalizeLegacySourceDeviceId(
+    normalizeId,
+    attendanceRow.sourceDeviceId,
+  );
+  const normalizedCheckInMeta = normalizeLegacyScanMeta(
+    normalizeId,
+    attendanceRow.checkInMeta,
+  );
+  const normalizedCheckOutMeta = normalizeLegacyScanMeta(
+    normalizeId,
+    attendanceRow.checkOutMeta,
+  );
+
+  if (normalizedSourceDeviceId !== attendanceRow.sourceDeviceId) {
+    patch.sourceDeviceId = normalizedSourceDeviceId;
+  }
+  if (normalizedCheckInMeta !== attendanceRow.checkInMeta) {
+    patch.checkInMeta = normalizedCheckInMeta;
+  }
+  if (normalizedCheckOutMeta !== attendanceRow.checkOutMeta) {
+    patch.checkOutMeta = normalizedCheckOutMeta;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
 function throwScanError(code, message) {
@@ -692,5 +750,45 @@ export const editAttendance = mutation({
     });
 
     return null;
+  },
+});
+
+export const cleanupLegacyAttendanceSourceDevices = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    patched: v.number(),
+    continueCursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("attendance").paginate({
+      cursor: args.cursor ?? null,
+      numItems: Math.min(Math.max(Math.trunc(args.limit ?? 200), 1), 500),
+    });
+
+    let patched = 0;
+    for (const row of page.page) {
+      const patch = buildLegacyAttendanceSourcePatch(
+        (tableName, id) => ctx.db.normalizeId(tableName, id),
+        row,
+      );
+      if (!patch) {
+        continue;
+      }
+
+      await ctx.db.patch(row._id, patch);
+      patched += 1;
+    }
+
+    return {
+      scanned: page.page.length,
+      patched,
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+    };
   },
 });

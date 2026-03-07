@@ -13,6 +13,11 @@ const roleBucket = v.object({
   active: v.number(),
 });
 
+const legacyCompatibleSourceDeviceId = v.union(
+  v.id("devices"),
+  v.id("users"),
+);
+
 export default defineSchema({
   workspaces: defineTable({
     slug: v.string(),
@@ -86,7 +91,7 @@ export default defineSchema({
         longitude: v.optional(v.number()),
         accuracyMeters: v.optional(v.number()),
         scannedAt: v.number(),
-        sourceDeviceId: v.id("devices"),
+        sourceDeviceId: v.optional(legacyCompatibleSourceDeviceId),
       }),
     ),
     checkOutMeta: v.optional(
@@ -96,10 +101,10 @@ export default defineSchema({
         longitude: v.optional(v.number()),
         accuracyMeters: v.optional(v.number()),
         scannedAt: v.number(),
-        sourceDeviceId: v.id("devices"),
+        sourceDeviceId: v.optional(legacyCompatibleSourceDeviceId),
       }),
     ),
-    sourceDeviceId: v.optional(v.id("devices")),
+    sourceDeviceId: v.optional(legacyCompatibleSourceDeviceId),
     edited: v.boolean(),
     editedBy: v.optional(v.id("users")),
     editedAt: v.optional(v.number()),
@@ -167,7 +172,8 @@ export default defineSchema({
   qr_tokens: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
     tokenHash: v.string(),
-    deviceId: v.id("devices"),
+    deviceId: v.optional(v.id("devices")),
+    deviceUserId: v.optional(v.id("users")),
     issuedAt: v.number(),
     expiresAt: v.number(),
     usedAt: v.optional(v.number()),
@@ -179,7 +185,8 @@ export default defineSchema({
 
   device_heartbeats: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
-    deviceId: v.id("devices"),
+    deviceId: v.optional(v.id("devices")),
+    deviceUserId: v.optional(v.id("users")),
     lastSeenAt: v.number(),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
@@ -193,6 +200,7 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     actorUserId: v.id("users"),
     deviceId: v.optional(v.id("devices")),
+    deviceUserId: v.optional(v.id("users")),
     dateKey: v.string(),
     resultStatus: v.union(v.literal("accepted"), v.literal("rejected")),
     reasonCode: v.string(),

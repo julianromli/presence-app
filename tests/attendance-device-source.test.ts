@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildLegacyAttendanceSourcePatch,
   assertScanSourceDeviceAllowed,
   buildScanMeta,
+  normalizeLegacyScanMeta,
+  normalizeLegacySourceDeviceId,
 } from "../convex/attendance";
 import { DEVICE_HEARTBEAT_MAX_AGE_MS } from "../convex/deviceHeartbeatPolicy";
 
@@ -60,5 +63,64 @@ describe("attendance device source", () => {
         10_000,
       ),
     ).toThrow(/heartbeat/i);
+  });
+
+  it("normalizes legacy user ids out of sourceDeviceId fields", () => {
+    const normalizeId = (tableName: string, id: string) =>
+      tableName === "devices" && id === "device_123" ? id : null;
+
+    expect(normalizeLegacySourceDeviceId(normalizeId, "device_123")).toBe(
+      "device_123",
+    );
+    expect(normalizeLegacySourceDeviceId(normalizeId, "user_123")).toBeUndefined();
+    expect(
+      normalizeLegacyScanMeta(normalizeId, {
+        ipAddress: "203.0.113.1",
+        scannedAt: 1_234,
+        sourceDeviceId: "user_123",
+      }),
+    ).toEqual({
+      ipAddress: "203.0.113.1",
+      scannedAt: 1_234,
+    });
+  });
+
+  it("builds a patch only when attendance rows still contain legacy user ids", () => {
+    const normalizeId = (tableName: string, id: string) => {
+      if (tableName !== "devices") {
+        return null;
+      }
+      return id === "device_123" ? id : null;
+    };
+
+    expect(
+      buildLegacyAttendanceSourcePatch(normalizeId, {
+        sourceDeviceId: "user_123",
+        checkInMeta: {
+          scannedAt: 10,
+          sourceDeviceId: "user_123",
+        },
+        checkOutMeta: {
+          scannedAt: 20,
+          sourceDeviceId: "device_123",
+        },
+      }),
+    ).toEqual({
+      sourceDeviceId: undefined,
+      checkInMeta: {
+        scannedAt: 10,
+      },
+    });
+
+    expect(
+      buildLegacyAttendanceSourcePatch(normalizeId, {
+        sourceDeviceId: "device_123",
+        checkInMeta: {
+          scannedAt: 10,
+          sourceDeviceId: "device_123",
+        },
+        checkOutMeta: undefined,
+      }),
+    ).toBeNull();
   });
 });
