@@ -273,8 +273,8 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     const session = panelState.session;
     const deviceKey = buildDeviceKey(session);
     let active = true;
-    let refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+    let refreshTimeoutId: number | null = null;
+    let heartbeatIntervalId: number | null = null;
 
     const resetToBootstrap = (message: string) => {
       clearStoredDeviceSession();

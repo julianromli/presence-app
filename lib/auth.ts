@@ -40,6 +40,17 @@ export type DeviceApiSession = {
   claimedAt: number;
 };
 
+type WorkspaceApiResult =
+  | { error: Response }
+  | { workspace: WorkspaceApiContext };
+
+type DeviceApiResult =
+  | { error: Response }
+  | {
+      workspace: WorkspaceApiContext;
+      device: DeviceApiSession;
+    };
+
 type WorkspaceMembershipSession = {
   membershipId: string;
   role: AppRole;
@@ -134,7 +145,9 @@ function isWorkspaceIdHeaderValid(workspaceId: string) {
   return isValidWorkspaceId(workspaceId);
 }
 
-export function requireWorkspaceApiContext(request: Request) {
+export function requireWorkspaceApiContext(
+  request: Request,
+): WorkspaceApiResult {
   const workspaceId = getWorkspaceIdFromRequest(request);
   if (!workspaceId) {
     logWorkspaceViolation("WORKSPACE_REQUIRED", {
@@ -432,10 +445,12 @@ export async function requireWorkspaceRoleApiFromDb(
   };
 }
 
-export async function requireWorkspaceDeviceApi(request: Request) {
+export async function requireWorkspaceDeviceApi(
+  request: Request,
+): Promise<DeviceApiResult> {
   const workspaceContext = requireWorkspaceApiContext(request);
   if ("error" in workspaceContext) {
-    return workspaceContext;
+    return { error: workspaceContext.error };
   }
 
   const deviceKey = getDeviceKeyFromRequest(request);
