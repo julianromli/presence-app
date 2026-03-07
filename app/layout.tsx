@@ -8,6 +8,12 @@ import { ConvexClientProvider } from '@/components/providers/convex-client-provi
 import { UserSyncBootstrap } from '@/components/providers/user-sync-bootstrap';
 import { ThemeProvider } from '@/components/theme-provider';
 
+const CLERK_SIGN_IN_URL = '/sign-in';
+const CLERK_SIGN_UP_URL = '/sign-up';
+const CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = '/dashboard';
+const CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = '/onboarding/workspace';
+const CLERK_SIGN_UP_FORCE_REDIRECT_URL = '/onboarding/workspace';
+
 const geist = Geist({
   subsets: ['latin'],
   variable: '--font-geist',
@@ -35,7 +41,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      signInUrl={CLERK_SIGN_IN_URL}
+      signUpUrl={CLERK_SIGN_UP_URL}
+      signInFallbackRedirectUrl={CLERK_SIGN_IN_FALLBACK_REDIRECT_URL}
+      signUpFallbackRedirectUrl={CLERK_SIGN_UP_FALLBACK_REDIRECT_URL}
+      signUpForceRedirectUrl={CLERK_SIGN_UP_FORCE_REDIRECT_URL}
+    >
       <html lang="id" suppressHydrationWarning>
       <head>
         {process.env.NODE_ENV === "development" && (

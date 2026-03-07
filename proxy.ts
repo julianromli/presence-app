@@ -15,10 +15,12 @@ export default clerkMiddleware(async (auth, request) => {
     return NextResponse.next();
   }
 
-  const { userId, redirectToSignIn } = await auth();
+  const { userId } = await auth();
 
   if (!userId) {
-    return redirectToSignIn({ returnBackUrl: request.url });
+    const signInUrl = new URL('/sign-in', request.url);
+    signInUrl.searchParams.set('redirect_url', request.url);
+    return NextResponse.redirect(signInUrl);
   }
 
   return NextResponse.next();

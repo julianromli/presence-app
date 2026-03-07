@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type ProxyHandler = (
+  auth: () => Promise<{ userId: string | null }>,
+  request: Request,
+) => Promise<unknown>;
+
 const nextMock = vi.fn(() => ({ kind: "next" }));
-const redirectToSignInMock = vi.fn(({ returnBackUrl }: { returnBackUrl: string }) => ({
+const redirectMock = vi.fn((url: URL | string) => ({
   kind: "redirect",
-  returnBackUrl,
+  destination: typeof url === "string" ? url : url.toString(),
 }));
 
 vi.mock("next/server", () => ({
   NextResponse: {
     next: nextMock,
+    redirect: redirectMock,
   },
 }));
 
@@ -46,56 +52,73 @@ describe("proxy public routes", () => {
   beforeEach(() => {
     vi.resetModules();
     nextMock.mockClear();
-    redirectToSignInMock.mockClear();
+    redirectMock.mockClear();
   });
 
   it("allows /device-qr without Clerk session", async () => {
-    const { default: proxy } = await import("../proxy");
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
 
     const response = await proxy(
       async () => ({
         userId: null,
-        redirectToSignIn: redirectToSignInMock,
       }),
       new Request("https://app.example.com/device-qr?workspaceId=workspace_123456"),
     );
 
     expect(response).toEqual({ kind: "next" });
-    expect(redirectToSignInMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("allows /api/device/qr-token without Clerk session", async () => {
-    const { default: proxy } = await import("../proxy");
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
 
     const response = await proxy(
       async () => ({
         userId: null,
-        redirectToSignIn: redirectToSignInMock,
       }),
       new Request("https://app.example.com/api/device/qr-token"),
     );
 
     expect(response).toEqual({ kind: "next" });
-    expect(redirectToSignInMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("still redirects protected routes to sign-in when user is anonymous", async () => {
-    const { default: proxy } = await import("../proxy");
+  it("redirects protected routes to the local sign-in page when user is anonymous", async () => {
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
 
     const response = await proxy(
       async () => ({
         userId: null,
-        redirectToSignIn: redirectToSignInMock,
       }),
       new Request("https://app.example.com/dashboard"),
     );
 
     expect(response).toEqual({
       kind: "redirect",
-      returnBackUrl: "https://app.example.com/dashboard",
+      destination: "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fdashboard",
     });
-    expect(redirectToSignInMock).toHaveBeenCalledWith({
-      returnBackUrl: "https://app.example.com/dashboard",
+    expect(redirectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves query params in the protected return URL", async () => {
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
+
+    const response = await proxy(
+      async () => ({
+        userId: null,
+      }),
+      new Request("https://app.example.com/dashboard/report?range=this-week&workspaceId=workspace_123456"),
+    );
+
+    expect(response).toEqual({
+      kind: "redirect",
+      destination:
+        "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fdashboard%2Freport%3Frange%3Dthis-week%26workspaceId%3Dworkspace_123456",
     });
+    expect(redirectMock).toHaveBeenCalledTimes(1);
   });
 });
