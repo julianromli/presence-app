@@ -1,23 +1,25 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is a Next.js 16 + React 19 app with Convex backend logic.
+This repository is a Next.js 16 + React 19 app with Clerk auth and Convex backend logic.
 
-- `app/`: App Router routes, layouts, and API route handlers (`app/api/**/route.ts`).
+- `app/`: App Router routes, layouts, pages, and API route handlers (`app/api/**/route.ts`).
 - `components/`: Reusable UI and feature components (`ui/`, `dashboard/`, `layout/`, `sections/`, `providers/`).
 - `lib/`: Shared business logic and helpers (auth, API error mapping, filters, date utilities).
-- `convex/`: Convex schema and server functions (queries/mutations/actions, cron jobs).
+- `convex/`: Convex schema and server functions (queries, mutations, actions, cron jobs).
 - `tests/`: Vitest unit tests for core logic (`*.test.ts`).
+- `types/`: Shared TypeScript types.
 - `public/`: Static assets and images.
-- `docs/`: Product and planning docs.
+- `docs/`: Product, planning, and implementation docs.
+- `proxy.ts`, `instrumentation.ts`, `instrumentation-client.ts`: App boundary and observability entry points.
 
 ## Build, Test, and Development Commands
 Use `bun` (lockfile is `bun.lock`).
 
-- `bun run dev`: Start local Next.js dev server (`http://localhost:3000`).
-- `bun run build`: Create production build.
+- `bun run dev`: Start local Next.js dev server with Turbopack (`http://localhost:3000`).
+- `bun run build`: Create production build with Turbopack.
 - `bun run start`: Run production server from build output.
-- `bun run lint`: Run ESLint (Next.js core-web-vitals + TypeScript config).
+- `bun run lint`: Run ESLint for the repository.
 - `bun run test`: Run Vitest test suite once.
 - `bun run test:watch`: Run Vitest in watch mode during development.
 
@@ -29,7 +31,7 @@ Use `bun` (lockfile is `bun.lock`).
 - Utilities: `kebab-case.ts` in `lib/`.
 - Tests: `feature-name.test.ts` in `tests/`.
 - Imports: use alias `@/*` for root-based imports where possible.
-- Lint before PR; no separate formatter is configured, so preserve existing style.
+- Lint before PR; `prettier` is installed, but there is no dedicated format script, so preserve existing style unless the task explicitly includes formatting.
 
 ## Testing Guidelines
 - Framework: Vitest (`tests/*.test.ts`).
@@ -49,7 +51,7 @@ Use `bun` (lockfile is `bun.lock`).
 - Screenshots/GIFs for UI changes (dashboard/marketing flows).
 
 ## Agent-Specific Notes
-- Check `.next-docs/` first for version-matched Next.js documentation before framework changes.
+- Check `.next-docs/` first for version-matched Next.js documentation before framework changes. If it is missing, generate/update the local docs index with `npx @next/codemod agents-md --output AGENTS.md`.
 - For UI component work in this project, use COSS UI as the default component system instead of shadcn/ui or Radix-based patterns.
 - Before creating, editing, or recommending UI components, read the COSS UI docs from `https://coss.com/ui/llms.txt` and follow those docs first.
 - Do not suggest shadcn/ui or Radix primitives for UI components unless the user explicitly asks for them or the existing code already depends on them and changing away would be unsafe.

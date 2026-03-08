@@ -1,6 +1,7 @@
 'use client';
 
 import { UserButton } from '@clerk/nextjs';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -66,12 +67,23 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
 
   return (
     <header className="bg-background border-border sticky top-0 z-50 border-b px-2.5 lg:px-0">
-      <div className="container flex h-20 items-center justify-between">
-        <Link href="/" className="text-xl font-bold tracking-tight">
-          Absenin.id
+      <div className="container grid h-20 grid-cols-[auto_1fr_auto] items-center lg:grid-cols-[1fr_auto_1fr]">
+        <Link
+          href="/"
+          className="flex items-center justify-self-start"
+          aria-label="Absenin.id"
+        >
+          <Image
+            src="/absenin-id.svg"
+            alt="Absenin.id"
+            width={535}
+            height={72}
+            className="h-5 w-auto sm:h-6"
+            priority
+          />
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden items-center gap-8 justify-self-center lg:flex">
           {visibleItems.map((link) => (
             <Link
               key={link.label}
@@ -86,7 +98,7 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 justify-self-end lg:flex">
           {isSignedIn ? (
             <UserButton afterSignOutUrl="/" />
           ) : (
@@ -106,7 +118,7 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
           <ThemeToggle />
         </div>
 
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-2 justify-self-end lg:hidden">
           <ThemeToggle />
           <Button
             size="sm"

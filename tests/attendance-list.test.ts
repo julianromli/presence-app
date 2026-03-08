@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   filterAttendanceByEmployeeName,
+  filterAttendanceByStatus,
   paginateFilteredAttendance,
   summarizeAttendanceRows,
 } from "../convex/attendanceList";
@@ -76,5 +77,10 @@ describe("attendance list helpers", () => {
       checkedOut: 2,
       edited: 2,
     });
+  });
+
+  it("filters attendance rows by operational status before pagination", () => {
+    expect(filterAttendanceByStatus(rows, "not-checked-in").map((row) => row._id)).toEqual(["d"]);
+    expect(filterAttendanceByStatus(rows, "incomplete").map((row) => row._id)).toEqual(["a", "c"]);
   });
 });

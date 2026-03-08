@@ -15,6 +15,7 @@ import {
 } from "./helpers";
 import {
   filterAttendanceByEmployeeName,
+  filterAttendanceByStatus,
   paginateFilteredAttendance,
   summarizeAttendanceRows,
 } from "./attendanceList";
@@ -496,6 +497,14 @@ export const listByDatePaginated = query({
     workspaceId: v.id("workspaces"),
     edited: v.optional(v.boolean()),
     employeeName: v.optional(v.string()),
+    status: v.optional(
+      v.union(
+        v.literal("not-checked-in"),
+        v.literal("checked-in"),
+        v.literal("incomplete"),
+        v.literal("completed"),
+      ),
+    ),
     paginationOpts: paginationOptsValidator,
   },
   returns: paginatedAttendanceResponseValidator,
@@ -519,16 +528,17 @@ export const listByDatePaginated = query({
           ).filter((row) => row.edited === args.edited);
 
     const hasEmployeeNameFilter = Boolean(args.employeeName?.trim().length);
+    const hasStatusFilter = Boolean(args.status);
 
-    if (hasEmployeeNameFilter || args.edited !== undefined) {
+    if (hasEmployeeNameFilter || args.edited !== undefined || hasStatusFilter) {
       const rows =
         args.edited === undefined
           ? await attendanceQuery.order("desc").collect()
           : attendanceQuery;
       const enrichedRows = await enrichRowsWithEmployeeName(ctx, rows);
-      const filteredRows = filterAttendanceByEmployeeName(
-        enrichedRows,
-        args.employeeName,
+      const filteredRows = filterAttendanceByStatus(
+        filterAttendanceByEmployeeName(enrichedRows, args.employeeName),
+        args.status,
       );
 
       return {

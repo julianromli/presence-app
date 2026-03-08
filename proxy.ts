@@ -1,6 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
+const authorizedParties = process.env.CLERK_AUTHORIZED_PARTIES?.split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
 const isPublicRoute = createRouteMatcher([
   '/',
   '/device-qr(.*)',
@@ -24,7 +28,7 @@ export default clerkMiddleware(async (auth, request) => {
   }
 
   return NextResponse.next();
-});
+}, authorizedParties?.length ? { authorizedParties } : undefined);
 
 export const config = {
   matcher: [

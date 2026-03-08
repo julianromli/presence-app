@@ -15,6 +15,25 @@ export function filterAttendanceByEmployeeName(rows, employeeName) {
   return rows.filter((row) => includesKeyword(row, keyword));
 }
 
+export function filterAttendanceByStatus(rows, status) {
+  if (!status || status === "all") {
+    return rows;
+  }
+
+  return rows.filter((row) => {
+    if (status === "not-checked-in") {
+      return row.checkInAt === undefined;
+    }
+    if (status === "checked-in") {
+      return row.checkInAt !== undefined;
+    }
+    if (status === "incomplete") {
+      return row.checkInAt !== undefined && row.checkOutAt === undefined;
+    }
+    return row.checkInAt !== undefined && row.checkOutAt !== undefined;
+  });
+}
+
 function parseOffsetCursor(cursor) {
   if (!cursor) {
     return 0;

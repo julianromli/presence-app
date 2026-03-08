@@ -58,6 +58,34 @@ export type AdminUsersPage = {
   };
 };
 
+export type AdminAttendanceRow = {
+  _id: string;
+  userId?: string;
+  employeeName: string;
+  dateKey: string;
+  checkInAt?: number;
+  checkOutAt?: number;
+  edited: boolean;
+};
+
+export type AdminAttendanceSummary = {
+  total: number;
+  checkedIn: number;
+  checkedOut: number;
+  edited: number;
+};
+
+export type AdminAttendancePage = {
+  rows: AdminAttendanceRow[];
+  pageInfo: {
+    continueCursor: string;
+    isDone: boolean;
+    splitCursor: string | null;
+    pageStatus: 'SplitRecommended' | 'SplitRequired' | null;
+  };
+  summary: AdminAttendanceSummary;
+};
+
 export type WorkspaceManagementPayload = {
   workspace: {
     _id: string;

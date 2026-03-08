@@ -3,12 +3,12 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Bell,
+  CameraSlash,
+  CheckCircle,
   MapPin,
-  CheckCircle2,
+  SpinnerGap,
   XCircle,
-  CameraOff,
-  Loader2,
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -427,7 +427,7 @@ export function ScanPanel() {
         : 'Menyiapkan kamera...';
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-secondary/30 pb-20 justify-between">
+    <div className="min-h-screen flex flex-col items-center bg-secondary/30 pb-28 justify-between">
       {/* Header */}
       <div className="w-full px-6 pt-6 pb-4 flex justify-between items-center bg-background border-b z-10 sticky top-0 md:max-w-md">
         <div>
@@ -490,9 +490,9 @@ export function ScanPanel() {
               {scannerState !== 'ready' ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center text-sm text-muted-foreground z-10">
                   {scannerState === 'idle' || loading ? (
-                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                    <SpinnerGap className="w-8 h-8 animate-spin mb-2" />
                   ) : (
-                    <CameraOff className="w-8 h-8 mb-2 opacity-50" />
+                    <CameraSlash className="w-8 h-8 mb-2 opacity-50" />
                   )}
                   <span className="font-medium text-xs">
                     {scannerInfoText}
@@ -574,7 +574,7 @@ export function ScanPanel() {
                   className="h-9 px-6"
                 >
                   {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <SpinnerGap className="w-4 h-4 animate-spin" />
                   ) : (
                     'Scan'
                   )}
@@ -602,9 +602,9 @@ export function ScanPanel() {
           <DialogPanel className="items-center">
             <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border border-border bg-muted/50 shadow-sm">
               {modalContent?.type === 'success' ? (
-                <CheckCircle2 className="h-10 w-10 text-success" />
+                <CheckCircle className="h-10 w-10 text-success" weight="fill" />
               ) : (
-                <XCircle className="h-10 w-10 text-destructive" />
+                <XCircle className="h-10 w-10 text-destructive" weight="fill" />
               )}
             </div>
             <DialogHeader className="flex w-full flex-col items-center">

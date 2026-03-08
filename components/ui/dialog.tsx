@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { XIcon } from "lucide-react";
+import { X } from "@phosphor-icons/react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ function DialogPopup({
             data-slot="dialog-close"
             className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
-            <XIcon />
+            <X />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         ) : null}
