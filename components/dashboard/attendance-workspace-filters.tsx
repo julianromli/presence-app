@@ -33,18 +33,20 @@ export function AttendanceWorkspaceFilters({
         <div className="space-y-1.5">
           <span className="text-xs font-medium text-zinc-700">Tanggal</span>
           <Popover>
-            <PopoverTrigger>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(
-                  'h-9 w-full justify-start border-zinc-200 bg-white px-3 text-left text-sm font-normal',
-                  !filters.dateKey && 'text-zinc-500',
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4 opacity-70" />
-                {filters.dateKey ? format(new Date(`${filters.dateKey}T00:00:00`), 'dd MMM yyyy') : 'Pilih tanggal'}
-              </Button>
+            <PopoverTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    'h-9 w-full justify-start border-zinc-200 bg-white px-3 text-left text-sm font-normal',
+                    !filters.dateKey && 'text-zinc-500',
+                  )}
+                />
+              }
+            >
+              <CalendarIcon className="mr-2 h-4 w-4 opacity-70" />
+              {filters.dateKey ? format(new Date(`${filters.dateKey}T00:00:00`), 'dd MMM yyyy') : 'Pilih tanggal'}
             </PopoverTrigger>
             <PopoverPopup className="w-auto p-0" align="start">
               <Calendar
