@@ -87,6 +87,34 @@ async function setupAttendanceRoute(options: SetupOptions = {}) {
   return { GET: routeModule.GET, mocks: { query, mutation } };
 }
 
+async function setupAttendanceByDateRoute(options: SetupOptions = {}) {
+  vi.resetModules();
+
+  const query = vi.fn(async () => ({
+    timeZone: "Asia/Jakarta",
+    row: null,
+  }));
+  const mutation = vi.fn(async () => null);
+  const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
+
+  vi.doMock("@/lib/auth", () => ({
+    requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
+    requireWorkspaceRoleApiFromDb: vi.fn(
+      async () => options.roleResult ?? { session: { role: "karyawan" } },
+    ),
+    getConvexTokenOrNull: vi.fn(async () => "convex-token"),
+  }));
+  vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/api-error", () => ({
+    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+    ),
+  }));
+
+  const routeModule = await import("../app/api/karyawan/dashboard/attendance/by-date/route");
+  return { GET: routeModule.GET, mocks: { query, mutation } };
+}
+
 async function setupLeaderboardRoute(options: SetupOptions = {}) {
   vi.resetModules();
 
@@ -179,6 +207,53 @@ describe("karyawan route workspace policy", () => {
         cursor: null,
       },
     });
+  });
+
+  it("passes strict workspaceId and dateKey to attendance-by-date query", async () => {
+    const { GET, mocks } = await setupAttendanceByDateRoute();
+    const response = await GET(
+      new Request(
+        "http://localhost/api/karyawan/dashboard/attendance/by-date?dateKey=2026-03-08",
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.query).toHaveBeenCalledWith("dashboardEmployee:getAttendanceByDate", {
+      workspaceId: "workspace_123456",
+      dateKey: "2026-03-08",
+    });
+  });
+
+  it("returns 400 when attendance-by-date dateKey is missing", async () => {
+    const { GET, mocks } = await setupAttendanceByDateRoute();
+    const response = await GET(
+      new Request("http://localhost/api/karyawan/dashboard/attendance/by-date"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "VALIDATION_ERROR",
+      message: "dateKey tidak valid.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when attendance-by-date dateKey is blank", async () => {
+    const { GET, mocks } = await setupAttendanceByDateRoute();
+    const response = await GET(
+      new Request(
+        "http://localhost/api/karyawan/dashboard/attendance/by-date?dateKey=",
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "VALIDATION_ERROR",
+      message: "dateKey tidak valid.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 
   it("passes strict workspaceId to leaderboard query", async () => {

@@ -1,169 +1,546 @@
 'use client';
 
 import * as React from 'react';
-import { Bell, Clock, Info, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
-import { Sheet, SheetClose, SheetDescription, SheetFooter, SheetHeader, SheetPanel, SheetPopup, SheetTitle } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import {
+  AlertTriangle,
+  Bell,
+  CheckCircle2,
+  ChevronRight,
+  Info,
+  TriangleAlert,
+} from 'lucide-react';
 
-export type Notification = {
-    id: string;
-    title: string;
-    description: string;
-    time: string;
-    type: 'system' | 'info' | 'warning' | 'success';
-    read: boolean;
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Sheet,
+  SheetClose,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetPanel,
+  SheetPopup,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { normalizeClientError, parseApiErrorResponse } from '@/lib/client-error';
+import type { ApiErrorInfo } from '@/lib/client-error';
+import { buildNotificationActionHref } from '@/lib/notification-navigation';
+import { cn } from '@/lib/utils';
+import { workspaceFetch } from '@/lib/workspace-client';
+import type {
+  EmployeeNotificationItem,
+  EmployeeNotificationReadPayload,
+  EmployeeNotificationsPayload,
+} from '@/types/notifications';
+
+type NotificationsStatus = 'loading' | 'ready' | 'error';
+
+export type ScanNotificationsController = {
+  status: NotificationsStatus;
+  notifications: EmployeeNotificationItem[];
+  unreadCount: number;
+  error: ApiErrorInfo | null;
+  refresh: () => Promise<void>;
+  markRead: (notificationId: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
 };
 
-const mockNotifications: Notification[] = [
-    {
-        id: '1',
-        title: 'Absensi Berhasil',
-        description: 'Anda telah berhasil melakukan check-in pada pukul 08:00 WIB hari ini.',
-        time: '5 menit yang lalu',
-        type: 'success',
-        read: false,
-    },
-    {
-        id: '2',
-        title: 'Pengingat Absen Pulang',
-        description: 'Jangan lupa untuk melakukan scan pulang sebelum meninggalkan area kantor.',
-        time: '2 jam yang lalu',
-        type: 'warning',
-        read: false,
-    },
-    {
-        id: '3',
-        title: 'Update Sistem',
-        description: 'Aplikasi akan melakukan pemeliharaan pada hari Minggu pukul 00:00 WIB.',
-        time: '12 jam yang lalu',
-        type: 'info',
-        read: true,
-    },
-    {
-        id: '4',
-        title: 'Verifikasi Lokasi',
-        description: 'Lokasi scan Anda terdeteksi berada di radius gedung pusat.',
-        time: 'Kemarin',
-        type: 'system',
-        read: true,
-    },
-];
+async function fetchNotifications(limit = 20) {
+  try {
+    const response = await workspaceFetch(`/api/karyawan/notifications?limit=${limit}`, {
+      cache: 'no-store',
+    });
 
-interface ScanNotificationsDrawerProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal memuat notifikasi.');
+    }
+
+    return (await response.json()) as EmployeeNotificationsPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal memuat notifikasi.');
+  }
 }
 
-export function ScanNotificationsDrawer({ open, onOpenChange }: ScanNotificationsDrawerProps) {
-    const [notifications, setNotifications] = React.useState<Notification[]>(mockNotifications);
+async function requestMarkRead(notificationId: string) {
+  try {
+    const response = await workspaceFetch('/api/karyawan/notifications/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationId }),
+    });
 
-    const unreadCount = notifications.filter(n => !n.read).length;
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal menandai notifikasi sebagai dibaca.');
+    }
 
-    const markAsRead = (id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    return (await response.json()) as EmployeeNotificationReadPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal menandai notifikasi sebagai dibaca.');
+  }
+}
+
+async function requestMarkAllRead(beforeTs: number) {
+  try {
+    const response = await workspaceFetch('/api/karyawan/notifications/read-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beforeTs }),
+    });
+
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal menandai semua notifikasi sebagai dibaca.');
+    }
+
+    return (await response.json()) as EmployeeNotificationReadPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal menandai semua notifikasi sebagai dibaca.');
+  }
+}
+
+function formatRelativeTime(timestamp: number) {
+  const diffMs = timestamp - Date.now();
+  const diffMinutes = Math.round(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat('id-ID', { numeric: 'auto' });
+
+  if (Math.abs(diffMinutes) < 60) {
+    return rtf.format(diffMinutes, 'minute');
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return rtf.format(diffHours, 'hour');
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  return rtf.format(diffDays, 'day');
+}
+
+function notificationIcon(item: EmployeeNotificationItem) {
+  if (item.severity === 'critical') {
+    return <TriangleAlert className="w-5 h-5 text-rose-600" />;
+  }
+  if (item.type === 'attendance_success') {
+    return <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
+  }
+  if (item.type === 'attendance_failure' || item.type === 'attendance_reminder') {
+    return <AlertTriangle className="w-5 h-5 text-amber-600" />;
+  }
+  return <Info className="w-5 h-5 text-sky-600" />;
+}
+
+function actionLabel(item: EmployeeNotificationItem) {
+  if (item.actionType === 'open_scan') return 'Buka Scan';
+  if (item.actionType === 'open_history' || item.actionType === 'open_history_day') {
+    return 'Buka Riwayat';
+  }
+  return null;
+}
+
+function optimisticMarkRead(
+  payload: EmployeeNotificationsPayload | null,
+  notificationId: string,
+  readAt: number,
+) {
+  if (!payload) {
+    return payload;
+  }
+
+  let unreadDelta = 0;
+  const items = payload.items.map((item) => {
+    if (item.notificationId !== notificationId || item.readAt !== undefined) {
+      return item;
+    }
+    unreadDelta = 1;
+    return { ...item, readAt };
+  });
+
+  return {
+    ...payload,
+    items,
+    unreadCount: Math.max(0, payload.unreadCount - unreadDelta),
+  };
+}
+
+function optimisticMarkAllRead(payload: EmployeeNotificationsPayload | null, readAt: number) {
+  if (!payload) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    items: payload.items.map((item) =>
+      item.readAt === undefined ? { ...item, readAt } : item,
+    ),
+    unreadCount: 0,
+  };
+}
+
+export function useScanNotifications(limit = 20): ScanNotificationsController {
+  const [status, setStatus] = React.useState<NotificationsStatus>('loading');
+  const [payload, setPayload] = React.useState<EmployeeNotificationsPayload | null>(null);
+  const [error, setError] = React.useState<ApiErrorInfo | null>(null);
+  const latestRefreshRef = React.useRef(0);
+
+  const refresh = React.useCallback(async () => {
+    const requestId = ++latestRefreshRef.current;
+    setStatus('loading');
+    setError(null);
+
+    try {
+      const nextPayload = await fetchNotifications(limit);
+      if (requestId !== latestRefreshRef.current) {
+        return;
+      }
+      setPayload(nextPayload);
+      setStatus('ready');
+    } catch (nextError) {
+      if (requestId !== latestRefreshRef.current) {
+        return;
+      }
+      setError(nextError as ApiErrorInfo);
+      setStatus('error');
+    }
+  }, [limit]);
+
+  React.useEffect(() => {
+    return () => {
+      latestRefreshRef.current += 1;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  React.useEffect(() => {
+    const handleRefresh = () => {
+      void refresh();
     };
 
-    const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    };
+    window.addEventListener('dashboard:refresh', handleRefresh as EventListener);
+    return () => window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
+  }, [refresh]);
 
-    const clearAll = () => {
-        setNotifications([]);
-    };
+  const markRead = React.useCallback(async (notificationId: string) => {
+    const optimisticReadAt = Date.now();
+    latestRefreshRef.current += 1;
+    React.startTransition(() => {
+      setPayload((current) => optimisticMarkRead(current, notificationId, optimisticReadAt));
+    });
 
-    const getTypeIcon = (type: Notification['type']) => {
-        switch (type) {
-            case 'success': return <CheckCircle2 className="w-5 h-5 text-success" />;
-            case 'warning': return <AlertTriangle className="w-5 h-5 text-orange-500" />;
-            case 'info': return <Info className="w-5 h-5 text-blue-500" />;
-            default: return <Clock className="w-5 h-5 text-muted-foreground" />;
+    try {
+      const next = await requestMarkRead(notificationId);
+      latestRefreshRef.current += 1;
+      React.startTransition(() => {
+        setPayload((current) => {
+          const optimistic = optimisticMarkRead(current, notificationId, next.readAt);
+          return optimistic
+            ? { ...optimistic, unreadCount: next.unreadCount }
+            : optimistic;
+        });
+      });
+    } catch (nextError) {
+      await refresh();
+      throw nextError;
+    }
+  }, [refresh]);
+
+  const markAllRead = React.useCallback(async () => {
+    const optimisticReadAt = Date.now();
+    latestRefreshRef.current += 1;
+    React.startTransition(() => {
+      setPayload((current) => optimisticMarkAllRead(current, optimisticReadAt));
+    });
+
+    try {
+      const next = await requestMarkAllRead(optimisticReadAt);
+      latestRefreshRef.current += 1;
+      React.startTransition(() => {
+        setPayload((current) => {
+          const optimistic = optimisticMarkAllRead(current, next.readAt);
+          return optimistic
+            ? { ...optimistic, unreadCount: next.unreadCount }
+            : optimistic;
+        });
+      });
+    } catch (nextError) {
+      await refresh();
+      throw nextError;
+    }
+  }, [refresh]);
+
+  return {
+    status,
+    notifications: payload?.items ?? [],
+    unreadCount: payload?.unreadCount ?? 0,
+    error,
+    refresh,
+    markRead,
+    markAllRead,
+  };
+}
+
+interface ScanNotificationsDrawerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  controller: ScanNotificationsController;
+}
+
+function NotificationCard({
+  item,
+  onOpen,
+}: {
+  item: EmployeeNotificationItem;
+  onOpen: (item: EmployeeNotificationItem) => void;
+}) {
+  const cta = actionLabel(item);
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        'relative w-full rounded-3xl border p-4 text-left transition-all active:scale-[0.99]',
+        item.readAt === undefined
+          ? 'border-primary/15 bg-primary/[0.03] shadow-sm'
+          : 'border-border/60 bg-background'
+      )}
+      onClick={() => onOpen(item)}
+    >
+      <div className="flex items-start gap-4">
+        <div
+          className={cn(
+            'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border',
+            item.readAt === undefined
+              ? 'border-primary/10 bg-background'
+              : 'border-border/60 bg-secondary/60'
+          )}
+        >
+          {notificationIcon(item)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold text-foreground">{item.title}</h4>
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                {item.description}
+              </p>
+            </div>
+            <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+              {formatRelativeTime(item.createdAt)}
+            </span>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {item.readAt === undefined ? (
+                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+              ) : (
+                <span className="inline-flex text-[11px] font-medium text-muted-foreground">
+                  Dibaca
+                </span>
+              )}
+            </div>
+            {cta ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                {cta}
+                <ChevronRight className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+export function ScanNotificationsDrawer({
+  open,
+  onOpenChange,
+  controller,
+}: ScanNotificationsDrawerProps) {
+  const router = useRouter();
+  const [actionError, setActionError] = React.useState<ApiErrorInfo | null>(null);
+
+  const attentionItems = React.useMemo(
+    () =>
+      controller.notifications.filter(
+        (item) => item.severity === 'warning' || item.severity === 'critical',
+      ),
+    [controller.notifications],
+  );
+  const latestItems = React.useMemo(
+    () =>
+      controller.notifications.filter(
+        (item) => item.severity !== 'warning' && item.severity !== 'critical',
+      ),
+    [controller.notifications],
+  );
+
+  const openNotification = React.useCallback(
+    async (item: EmployeeNotificationItem) => {
+      setActionError(null);
+
+      try {
+        if (item.readAt === undefined) {
+          await controller.markRead(item.notificationId);
         }
-    };
+      } catch (nextError) {
+        setActionError(nextError as ApiErrorInfo);
+        return;
+      }
 
-    return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetPopup side="top" className="max-w-md mx-auto h-[85vh] overflow-hidden rounded-b-[28px]">
-                <SheetHeader className="border-b border-border/50 pb-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <SheetTitle className="text-xl font-bold">Notifikasi</SheetTitle>
-                            {unreadCount > 0 && (
-                                <span className="bg-primary text-background text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                    {unreadCount} Baru
-                                </span>
-                            )}
-                        </div>
-                        {notifications.length > 0 && (
-                            <Button variant="ghost" size="sm" className="text-xs font-semibold text-primary h-8 p-1" onClick={markAllAsRead}>
-                                Baca Semua
-                            </Button>
-                        )}
+      const href = buildNotificationActionHref(item.actionType, item.actionPayload);
+      if (href) {
+        router.push(href);
+        onOpenChange(false);
+      }
+    },
+    [controller, onOpenChange, router],
+  );
+
+  const handleMarkAllRead = React.useCallback(async () => {
+    setActionError(null);
+    try {
+      await controller.markAllRead();
+    } catch (nextError) {
+      setActionError(nextError as ApiErrorInfo);
+    }
+  }, [controller]);
+
+  const showLoading = controller.status === 'loading' && controller.notifications.length === 0;
+  const showError = controller.status === 'error' && controller.notifications.length === 0;
+  const showEmpty =
+    controller.status !== 'loading' &&
+    controller.notifications.length === 0 &&
+    !controller.error;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetPopup side="top" className="mx-auto h-[85vh] max-w-md overflow-hidden rounded-b-[28px]">
+        <SheetHeader className="border-b border-border/50 pb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <SheetTitle className="text-xl font-bold">Notifikasi</SheetTitle>
+              {controller.unreadCount > 0 ? (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                  {controller.unreadCount > 99 ? '99+' : controller.unreadCount} baru
+                </span>
+              ) : null}
+            </div>
+            {controller.unreadCount > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 p-1 text-xs font-semibold text-primary"
+                onClick={() => void handleMarkAllRead()}
+              >
+                Baca semua
+              </Button>
+            ) : null}
+          </div>
+          <SheetDescription className="text-xs">
+            Fokus pada hasil scan, reminder absensi, dan info operasional yang relevan.
+          </SheetDescription>
+        </SheetHeader>
+
+        <SheetPanel className="flex-1 space-y-5 overflow-y-auto p-4">
+          {actionError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              [{actionError.code}] {actionError.message}
+            </div>
+          ) : null}
+
+          {showLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="rounded-3xl border border-border/60 p-4">
+                  <div className="flex gap-4">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-32" />
                     </div>
-                    <SheetDescription className="text-xs">
-                        Informasi aktivitas dan berita terbaru untuk Anda.
-                    </SheetDescription>
-                </SheetHeader>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-                <SheetPanel className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {notifications.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-center py-20 opacity-60">
-                            <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mb-4">
-                                <Bell className="w-10 h-10 text-muted-foreground" />
-                            </div>
-                            <h3 className="text-lg font-bold text-foreground">Tidak Ada Notifikasi</h3>
-                            <p className="text-sm text-muted-foreground mt-2 max-w-[200px] mx-auto">
-                                Semua beres! Belum ada kabar baru untuk saat ini.
-                            </p>
-                        </div>
-                    ) : (
-                        notifications.map((n) => (
-                            <div
-                                key={n.id}
-                                className={cn(
-                                    "relative p-4 rounded-2xl border transition-all flex gap-4 cursor-pointer active:scale-[0.98]",
-                                    n.read ? "bg-background border-border/40 opacity-70" : "bg-primary/[0.03] border-primary/10 shadow-sm"
-                                )}
-                                onClick={() => markAsRead(n.id)}
-                            >
-                                <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                                    n.read ? "bg-secondary" : "bg-background shadow-xs border border-border/40"
-                                )}>
-                                    {getTypeIcon(n.type)}
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className={cn("text-sm font-bold", n.read ? "text-muted-foreground" : "text-foreground")}>
-                                            {n.title}
-                                        </h4>
-                                        <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap ml-2">
-                                            {n.time}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-relaxed">
-                                        {n.description}
-                                    </p>
-                                </div>
-                                {!n.read && (
-                                    <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                )}
-                            </div>
-                        ))
-                    )}
-                </SheetPanel>
+          {showError && controller.error ? (
+            <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5">
+              <p className="text-sm font-semibold text-rose-900">Notifikasi tidak bisa dimuat</p>
+              <p className="mt-1 text-sm text-rose-800">
+                [{controller.error.code}] {controller.error.message}
+              </p>
+              <Button className="mt-4 rounded-full" variant="outline" onClick={() => void controller.refresh()}>
+                Coba lagi
+              </Button>
+            </div>
+          ) : null}
 
-                <SheetFooter className="rounded-b-[28px] border-t border-border/40 p-4">
-                    <div className="flex gap-2 w-full">
-                        <Button variant="outline" className="flex-1 rounded-xl h-12 font-semibold" onClick={clearAll}>
-                            <Trash2 className="w-4 h-4 mr-2" /> Hapus Semua
-                        </Button>
-                        <SheetClose render={<Button className="flex-1 rounded-xl h-12 font-bold shadow-lg shadow-primary/20" />}>
-                            Tutup
-                        </SheetClose>
-                    </div>
-                </SheetFooter>
-            </SheetPopup>
-        </Sheet>
-    );
+          {showEmpty ? (
+            <div className="flex h-full flex-col items-center justify-center py-20 text-center opacity-70">
+              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-secondary">
+                <Bell className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground">Belum ada notifikasi baru</h3>
+              <p className="mt-2 max-w-[220px] text-sm text-muted-foreground">
+                Hasil scan dan reminder penting akan muncul di sini.
+              </p>
+            </div>
+          ) : null}
+
+          {!showLoading && controller.notifications.length > 0 ? (
+            <>
+              {attentionItems.length > 0 ? (
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                      Perlu perhatian
+                    </span>
+                  </div>
+                  {attentionItems.map((item) => (
+                    <NotificationCard
+                      key={item.notificationId}
+                      item={item}
+                      onOpen={(nextItem) => void openNotification(nextItem)}
+                    />
+                  ))}
+                </section>
+              ) : null}
+
+              {latestItems.length > 0 ? (
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Terbaru
+                    </span>
+                  </div>
+                  {latestItems.map((item) => (
+                    <NotificationCard
+                      key={item.notificationId}
+                      item={item}
+                      onOpen={(nextItem) => void openNotification(nextItem)}
+                    />
+                  ))}
+                </section>
+              ) : null}
+            </>
+          ) : null}
+        </SheetPanel>
+
+        <SheetFooter className="rounded-b-[28px] border-t border-border/40 p-4">
+          <SheetClose
+            render={
+              <Button className="h-12 w-full rounded-xl font-bold shadow-lg shadow-primary/20">
+                Tutup
+              </Button>
+            }
+          />
+        </SheetFooter>
+      </SheetPopup>
+    </Sheet>
+  );
 }

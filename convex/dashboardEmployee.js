@@ -59,6 +59,7 @@ const attendanceHistoryRowValidator = v.object({
 });
 
 const attendanceHistoryValidator = v.object({
+  timeZone: v.string(),
   rows: v.array(attendanceHistoryRowValidator),
   pageInfo: v.object({
     continueCursor: v.string(),
@@ -71,6 +72,11 @@ const attendanceHistoryValidator = v.object({
     incomplete: v.number(),
     absent: v.number(),
   }),
+});
+
+const attendanceByDateValidator = v.object({
+  timeZone: v.string(),
+  row: v.union(attendanceHistoryRowValidator, v.null()),
 });
 
 const leaderboardRowValidator = v.object({
@@ -378,12 +384,68 @@ export const listAttendanceHistory = query({
     };
 
     return {
+      timeZone: timezone,
       rows: page.page,
       pageInfo: {
         continueCursor: page.continueCursor,
         isDone: page.isDone,
       },
       summary,
+    };
+  },
+});
+
+export const getAttendanceByDate = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    dateKey: v.string(),
+  },
+  returns: attendanceByDateValidator,
+  handler: async (ctx, args) => {
+    const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["karyawan"]);
+    const settings = await getGlobalSettingsOrNull(ctx, args.workspaceId);
+    const timezone = resolveTimezone(settings);
+    const cutoffMinutes = getCutoffMinutes();
+
+    const matchingRows = await ctx.db
+      .query("attendance")
+      .withIndex("by_workspace_user_date", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("userId", user._id)
+          .eq("dateKey", args.dateKey),
+      )
+      .collect();
+    const row = matchingRows[matchingRows.length - 1] ?? null;
+
+    if (matchingRows.length > 1) {
+      console.warn("[attendance-by-date-duplicate]", {
+        workspaceId: String(args.workspaceId),
+        userId: String(user._id),
+        dateKey: args.dateKey,
+        count: matchingRows.length,
+      });
+    }
+
+    if (!row) {
+      return {
+        timeZone: timezone,
+        row: null,
+      };
+    }
+
+    return {
+      timeZone: timezone,
+      row: {
+        attendanceId: row._id,
+        dateKey: row.dateKey,
+        checkInAt: row.checkInAt,
+        checkOutAt: row.checkOutAt,
+        status: toHistoryStatus(row, timezone, cutoffMinutes),
+        workDurationMinutes: computeDurationMinutes(row.checkInAt, row.checkOutAt),
+        edited: row.edited,
+        points: computeDailyPoints(row, timezone, cutoffMinutes),
+      },
     };
   },
 });

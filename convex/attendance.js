@@ -19,6 +19,10 @@ import {
   summarizeAttendanceRows,
 } from "./attendanceList";
 import { isDeviceHeartbeatFresh } from "./deviceHeartbeatPolicy";
+import {
+  createOrMergeNotification,
+  expireCheckoutReminderForDate,
+} from "./notifications";
 
 const legacyCompatibleSourceDeviceIdValidator = v.union(
   v.id("devices"),
@@ -196,6 +200,86 @@ export function buildLegacyAttendanceSourcePatch(normalizeId, attendanceRow) {
 
 function throwScanError(code, message) {
   throw new ConvexError({ code, message });
+}
+
+const actionableFailureNotificationCodes = new Set([
+  "GEOFENCE_COORD_REQUIRED",
+  "GEOFENCE_ACCURACY_TOO_LOW",
+  "GEOFENCE_OUTSIDE_RADIUS",
+  "IP_NOT_ALLOWED",
+  "TOKEN_EXPIRED",
+  "TOKEN_REPLAY",
+  "TOKEN_UNKNOWN",
+  "DEVICE_HEARTBEAT_STALE",
+  "DEVICE_UNAUTHORIZED",
+]);
+
+function failureNotificationSeverity(code) {
+  if (code === "DEVICE_HEARTBEAT_STALE" || code === "DEVICE_UNAUTHORIZED") {
+    return "critical";
+  }
+  return "warning";
+}
+
+async function createAcceptedScanNotification(ctx, actor, workspaceId, result) {
+  if (result.status === "check-out") {
+    await expireCheckoutReminderForDate(
+      ctx,
+      workspaceId,
+      actor._id,
+      result.dateKey,
+      result.scanAt,
+    );
+  }
+
+  await createOrMergeNotification(ctx, {
+    workspaceId,
+    userId: actor._id,
+    type: "attendance_success",
+    title:
+      result.status === "check-in"
+        ? "Check-in berhasil"
+        : "Check-out berhasil",
+    description: result.message,
+    severity: "success",
+    actionType: "open_history_day",
+    actionPayload: {
+      dateKey: result.dateKey,
+    },
+    sourceKey: `attendance_success:${result.dateKey}:${result.status}:${String(actor._id)}`,
+    metadata: {
+      attendanceStatus: result.status,
+      reasonCode: "OK",
+    },
+    createdAt: result.scanAt,
+  });
+}
+
+async function createRejectedScanNotification(
+  ctx,
+  actor,
+  workspaceId,
+  { code, message, scannedAt },
+) {
+  if (!actionableFailureNotificationCodes.has(code)) {
+    return;
+  }
+
+  const bucket = Math.floor(scannedAt / (5 * 60 * 1000));
+  await createOrMergeNotification(ctx, {
+    workspaceId,
+    userId: actor._id,
+    type: "attendance_failure",
+    title: "Scan ditolak",
+    description: message,
+    severity: failureNotificationSeverity(code),
+    actionType: "open_scan",
+    sourceKey: `attendance_failure:${code}:${bucket}:${String(actor._id)}`,
+    metadata: {
+      reasonCode: code,
+    },
+    createdAt: scannedAt,
+  });
 }
 
 export function assertScanSourceDeviceAllowed(
@@ -572,6 +656,17 @@ export const recordScan = mutation({
         scannedAt: result.scanAt,
       });
 
+      try {
+        await createAcceptedScanNotification(
+          ctx,
+          actor,
+          args.workspaceId,
+          result,
+        );
+      } catch (notificationError) {
+        console.error("[attendance-notification-accepted]", notificationError);
+      }
+
       return {
         status: result.status,
         dateKey: result.dateKey,
@@ -607,6 +702,16 @@ export const recordScan = mutation({
         idempotencyKey,
         scannedAt: now,
       });
+
+      try {
+        await createRejectedScanNotification(ctx, actor, args.workspaceId, {
+          code,
+          message,
+          scannedAt: now,
+        });
+      } catch (notificationError) {
+        console.error("[attendance-notification-rejected]", notificationError);
+      }
 
       throw error;
     }

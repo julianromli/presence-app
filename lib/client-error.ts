@@ -74,3 +74,45 @@ export async function parseApiErrorResponse(response: Response, fallbackMessage:
     status: response.status,
   } satisfies ApiErrorInfo;
 }
+
+export async function normalizeClientError(
+  error: unknown,
+  fallbackMessage: string,
+): Promise<ApiErrorInfo> {
+  if (error instanceof Response) {
+    return parseApiErrorResponse(error, fallbackMessage);
+  }
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    'message' in error &&
+    'status' in error
+  ) {
+    const candidate = error as Partial<ApiErrorInfo>;
+    if (
+      typeof candidate.code === 'string' &&
+      typeof candidate.message === 'string' &&
+      typeof candidate.status === 'number'
+    ) {
+      const normalizedMessage = pickString(candidate.message) ?? fallbackMessage;
+      return {
+        code: candidate.code,
+        message: normalizedMessage,
+        status: candidate.status,
+      };
+    }
+  }
+
+  const rawMessage =
+    error instanceof Error && error.message.trim().length > 0
+      ? error.message
+      : fallbackMessage;
+
+  return {
+    code: 'INTERNAL_ERROR',
+    message: rawMessage,
+    status: 500,
+  };
+}

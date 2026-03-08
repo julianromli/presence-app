@@ -145,6 +145,7 @@ export type EmployeeAttendanceHistoryRow = {
 };
 
 export type EmployeeAttendanceHistoryPayload = {
+  timeZone: string;
   rows: EmployeeAttendanceHistoryRow[];
   pageInfo: {
     continueCursor: string;
@@ -157,6 +158,11 @@ export type EmployeeAttendanceHistoryPayload = {
     incomplete: number;
     absent: number;
   };
+};
+
+export type EmployeeAttendanceByDatePayload = {
+  timeZone: string;
+  row: EmployeeAttendanceHistoryRow | null;
 };
 
 export type EmployeeLeaderboardRow = {

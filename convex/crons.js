@@ -16,4 +16,10 @@ crons.cron(
   internal.devices.cleanupExpiredRegistrationCodes,
 );
 
+crons.cron(
+  "employee_checkout_reminder_notifications",
+  "*/30 * * * *",
+  internal.notifications.runCheckoutReminders,
+);
+
 export default crons;

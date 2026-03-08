@@ -1,0 +1,169 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+type SetupOptions = {
+  workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+};
+
+function makeWorkspaceContext(options: SetupOptions) {
+  if (options.workspaceContext) {
+    return options.workspaceContext;
+  }
+  return { workspace: { workspaceId: "workspace_123456" } };
+}
+
+async function setupReadRoute(options: SetupOptions = {}) {
+  return makeSetupRoute("../app/api/karyawan/notifications/read/route", options);
+}
+
+async function setupReadAllRoute(options: SetupOptions = {}) {
+  return makeSetupRoute("../app/api/karyawan/notifications/read-all/route", options);
+}
+
+async function makeSetupRoute(routePath: string, options: SetupOptions = {}) {
+  vi.resetModules();
+
+  const query = vi.fn(async () => null);
+  const mutation = vi.fn(async () => ({
+    ok: true,
+    unreadCount: 0,
+  }));
+  const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
+  const convexErrorResponse = vi.fn((_: unknown, fallbackMessage: string) =>
+    Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+  );
+
+  vi.doMock("@/lib/auth", () => ({
+    requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
+    requireWorkspaceRoleApiFromDb: vi.fn(async () => ({ session: { role: "karyawan" } })),
+    getConvexTokenOrNull: vi.fn(async () => "convex-token"),
+  }));
+  vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/api-error", () => ({ convexErrorResponse }));
+
+  const routeModule = await import(routePath);
+  return { POST: routeModule.POST, mocks: { mutation, convexErrorResponse } };
+}
+
+describe("karyawan notifications routes", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns 400 for invalid JSON in mark-all-read route", async () => {
+    const { POST, mocks } = await setupReadAllRoute();
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read-all", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "BAD_REQUEST",
+      message: "Payload JSON tidak valid.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+  });
+
+  it("allows an empty body in mark-all-read route", async () => {
+    const { POST, mocks } = await setupReadAllRoute();
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read-all", {
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("notifications:markAllRead", {
+      workspaceId: "workspace_123456",
+      beforeTs: undefined,
+    });
+  });
+
+  it("returns 400 when mark-read payload is null JSON", async () => {
+    const { POST, mocks } = await setupReadRoute();
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "null",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "VALIDATION_ERROR",
+      message: "Payload JSON harus berupa object.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+  });
+
+  it("trims notificationId before calling mark-read mutation", async () => {
+    const { POST, mocks } = await setupReadRoute();
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notificationId: "  notif_123  " }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("notifications:markRead", {
+      workspaceId: "workspace_123456",
+      notificationId: "notif_123",
+    });
+  });
+
+  it("uses convexErrorResponse when mark-read mutation throws", async () => {
+    const { POST, mocks } = await setupReadRoute();
+    mocks.mutation.mockRejectedValueOnce(new Error("boom"));
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notificationId: "notif_123" }),
+      }),
+    );
+
+    expect(mocks.mutation).toHaveBeenCalledWith("notifications:markRead", {
+      workspaceId: "workspace_123456",
+      notificationId: "notif_123",
+    });
+    expect(mocks.convexErrorResponse).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      code: "INTERNAL_ERROR",
+      message: "Gagal menandai notifikasi sebagai dibaca.",
+    });
+  });
+
+  it("uses convexErrorResponse when mark-all-read mutation throws", async () => {
+    const { POST, mocks } = await setupReadAllRoute();
+    mocks.mutation.mockRejectedValueOnce(new Error("boom"));
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read-all", {
+        method: "POST",
+      }),
+    );
+
+    expect(mocks.mutation).toHaveBeenCalledWith("notifications:markAllRead", {
+      workspaceId: "workspace_123456",
+      beforeTs: undefined,
+    });
+    expect(mocks.convexErrorResponse).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      code: "INTERNAL_ERROR",
+      message: "Gagal menandai semua notifikasi sebagai dibaca.",
+    });
+  });
+});

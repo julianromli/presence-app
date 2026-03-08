@@ -18,6 +18,27 @@ const legacyCompatibleSourceDeviceId = v.union(
   v.id("users"),
 );
 
+const notificationType = v.union(
+  v.literal("attendance_success"),
+  v.literal("attendance_failure"),
+  v.literal("attendance_reminder"),
+  v.literal("workspace_announcement"),
+);
+
+const notificationSeverity = v.union(
+  v.literal("info"),
+  v.literal("success"),
+  v.literal("warning"),
+  v.literal("critical"),
+);
+
+const notificationActionType = v.union(
+  v.literal("open_scan"),
+  v.literal("open_history"),
+  v.literal("open_history_day"),
+  v.literal("none"),
+);
+
 export default defineSchema({
   workspaces: defineTable({
     slug: v.string(),
@@ -221,6 +242,38 @@ export default defineSchema({
     .index("by_date_and_status", ["dateKey", "resultStatus"])
     .index("by_reason_and_scanned_at", ["reasonCode", "scannedAt"])
     .index("by_workspace_date_status", ["workspaceId", "dateKey", "resultStatus"]),
+
+  employee_notifications: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    type: notificationType,
+    title: v.string(),
+    description: v.string(),
+    severity: notificationSeverity,
+    createdAt: v.number(),
+    readAt: v.optional(v.number()),
+    actionType: notificationActionType,
+    actionPayload: v.optional(
+      v.object({
+        dateKey: v.optional(v.string()),
+      }),
+    ),
+    sourceKey: v.string(),
+    workspaceScopedSourceKey: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    metadata: v.optional(
+      v.object({
+        attendanceStatus: v.optional(
+          v.union(v.literal("check-in"), v.literal("check-out")),
+        ),
+        reasonCode: v.optional(v.string()),
+      }),
+    ),
+  })
+    .index("by_user_workspace_created_at", ["userId", "workspaceId", "createdAt"])
+    .index("by_user_workspace_read_at", ["userId", "workspaceId", "readAt"])
+    .index("by_source_key", ["sourceKey"])
+    .index("by_workspace_scoped_source_key", ["workspaceScopedSourceKey"]),
 
   audit_logs: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
