@@ -83,8 +83,8 @@ function isExpired(notification, now = Date.now()) {
   return notification.expiresAt !== undefined && notification.expiresAt <= now;
 }
 
-function serializeNotification(notification) {
-  return {
+export function serializeNotification(notification) {
+  const serialized = {
     notificationId: notification._id,
     workspaceId: notification.workspaceId,
     userId: notification.userId,
@@ -93,13 +93,24 @@ function serializeNotification(notification) {
     description: notification.description,
     severity: notification.severity,
     createdAt: notification.createdAt,
-    readAt: notification.readAt,
     actionType: notification.actionType,
-    actionPayload: notification.actionPayload,
     sourceKey: notification.sourceKey,
-    expiresAt: notification.expiresAt,
-    metadata: notification.metadata,
   };
+
+  if (notification.readAt !== undefined) {
+    serialized.readAt = notification.readAt;
+  }
+  if (notification.actionPayload !== undefined) {
+    serialized.actionPayload = notification.actionPayload;
+  }
+  if (notification.expiresAt !== undefined) {
+    serialized.expiresAt = notification.expiresAt;
+  }
+  if (notification.metadata !== undefined) {
+    serialized.metadata = notification.metadata;
+  }
+
+  return serialized;
 }
 
 async function listActiveNotificationsForUser(ctx, workspaceId, userId) {
