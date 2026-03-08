@@ -5,6 +5,7 @@ type ProxyHandler = (
   request: Request,
 ) => Promise<unknown>;
 
+const clerkMiddlewareMock = vi.fn((handler: unknown) => handler);
 const nextMock = vi.fn(() => ({ kind: "next" }));
 const redirectMock = vi.fn((url: URL | string) => ({
   kind: "redirect",
@@ -45,7 +46,7 @@ vi.mock("@clerk/nextjs/server", () => ({
       });
     };
   },
-  clerkMiddleware: (handler: unknown) => handler,
+  clerkMiddleware: clerkMiddlewareMock,
 }));
 
 describe("proxy public routes", () => {
@@ -53,6 +54,8 @@ describe("proxy public routes", () => {
     vi.resetModules();
     nextMock.mockClear();
     redirectMock.mockClear();
+    clerkMiddlewareMock.mockClear();
+    delete process.env.CLERK_AUTHORIZED_PARTIES;
   });
 
   it("allows /device-qr without Clerk session", async () => {
@@ -120,5 +123,32 @@ describe("proxy public routes", () => {
         "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fdashboard%2Freport%3Frange%3Dthis-week%26workspaceId%3Dworkspace_123456",
     });
     expect(redirectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes Clerk authorizedParties from env", async () => {
+    process.env.CLERK_AUTHORIZED_PARTIES =
+      "https://app.example.com, https://admin.example.com ";
+
+    await import("../proxy");
+
+    expect(clerkMiddlewareMock).toHaveBeenCalledTimes(1);
+    expect(clerkMiddlewareMock).toHaveBeenCalledWith(expect.any(Function), {
+      authorizedParties: [
+        "https://app.example.com",
+        "https://admin.example.com",
+      ],
+    });
+  });
+
+  it("omits Clerk authorizedParties when env is blank", async () => {
+    process.env.CLERK_AUTHORIZED_PARTIES = "  ,  ";
+
+    await import("../proxy");
+
+    expect(clerkMiddlewareMock).toHaveBeenCalledTimes(1);
+    expect(clerkMiddlewareMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      undefined,
+    );
   });
 });

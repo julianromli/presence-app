@@ -30,6 +30,7 @@ Salin `.env.example` ke `.env.local`, lalu isi:
 # Clerk
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
+CLERK_AUTHORIZED_PARTIES=http://localhost:3000
 
 # Convex
 NEXT_PUBLIC_CONVEX_URL=
@@ -49,6 +50,12 @@ bun run dev
 ```
 
 App default: [http://localhost:3000](http://localhost:3000)
+
+Untuk production, isi `CLERK_AUTHORIZED_PARTIES` dengan origin yang diizinkan oleh Clerk, dipisahkan koma bila lebih dari satu. Contoh:
+
+```env
+CLERK_AUTHORIZED_PARTIES=https://app.example.com,https://admin.example.com
+```
 
 ## Scripts
 - `bun run dev` - start dev server
