@@ -1,12 +1,10 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CaretDown } from '@phosphor-icons/react/dist/ssr';
 import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import {
   Table,
   TableBody,
@@ -17,14 +15,9 @@ import {
 } from '@/components/ui/table';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
-import {
-  buildUsersQueryString,
-  DEFAULT_USERS_FILTERS,
-  resolveUsersFilters,
-  type UsersPanelFilters,
-} from '@/lib/users-filters';
+import { getLocalDateKey } from '@/lib/date-key';
 import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
-import type { AdminUsersPage, AdminUserRow } from '@/types/dashboard';
+import type { AdminUserRow } from '@/types/dashboard';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
 type NoticeTone = 'info' | 'success' | 'warning' | 'error';
@@ -32,6 +25,56 @@ type NoticeTone = 'info' | 'success' | 'warning' | 'error';
 type InlineNotice = {
   tone: NoticeTone;
   text: string;
+};
+
+type AttendanceRow = {
+  _id: string;
+  employeeName: string;
+  dateKey: string;
+  checkInAt?: number;
+  checkOutAt?: number;
+  edited: boolean;
+};
+
+type AttendanceSummary = {
+  total: number;
+  checkedIn: number;
+  checkedOut: number;
+  edited: number;
+};
+
+type AttendanceListResponse = {
+  rows: AttendanceRow[];
+  pageInfo: {
+    continueCursor: string;
+    isDone: boolean;
+    splitCursor: string | null;
+    pageStatus: 'SplitRecommended' | 'SplitRequired' | null;
+  };
+  summary: AttendanceSummary;
+};
+
+type AttendanceWorkspaceFilters = {
+  dateKey: string;
+  q: string;
+  status: 'all' | 'not-checked-in' | 'checked-in' | 'incomplete' | 'completed';
+  edited: 'all' | 'true' | 'false';
+};
+
+type EmployeeQuickListRow = Pick<AdminUserRow, '_id' | 'name' | 'email' | 'role' | 'isActive'>;
+
+type AttendanceEditDraft = {
+  attendanceId: string | null;
+  checkInTime: string;
+  checkOutTime: string;
+  reason: string;
+};
+
+const DEFAULT_ATTENDANCE_FILTERS: AttendanceWorkspaceFilters = {
+  dateKey: getLocalDateKey(),
+  q: '',
+  status: 'all',
+  edited: 'all',
 };
 
 function noticeClass(tone: NoticeTone) {
@@ -47,6 +90,61 @@ function noticeClass(tone: NoticeTone) {
   }
 }
 
+function summaryCard(label: string, value: number) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
+      <p className="text-xs font-medium text-zinc-500">{label}</p>
+      <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-zinc-900">{value}</p>
+    </div>
+  );
+}
+
+function formatTime(value?: number) {
+  if (!value) return '-';
+  return new Date(value).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function deriveAttendanceStatus(row: AttendanceRow) {
+  if (row.checkInAt === undefined) return 'Belum check-in';
+  if (row.checkOutAt === undefined) return 'Belum check-out';
+  return 'Lengkap';
+}
+
+function matchesAttendanceStatus(filters: AttendanceWorkspaceFilters, row: AttendanceRow) {
+  if (filters.status === 'all') return true;
+  if (filters.status === 'not-checked-in') return row.checkInAt === undefined;
+  if (filters.status === 'checked-in') return row.checkInAt !== undefined;
+  if (filters.status === 'incomplete') {
+    return row.checkInAt !== undefined && row.checkOutAt === undefined;
+  }
+  return row.checkInAt !== undefined && row.checkOutAt !== undefined;
+}
+
+function buildAttendanceQueryString(filters: AttendanceWorkspaceFilters, cursor: string | null) {
+  const params = new URLSearchParams({
+    dateKey: filters.dateKey,
+    limit: '20',
+  });
+
+  if (cursor) {
+    params.set('cursor', cursor);
+  }
+
+  const q = filters.q.trim();
+  if (q.length > 0) {
+    params.set('q', q);
+  }
+
+  if (filters.edited !== 'all') {
+    params.set('edited', filters.edited);
+  }
+
+  return params.toString();
+}
+
 type UsersPanelProps = {
   viewerRole: 'admin' | 'superadmin';
   readOnly?: boolean;
@@ -55,102 +153,150 @@ type UsersPanelProps = {
 export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get('q') ?? '').trim();
-  const initialFilters = useMemo<UsersPanelFilters>(
+  const initialFilters = useMemo<AttendanceWorkspaceFilters>(
     () => ({
-      ...DEFAULT_USERS_FILTERS,
+      ...DEFAULT_ATTENDANCE_FILTERS,
       q: headerQuery,
     }),
     [headerQuery],
   );
-  const [filters, setFilters] = useState<UsersPanelFilters>(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState<UsersPanelFilters>(initialFilters);
-  const [status, setStatus] = useState<PanelStatus>('idle');
-  const [rows, setRows] = useState<AdminUserRow[]>([]);
-  const [summary, setSummary] = useState<AdminUsersPage['summary']>({
+
+  /**
+   * State buckets for the attendance-first workspace:
+   * - attendance filters
+   * - attendance rows + daily summary
+   * - employee quick-list rows
+   * - loading/error state per section
+   * - edit draft state for inline light ops
+   */
+  const [filters, setFilters] = useState<AttendanceWorkspaceFilters>(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState<AttendanceWorkspaceFilters>(initialFilters);
+  const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary>({
     total: 0,
-    active: 0,
-    inactive: 0,
+    checkedIn: 0,
+    checkedOut: 0,
+    edited: 0,
   });
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [isLastPage, setIsLastPage] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<ApiErrorInfo | null>(null);
-  const [notice, setNotice] = useState<InlineNotice | null>(null);
+  const [employeeRows, setEmployeeRows] = useState<EmployeeQuickListRow[]>([]);
+  const [attendanceStatus, setAttendanceStatus] = useState<PanelStatus>('idle');
+  const [employeeStatus, setEmployeeStatus] = useState<PanelStatus>('idle');
+  const [attendanceError, setAttendanceError] = useState<ApiErrorInfo | null>(null);
+  const [employeeError, setEmployeeError] = useState<ApiErrorInfo | null>(null);
+  const [attendanceNotice, setAttendanceNotice] = useState<InlineNotice | null>(null);
+  const [attendanceCursor, setAttendanceCursor] = useState<string | null>(null);
+  const [attendanceIsLastPage, setAttendanceIsLastPage] = useState(true);
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
+  const [isEmployeeLoading, setIsEmployeeLoading] = useState(false);
+  const [editDraft, setEditDraft] = useState<AttendanceEditDraft>({
+    attendanceId: null,
+    checkInTime: '',
+    checkOutTime: '',
+    reason: 'Koreksi admin',
+  });
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
 
-  const filtersWithHeaderQuery = useMemo<UsersPanelFilters>(
-    () => ({
-      ...filters,
-      q: headerQuery,
-    }),
-    [filters, headerQuery],
-  );
-  const appliedFiltersWithHeaderQuery = useMemo<UsersPanelFilters>(
-    () => ({
-      ...appliedFilters,
-      q: headerQuery,
-    }),
-    [appliedFilters, headerQuery],
+  const filteredAttendanceRows = useMemo(
+    () => attendanceRows.filter((row) => matchesAttendanceStatus(appliedFilters, row)),
+    [appliedFilters, attendanceRows],
   );
 
-  const hasFilters = useMemo(
-    () =>
-      appliedFiltersWithHeaderQuery.q.trim().length > 0 ||
-      appliedFiltersWithHeaderQuery.role !== 'all' ||
-      appliedFiltersWithHeaderQuery.isActive !== 'all',
-    [appliedFiltersWithHeaderQuery],
+  const hasAttendanceFilters = useMemo(
+    () => appliedFilters.q.trim().length > 0 || appliedFilters.status !== 'all' || appliedFilters.edited !== 'all',
+    [appliedFilters],
   );
 
-  const loadUsers = useCallback(
+  const loadAttendance = useCallback(
     async (
-      opts: {
-        append: boolean;
-        cursor: string | null;
-        activeFilters?: UsersPanelFilters;
-      } = {
-          append: false,
-          cursor: null,
-        },
+      options: {
+        append?: boolean;
+        cursor?: string | null;
+        activeFilters?: AttendanceWorkspaceFilters;
+      } = {},
     ) => {
-      const activeFilters = resolveUsersFilters(DEFAULT_USERS_FILTERS, opts.activeFilters);
+      const append = options.append ?? false;
+      const cursor = options.cursor ?? null;
+      const activeFilters = options.activeFilters ?? appliedFilters;
 
-      if (!opts.append) {
-        setStatus('loading');
-        setError(null);
+      if (!append) {
+        setAttendanceStatus('loading');
+        setAttendanceError(null);
       }
-      setLoading(true);
+      setIsAttendanceLoading(true);
 
-      const res = await workspaceFetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
-        cache: 'no-store',
-      });
+      const response = await workspaceFetch(
+        `/api/admin/attendance?${buildAttendanceQueryString(activeFilters, cursor)}`,
+        {
+          cache: 'no-store',
+        },
+      );
 
-      if (!res.ok) {
-        const parsed = await parseApiErrorResponse(res, 'Gagal memuat data user.');
+      if (!response.ok) {
+        const parsed = await parseApiErrorResponse(response, 'Gagal memuat attendance harian.');
         if (recoverWorkspaceScopeViolation(parsed.code)) {
+          setIsAttendanceLoading(false);
           return;
         }
-        setError(parsed);
-        setStatus('error');
-        setLoading(false);
+
+        setAttendanceError(parsed);
+        setAttendanceStatus('error');
+        setIsAttendanceLoading(false);
         return;
       }
 
-      const data = (await res.json()) as AdminUsersPage;
-      let mergedCount = 0;
+      const payload = (await response.json()) as AttendanceListResponse;
+      const nextRows = append ? [...attendanceRows, ...payload.rows] : payload.rows;
 
-      setRows((prev) => {
-        const nextRows = opts.append ? [...prev, ...data.rows] : data.rows;
-        mergedCount = nextRows.length;
-        return nextRows;
-      });
-      setSummary(data.summary);
-      setNextCursor(data.pageInfo.isDone ? null : data.pageInfo.continueCursor);
-      setIsLastPage(data.pageInfo.isDone);
-      setStatus(mergedCount === 0 ? 'empty' : 'success');
-      setLoading(false);
+      setAttendanceRows(nextRows);
+      setAttendanceSummary(payload.summary);
+      setAttendanceCursor(payload.pageInfo.isDone ? null : payload.pageInfo.continueCursor);
+      setAttendanceIsLastPage(payload.pageInfo.isDone);
+      setAttendanceStatus(nextRows.length === 0 ? 'empty' : 'success');
+      setIsAttendanceLoading(false);
     },
-    [],
+    [appliedFilters, attendanceRows],
+  );
+
+  const loadEmployees = useCallback(
+    async (activeFilters: AttendanceWorkspaceFilters = appliedFilters) => {
+      setEmployeeStatus('loading');
+      setEmployeeError(null);
+      setIsEmployeeLoading(true);
+
+      const params = new URLSearchParams({
+        limit: '12',
+        role: 'karyawan',
+      });
+      const q = activeFilters.q.trim();
+      if (q.length > 0) {
+        params.set('q', q);
+      }
+
+      const response = await workspaceFetch(`/api/admin/users?${params.toString()}`, {
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const parsed = await parseApiErrorResponse(response, 'Gagal memuat daftar karyawan.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          setIsEmployeeLoading(false);
+          return;
+        }
+
+        setEmployeeRows([]);
+        setEmployeeError(parsed);
+        setEmployeeStatus('error');
+        setIsEmployeeLoading(false);
+        return;
+      }
+
+      const payload = (await response.json()) as { rows: EmployeeQuickListRow[] };
+      setEmployeeRows(payload.rows);
+      setEmployeeStatus(payload.rows.length === 0 ? 'empty' : 'success');
+      setIsEmployeeLoading(false);
+    },
+    [appliedFilters],
   );
 
   useEffect(() => {
@@ -158,342 +304,352 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
     hasLoadedInitial.current = true;
 
     const frameId = requestAnimationFrame(() => {
-      void loadUsers({
-        append: false,
-        cursor: null,
-        activeFilters: initialFilters,
-      });
+      void loadAttendance({ activeFilters: initialFilters });
+      void loadEmployees(initialFilters);
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [initialFilters, loadUsers]);
+  }, [initialFilters, loadAttendance, loadEmployees]);
 
   useEffect(() => {
     if (prevHeaderQueryRef.current === headerQuery) return;
     prevHeaderQueryRef.current = headerQuery;
-    const nextFilters: UsersPanelFilters = {
+
+    const nextFilters = {
       ...appliedFilters,
       q: headerQuery,
     };
-    const timer = window.setTimeout(() => {
-      void loadUsers({ append: false, cursor: null, activeFilters: nextFilters });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [appliedFilters, headerQuery, loadUsers]);
+
+    const frameId = requestAnimationFrame(() => {
+      setFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+      void loadAttendance({ activeFilters: nextFilters });
+      void loadEmployees(nextFilters);
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [appliedFilters, headerQuery, loadAttendance, loadEmployees]);
 
   useEffect(() => {
     const handleRefresh = () => {
-      void loadUsers({ append: false, cursor: null, activeFilters: appliedFiltersWithHeaderQuery });
+      void loadAttendance({ activeFilters: appliedFilters });
+      void loadEmployees(appliedFilters);
     };
 
     window.addEventListener('dashboard:refresh', handleRefresh as EventListener);
     return () => {
       window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
     };
-  }, [appliedFiltersWithHeaderQuery, loadUsers]);
+  }, [appliedFilters, loadAttendance, loadEmployees]);
 
   const handleFilterSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const nextFilters = resolveUsersFilters(filtersWithHeaderQuery);
-    setAppliedFilters(nextFilters);
-    await loadUsers({ append: false, cursor: null, activeFilters: nextFilters });
+    setAppliedFilters(filters);
+    await Promise.all([
+      loadAttendance({ activeFilters: filters }),
+      loadEmployees(filters),
+    ]);
   };
 
-  const updateUser = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
-    const res = await workspaceFetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const parsed = await parseApiErrorResponse(res, 'Gagal mengubah data user.');
-      if (recoverWorkspaceScopeViolation(parsed.code)) {
-        return;
-      }
-      setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
-      return;
-    }
-
-    setNotice({ tone: 'success', text: 'Perubahan data user berhasil disimpan.' });
-    await loadUsers({ append: false, cursor: null, activeFilters: appliedFiltersWithHeaderQuery });
-  };
+  const notPresentCount = Math.max(attendanceSummary.total - attendanceSummary.checkedIn, 0);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
-        <p className="text-sm font-semibold tracking-tight text-zinc-900">Kontrol akun operasional</p>
+        <p className="text-sm font-semibold tracking-tight text-zinc-900">Workspace absensi harian</p>
         <p className="mt-1 text-sm text-zinc-600">
-          Kelola role, status aktif, dan pencarian akun operasional dalam satu tabel terpusat.
+          Fokuskan halaman ini pada review kehadiran harian, koreksi ringan, dan daftar cepat karyawan
+          tanpa membuka permukaan report yang lebih luas.
         </p>
-        {readOnly ? (
-          <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-            Halaman ini mode read-only. Manajemen role/status dipindahkan ke Settings &gt; Workspace.
-          </div>
-        ) : null}
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+          Viewer role: <span className="font-semibold">{viewerRole}</span>.{' '}
+          {readOnly
+            ? 'Light edit disiapkan di state model, tetapi interaksi edit tetap dinonaktifkan pada tahap ini.'
+            : 'Panel siap menerima light edit attendance pada iterasi berikutnya.'}
+        </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
-          <p className="text-xs font-medium text-zinc-500">Total User</p>
-          <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-zinc-900">{summary.total}</p>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
-          <p className="text-xs font-medium text-zinc-500">Aktif</p>
-          <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-zinc-900">{summary.active}</p>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
-          <p className="text-xs font-medium text-zinc-500">Non-aktif</p>
-          <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-zinc-900">{summary.inactive}</p>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {summaryCard('Karyawan terpantau', attendanceSummary.total)}
+        {summaryCard('Sudah check-in', attendanceSummary.checkedIn)}
+        {summaryCard('Sudah check-out', attendanceSummary.checkedOut)}
+        {summaryCard('Belum hadir', notPresentCount)}
+        {summaryCard('Sudah diedit', attendanceSummary.edited)}
       </div>
 
       <section className="sticky top-3 z-10 rounded-xl border border-zinc-200 bg-white/95 p-5 shadow-sm backdrop-blur">
-        <form onSubmit={handleFilterSubmit} className="grid gap-4 md:grid-cols-[1fr_180px_160px_auto] items-end">
+        <form onSubmit={handleFilterSubmit} className="grid gap-4 lg:grid-cols-[160px_minmax(0,1fr)_180px_160px_auto]">
           <label className="space-y-1.5">
-            <span className="text-xs font-medium text-zinc-700">Cari User</span>
+            <span className="text-xs font-medium text-zinc-700">Tanggal</span>
             <Input
-              value={filtersWithHeaderQuery.q}
-              readOnly
-              placeholder="Ikuti search global di header"
-              className="h-9 transition-colors border-zinc-200 bg-white text-sm"
+              type="date"
+              value={filters.dateKey}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  dateKey: event.target.value,
+                }))
+              }
+              className="h-9"
             />
           </label>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-slate-700">Role</span>
-            <Menu>
-              <MenuTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    className="h-10 w-full justify-between rounded-md border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                  />
-                }
-              >
-                {filters.role === 'all'
-                  ? 'Semua'
-                  : filters.role === 'superadmin'
-                    ? 'Superadmin'
-                    : filters.role === 'admin'
-                      ? 'Admin'
-                      : filters.role === 'karyawan'
-                        ? 'Karyawan'
-                        : 'Device QR'}
-                <CaretDown weight="regular" className="h-4 w-4 text-slate-500" />
-              </MenuTrigger>
-              <MenuPopup align="start" className="w-[var(--anchor-width)]">
-                <MenuRadioGroup
-                  value={filters.role}
-                  onValueChange={(value) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      role: value as UsersPanelFilters['role'],
-                    }))
-                  }
-                >
-                  <MenuRadioItem value="all">Semua</MenuRadioItem>
-                  <MenuRadioItem value="superadmin">Superadmin</MenuRadioItem>
-                  <MenuRadioItem value="admin">Admin</MenuRadioItem>
-                  <MenuRadioItem value="karyawan">Karyawan</MenuRadioItem>
-                  <MenuRadioItem value="device-qr">Device QR</MenuRadioItem>
-                </MenuRadioGroup>
-              </MenuPopup>
-            </Menu>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-zinc-700">Cari karyawan</span>
+            <Input
+              value={filters.q}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  q: event.target.value,
+                }))
+              }
+              placeholder="Nama karyawan"
+              className="h-9"
+            />
           </label>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-slate-700">Status</span>
-            <Menu>
-              <MenuTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    className="h-10 w-full justify-between rounded-md border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                  />
-                }
-              >
-                {filters.isActive === 'all' ? 'Semua' : filters.isActive === 'true' ? 'Aktif' : 'Non-aktif'}
-                <CaretDown weight="regular" className="h-4 w-4 text-slate-500" />
-              </MenuTrigger>
-              <MenuPopup align="start" className="w-[var(--anchor-width)]">
-                <MenuRadioGroup
-                  value={filters.isActive}
-                  onValueChange={(value) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      isActive: value as UsersPanelFilters['isActive'],
-                    }))
-                  }
-                >
-                  <MenuRadioItem value="all">Semua</MenuRadioItem>
-                  <MenuRadioItem value="true">Aktif</MenuRadioItem>
-                  <MenuRadioItem value="false">Non-aktif</MenuRadioItem>
-                </MenuRadioGroup>
-              </MenuPopup>
-            </Menu>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-zinc-700">Status attendance</span>
+            <select
+              value={filters.status}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  status: event.target.value as AttendanceWorkspaceFilters['status'],
+                }))
+              }
+              className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
+            >
+              <option value="all">Semua</option>
+              <option value="not-checked-in">Belum check-in</option>
+              <option value="checked-in">Sudah check-in</option>
+              <option value="incomplete">Belum check-out</option>
+              <option value="completed">Lengkap</option>
+            </select>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-zinc-700">Status edit</span>
+            <select
+              value={filters.edited}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  edited: event.target.value as AttendanceWorkspaceFilters['edited'],
+                }))
+              }
+              className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
+            >
+              <option value="all">Semua</option>
+              <option value="true">Edited</option>
+              <option value="false">Original</option>
+            </select>
           </label>
 
           <div className="flex items-end gap-2">
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Memuat...' : 'Terapkan'}
+            <Button type="submit" disabled={isAttendanceLoading || isEmployeeLoading}>
+              {isAttendanceLoading || isEmployeeLoading ? 'Memuat...' : 'Terapkan'}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
-                const resetFilters = { ...DEFAULT_USERS_FILTERS, q: headerQuery };
-                setFilters(resetFilters);
-                setAppliedFilters(resetFilters);
-                void loadUsers({ append: false, cursor: null, activeFilters: resetFilters });
+                const nextFilters = {
+                  ...DEFAULT_ATTENDANCE_FILTERS,
+                  q: headerQuery,
+                };
+                setFilters(nextFilters);
+                setAppliedFilters(nextFilters);
+                void loadAttendance({ activeFilters: nextFilters });
+                void loadEmployees(nextFilters);
               }}
             >
               Reset
             </Button>
           </div>
         </form>
-        {notice ? (
-          <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
-            {notice.text}
+
+        {attendanceNotice ? (
+          <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${noticeClass(attendanceNotice.tone)}`}>
+            {attendanceNotice.text}
           </div>
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <Table className="min-w-[900px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px]">Nama</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {status === 'loading' ? (
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,2.2fr)_minmax(280px,0.9fr)]">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+            <div>
+              <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">Daftar attendance harian</h2>
+              <p className="mt-1 text-xs text-zinc-500">
+                Tabel utama sekarang berorientasi ke review absensi, bukan manajemen akun.
+              </p>
+            </div>
+            <span className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-semibold tracking-wide text-zinc-600">
+              {filteredAttendanceRows.length} baris terlihat
+            </span>
+          </div>
+
+          <Table className="min-w-[760px]">
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-slate-500">
-                  Memuat data user...
-                </TableCell>
+                <TableHead>Nama</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Tanggal</TableHead>
+                <TableHead>Check-in</TableHead>
+                <TableHead>Check-out</TableHead>
+                <TableHead>Edited</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
-            ) : status === 'error' && error ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-rose-700">
-                  [{error.code}] {error.message}
-                </TableCell>
-              </TableRow>
-            ) : rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-slate-500">
-                  {hasFilters
-                    ? 'Tidak ada user yang cocok dengan filter saat ini.'
-                    : 'Belum ada data user.'}
-                </TableCell>
-              </TableRow>
-            ) : (
-              rows.map((row) => {
-                const canToggleStatus =
-                  viewerRole === 'superadmin' || (row.role !== 'admin' && row.role !== 'superadmin');
-                return (
-                  <TableRow key={row._id}>
-                    <TableCell>
-                      <p className="font-medium text-slate-900">{row.name}</p>
-                    </TableCell>
-                    <TableCell className="text-slate-600">{row.email}</TableCell>
-                    <TableCell>
-                      {viewerRole === 'superadmin' && !readOnly ? (
-                        <Menu>
-                          <MenuTrigger
-                            render={
-                              <Button
-                                variant="outline"
-                                className="h-8 min-w-[120px] justify-between rounded-md border-slate-200 bg-white px-2 text-xs font-normal text-slate-900"
-                              />
-                            }
-                          >
-                            {row.role}
-                            <CaretDown weight="regular" className="h-3.5 w-3.5 text-slate-500" />
-                          </MenuTrigger>
-                          <MenuPopup align="start" className="min-w-[120px]">
-                            <MenuRadioGroup
-                              value={row.role}
-                              onValueChange={(value) =>
-                                void updateUser({
-                                  userId: row._id,
-                                  role: value as AdminUserRow['role'],
-                                })
-                              }
-                            >
-                              <MenuRadioItem value="superadmin">superadmin</MenuRadioItem>
-                              <MenuRadioItem value="admin">admin</MenuRadioItem>
-                              <MenuRadioItem value="karyawan">karyawan</MenuRadioItem>
-                              <MenuRadioItem value="device-qr">device-qr</MenuRadioItem>
-                            </MenuRadioGroup>
-                          </MenuPopup>
-                        </Menu>
-                      ) : (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
-                          {row.role}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${row.isActive
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-rose-50 text-rose-700'
+            </TableHeader>
+            <TableBody>
+              {attendanceStatus === 'loading' ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                    Memuat attendance...
+                  </TableCell>
+                </TableRow>
+              ) : attendanceStatus === 'error' && attendanceError ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-rose-700">
+                    [{attendanceError.code}] {attendanceError.message}
+                  </TableCell>
+                </TableRow>
+              ) : filteredAttendanceRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                    {hasAttendanceFilters
+                      ? 'Tidak ada attendance yang cocok dengan filter saat ini.'
+                      : 'Belum ada attendance untuk tanggal yang dipilih.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredAttendanceRows.map((row) => {
+                  const isEditingTarget = editDraft.attendanceId === row._id;
+
+                  return (
+                    <TableRow key={row._id}>
+                      <TableCell className="font-medium text-slate-900">{row.employeeName}</TableCell>
+                      <TableCell>{deriveAttendanceStatus(row)}</TableCell>
+                      <TableCell className="tabular-nums text-slate-600">{row.dateKey}</TableCell>
+                      <TableCell className="tabular-nums text-slate-600">{formatTime(row.checkInAt)}</TableCell>
+                      <TableCell className="tabular-nums text-slate-600">{formatTime(row.checkOutAt)}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${
+                            row.edited ? 'bg-amber-50 text-amber-700' : 'bg-zinc-100 text-zinc-700'
                           }`}
-                      >
-                        {row.isActive ? 'Aktif' : 'Non-aktif'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {readOnly ? (
-                        <span className="text-xs text-slate-500">Read-only</span>
-                      ) : (
+                        >
+                          {row.edited ? 'Edited' : 'Original'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          disabled={!canToggleStatus}
-                          onClick={() =>
-                            void updateUser({
-                              userId: row._id,
-                              isActive: !row.isActive,
-                            })
-                          }
+                          disabled={readOnly}
+                          onClick={() => {
+                            setEditDraft({
+                              attendanceId: row._id,
+                              checkInTime: '',
+                              checkOutTime: '',
+                              reason: 'Koreksi admin',
+                            });
+                            setAttendanceNotice({
+                              tone: 'info',
+                              text: `Draft edit untuk ${row.employeeName} sudah disiapkan di state panel.`,
+                            });
+                          }}
                         >
-                          {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                          {isEditingTarget ? 'Draft aktif' : 'Siapkan edit'}
                         </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+
+          {!attendanceIsLastPage ? (
+            <div className="border-t border-slate-100 p-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  void loadAttendance({
+                    append: true,
+                    cursor: attendanceCursor,
+                  })
+                }
+                disabled={isAttendanceLoading || !attendanceCursor}
+              >
+                {isAttendanceLoading ? 'Memuat...' : 'Muat lagi'}
+              </Button>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-6 py-5">
+            <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">Quick list karyawan</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Konteks sekunder untuk membantu review attendance harian, bukan tabel akun utama.
+            </p>
+          </div>
+
+          <div className="space-y-3 p-4">
+            {employeeStatus === 'loading' ? (
+              <div className="rounded-xl border border-dashed border-zinc-200 px-4 py-6 text-sm text-zinc-500">
+                Memuat quick list karyawan...
+              </div>
+            ) : employeeStatus === 'error' && employeeError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-4 text-sm text-rose-800">
+                [{employeeError.code}] {employeeError.message}
+              </div>
+            ) : employeeRows.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-zinc-200 px-4 py-6 text-sm text-zinc-500">
+                Belum ada karyawan yang cocok dengan pencarian aktif.
+              </div>
+            ) : (
+              employeeRows.map((employee) => {
+                const isVisible = filteredAttendanceRows.some((row) => row.employeeName === employee.name);
+
+                return (
+                  <button
+                    key={employee._id}
+                    type="button"
+                    className="flex w-full items-start justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                    onClick={() => {
+                      setFilters((current) => ({
+                        ...current,
+                        q: employee.name,
+                      }));
+                    }}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">{employee.name}</p>
+                      <p className="mt-1 text-xs text-zinc-500">{employee.email}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span
+                        className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                          employee.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-600'
+                        }`}
+                      >
+                        {employee.isActive ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                      <span className="text-[11px] text-zinc-500">{isVisible ? 'Ada di tabel' : 'Filter untuk lihat'}</span>
+                    </div>
+                  </button>
                 );
               })
             )}
-          </TableBody>
-        </Table>
-
-        {!isLastPage ? (
-          <div className="border-t border-slate-100 p-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                void loadUsers({
-                  append: true,
-                  cursor: nextCursor,
-                  activeFilters: appliedFiltersWithHeaderQuery,
-                })
-              }
-              disabled={loading || !nextCursor}
-            >
-              {loading ? 'Memuat...' : 'Muat Lagi'}
-            </Button>
           </div>
-        ) : null}
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
