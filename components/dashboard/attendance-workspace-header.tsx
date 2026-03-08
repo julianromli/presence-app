@@ -13,7 +13,7 @@ type AttendanceWorkspaceHeaderProps = {
 
 function summaryCard(label: string, value: number) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md">
+    <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-shadow hover:shadow-md">
       <p className="text-xs font-medium text-zinc-500">{label}</p>
       <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-zinc-900">{value}</p>
     </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createDefaultAttendanceFilters,
   buildAttendanceQueryString,
   DEFAULT_ATTENDANCE_FILTERS,
   getAttendanceEditedFilterLabel,
@@ -71,5 +72,20 @@ describe("attendance filters", () => {
     expect(getAttendanceStatusFilterLabel("incomplete")).toBe("Belum check-out");
     expect(getAttendanceEditedFilterLabel("all")).toBe("Semua");
     expect(getAttendanceEditedFilterLabel("false")).toBe("Original");
+  });
+
+  it("creates fresh default filters from the current date key source", () => {
+    expect(createDefaultAttendanceFilters(() => "2026-03-08")).toEqual({
+      dateKey: "2026-03-08",
+      q: "",
+      status: "all",
+      edited: "all",
+    });
+    expect(createDefaultAttendanceFilters(() => "2026-03-09")).toEqual({
+      dateKey: "2026-03-09",
+      q: "",
+      status: "all",
+      edited: "all",
+    });
   });
 });

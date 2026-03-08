@@ -17,7 +17,7 @@ import {
 } from '@/lib/attendance-edit';
 import {
   buildAttendanceQueryString,
-  DEFAULT_ATTENDANCE_FILTERS,
+  createDefaultAttendanceFilters,
   resolveAttendanceFilters,
   type AttendanceFilters,
 } from '@/lib/attendance-filters';
@@ -34,6 +34,16 @@ type InlineNotice = {
 };
 
 type EmployeeQuickListRow = Pick<AdminUserRow, '_id' | 'name' | 'email' | 'role' | 'isActive'>;
+type AttendanceApiPage = {
+  rows: AdminAttendanceRow[];
+  pageInfo: {
+    continueCursor: string;
+    isDone: boolean;
+    splitCursor?: string | null;
+    pageStatus?: 'SplitRecommended' | 'SplitRequired' | null;
+  };
+  summary: AdminAttendancePage['summary'];
+};
 
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
@@ -59,7 +69,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const initialFilters = useMemo<AttendanceFilters>(
     () =>
       resolveAttendanceFilters({
-        ...DEFAULT_ATTENDANCE_FILTERS,
+        ...createDefaultAttendanceFilters(),
         q: headerQuery,
       }),
     [headerQuery],
@@ -81,7 +91,6 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const [employeeError, setEmployeeError] = useState<ApiErrorInfo | null>(null);
   const [attendanceNotice, setAttendanceNotice] = useState<InlineNotice | null>(null);
   const [attendanceCursor, setAttendanceCursor] = useState<string | null>(null);
-  const [attendanceIsLastPage, setAttendanceIsLastPage] = useState(true);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
   const [isEmployeeLoading, setIsEmployeeLoading] = useState(false);
   const [editDraft, setEditDraft] = useState<AttendanceEditDraft>(createEmptyAttendanceEditDraft());
@@ -135,11 +144,10 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
         return;
       }
 
-      const payload = (await response.json()) as AdminAttendancePage;
+      const payload = (await response.json()) as AttendanceApiPage;
       setAttendanceRows((current) => (append ? [...current, ...payload.rows] : payload.rows));
       setAttendanceSummary(payload.summary);
       setAttendanceCursor(payload.pageInfo.isDone ? null : payload.pageInfo.continueCursor);
-      setAttendanceIsLastPage(payload.pageInfo.isDone);
       setAttendanceStatus(payload.rows.length === 0 && !append ? 'empty' : 'success');
       setIsAttendanceLoading(false);
     },
@@ -298,7 +306,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
         onRefresh={() => void loadAttendance({ activeFilters: appliedFilters })}
         onReset={() =>
           void applyFilters({
-            ...DEFAULT_ATTENDANCE_FILTERS,
+            ...createDefaultAttendanceFilters(),
             q: headerQuery,
           })
         }
@@ -320,7 +328,6 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
           errorMessage={attendanceError ? `[${attendanceError.code}] ${attendanceError.message}` : null}
           hasFilters={hasAttendanceFilters}
           isLoading={isAttendanceLoading}
-          isLastPage={attendanceIsLastPage}
           hasNextPage={Boolean(attendanceCursor)}
           readOnly={readOnly}
           activeDraft={editDraft}

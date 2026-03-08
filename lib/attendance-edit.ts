@@ -46,7 +46,14 @@ function buildTimestampFromDateKeyAndTime(baseDateKey: string, hhmm: string) {
   const hours = Number(hoursRaw);
   const minutes = Number(minutesRaw);
 
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
     return undefined;
   }
 
@@ -100,6 +107,17 @@ export function validateAttendanceEditDraft(
 
   const checkInAt = buildTimestampFromDateKeyAndTime(dateKey, draft.checkInTime);
   const checkOutAt = buildTimestampFromDateKeyAndTime(dateKey, draft.checkOutTime);
+
+  if (
+    (draft.checkInTime.trim().length > 0 && checkInAt === undefined) ||
+    (draft.checkOutTime.trim().length > 0 && checkOutAt === undefined)
+  ) {
+    return {
+      ok: false,
+      code: "VALIDATION_ERROR",
+      message: "Format jam attendance tidak valid.",
+    };
+  }
 
   if (
     checkInAt !== undefined &&

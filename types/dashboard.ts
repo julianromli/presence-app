@@ -60,6 +60,7 @@ export type AdminUsersPage = {
 
 export type AdminAttendanceRow = {
   _id: string;
+  userId?: string;
   employeeName: string;
   dateKey: string;
   checkInAt?: number;

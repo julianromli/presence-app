@@ -33,6 +33,14 @@ type AttendanceSummary = {
   edited: number;
 };
 
+const STATUS_FILTERS = new Set([
+  "all",
+  "not-checked-in",
+  "checked-in",
+  "incomplete",
+  "completed",
+]);
+
 export async function GET(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) return workspaceContext.error;
@@ -61,6 +69,11 @@ export async function GET(req: Request) {
   const editedParam = searchParams.get("edited");
   const edited =
     editedParam === "true" ? true : editedParam === "false" ? false : undefined;
+  const statusParam = searchParams.get("status");
+  const status =
+    statusParam && STATUS_FILTERS.has(statusParam) && statusParam !== "all"
+      ? statusParam
+      : undefined;
   const employeeName = searchParams.get("q")?.trim() || undefined;
 
   const token = await getConvexTokenOrNull();
@@ -86,6 +99,7 @@ export async function GET(req: Request) {
         workspaceId,
         edited,
         employeeName,
+        status,
         paginationOpts: {
           numItems: limit,
           cursor,

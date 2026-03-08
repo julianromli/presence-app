@@ -1,11 +1,6 @@
-export type AttendanceStatusRow = {
-  _id: string;
-  employeeName: string;
-  dateKey: string;
-  checkInAt?: number;
-  checkOutAt?: number;
-  edited: boolean;
-};
+import type { AdminAttendanceRow } from "@/types/dashboard";
+
+export type AttendanceStatusRow = AdminAttendanceRow;
 
 export type AttendanceStatusMeta = {
   key: "not-checked-in" | "incomplete" | "completed";
@@ -46,6 +41,13 @@ export function deriveAttendanceStatusMeta(row: AttendanceStatusRow): Attendance
     tone: "success",
     edited: row.edited,
   };
+}
+
+export function findAttendanceRowForUser(
+  rows: AttendanceStatusRow[],
+  userId: string,
+) {
+  return rows.find((row) => row.userId === userId);
 }
 
 export function filterAttendanceRowsByStatus(

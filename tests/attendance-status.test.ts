@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveAttendanceStatusMeta } from "../lib/attendance-status";
+import {
+  deriveAttendanceStatusMeta,
+  findAttendanceRowForUser,
+} from "../lib/attendance-status";
 
 describe("attendance status helpers", () => {
   it("marks rows without check-in as not checked-in", () => {
@@ -55,6 +58,7 @@ describe("attendance status helpers", () => {
     expect(
       deriveAttendanceStatusMeta({
         _id: "att_4",
+        userId: "user_4" as never,
         employeeName: "Rina",
         dateKey: "2026-03-08",
         checkInAt: 100,
@@ -67,5 +71,29 @@ describe("attendance status helpers", () => {
       tone: "success",
       edited: false,
     });
+  });
+
+  it("finds attendance by user id so duplicate names do not collide", () => {
+    const rows = [
+      {
+        _id: "att_ali_1",
+        userId: "user_1" as never,
+        employeeName: "Ali",
+        dateKey: "2026-03-08",
+        checkInAt: 100,
+        edited: false,
+      },
+      {
+        _id: "att_ali_2",
+        userId: "user_2" as never,
+        employeeName: "Ali",
+        dateKey: "2026-03-08",
+        checkInAt: 200,
+        checkOutAt: 300,
+        edited: false,
+      },
+    ];
+
+    expect(findAttendanceRowForUser(rows, "user_2")?._id).toBe("att_ali_2");
   });
 });

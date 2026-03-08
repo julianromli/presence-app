@@ -97,7 +97,7 @@ describe("admin attendance route", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/admin/attendance?dateKey=2026-03-05&q=ali&edited=true&limit=25",
+        "http://localhost/api/admin/attendance?dateKey=2026-03-05&q=ali&edited=true&status=incomplete&limit=25",
         {
           headers: { "x-workspace-id": "workspace_123456" },
         },
@@ -134,6 +134,7 @@ describe("admin attendance route", () => {
       workspaceId: "workspace_123456",
       edited: true,
       employeeName: "ali",
+      status: "incomplete",
       paginationOpts: {
         numItems: 25,
         cursor: null,

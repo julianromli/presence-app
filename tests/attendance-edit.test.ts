@@ -61,11 +61,31 @@ describe("attendance edit helpers", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.payload).toMatchObject({
+    if (!result.ok) {
+      throw new Error("Expected a valid attendance edit payload");
+    }
+    const payload = result.payload;
+
+    expect(payload).toMatchObject({
       attendanceId: "att_1",
       reason: "Koreksi shift",
     });
-    expect(result.payload.checkInAt).toBeTypeOf("number");
-    expect(result.payload.checkOutAt).toBeTypeOf("number");
+    expect(payload.checkInAt).toBeTypeOf("number");
+    expect(payload.checkOutAt).toBeTypeOf("number");
+  });
+
+  it("rejects out-of-range HH:mm values instead of rolling them over", () => {
+    expect(
+      validateAttendanceEditDraft("2026-03-08", {
+        attendanceId: "att_1",
+        checkInTime: "25:99",
+        checkOutTime: "",
+        reason: "Koreksi invalid",
+      }),
+    ).toEqual({
+      ok: false,
+      code: "VALIDATION_ERROR",
+      message: "Format jam attendance tidak valid.",
+    });
   });
 });

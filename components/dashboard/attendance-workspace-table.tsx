@@ -23,7 +23,6 @@ type AttendanceWorkspaceTableProps = {
   errorMessage?: string | null;
   hasFilters: boolean;
   isLoading: boolean;
-  isLastPage: boolean;
   hasNextPage: boolean;
   readOnly: boolean;
   activeDraft: AttendanceEditDraft;
@@ -51,7 +50,6 @@ export function AttendanceWorkspaceTable({
   errorMessage,
   hasFilters,
   isLoading,
-  isLastPage,
   hasNextPage,
   readOnly,
   activeDraft,
@@ -251,9 +249,9 @@ export function AttendanceWorkspaceTable({
         </TableBody>
       </Table>
 
-      {!isLastPage ? (
+      {hasNextPage ? (
         <div className="border-t border-slate-100 p-3">
-          <Button type="button" variant="outline" onClick={onLoadMore} disabled={isLoading || !hasNextPage}>
+          <Button type="button" variant="outline" onClick={onLoadMore} disabled={isLoading}>
             {isLoading ? 'Memuat...' : 'Muat lagi'}
           </Button>
         </div>

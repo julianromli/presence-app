@@ -10,6 +10,8 @@
 
 ---
 
+## Tasks
+
 ### Task 1: Audit current contracts and define the new panel state model
 
 **Files:**

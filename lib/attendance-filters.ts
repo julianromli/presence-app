@@ -1,11 +1,5 @@
 import { getLocalDateKey } from "./date-key";
-
-export type AttendanceStatusFilter =
-  | "all"
-  | "not-checked-in"
-  | "checked-in"
-  | "incomplete"
-  | "completed";
+import type { AttendanceStatusFilter } from "./attendance-status";
 
 export type AttendanceEditedFilter = "all" | "true" | "false";
 
@@ -16,12 +10,18 @@ export type AttendanceFilters = {
   edited: AttendanceEditedFilter;
 };
 
-export const DEFAULT_ATTENDANCE_FILTERS: AttendanceFilters = {
-  dateKey: getLocalDateKey(),
-  q: "",
-  status: "all",
-  edited: "all",
-};
+export function createDefaultAttendanceFilters(
+  getDateKey: () => string = getLocalDateKey,
+): AttendanceFilters {
+  return {
+    dateKey: getDateKey(),
+    q: "",
+    status: "all",
+    edited: "all",
+  };
+}
+
+export const DEFAULT_ATTENDANCE_FILTERS: AttendanceFilters = createDefaultAttendanceFilters();
 
 export const ATTENDANCE_STATUS_FILTER_OPTIONS = [
   { value: "all", label: "Semua" },
@@ -67,7 +67,7 @@ export function getAttendanceEditedFilterLabel(value: AttendanceEditedFilter) {
 
 export function resolveAttendanceFilters(
   input?: Partial<AttendanceFilters>,
-  defaults: AttendanceFilters = DEFAULT_ATTENDANCE_FILTERS,
+  defaults: AttendanceFilters = createDefaultAttendanceFilters(),
 ): AttendanceFilters {
   const nextDateKey = input?.dateKey?.trim() || defaults.dateKey;
   const nextQuery = input?.q?.trim() ?? defaults.q;

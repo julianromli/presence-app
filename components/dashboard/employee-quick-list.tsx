@@ -1,6 +1,7 @@
 'use client';
 
 import type { AdminAttendanceRow, AdminUserRow } from '@/types/dashboard';
+import { deriveAttendanceStatusMeta, findAttendanceRowForUser } from '@/lib/attendance-status';
 
 type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
 
@@ -43,13 +44,9 @@ export function EmployeeQuickList({
           </div>
         ) : (
           rows.map((employee) => {
-            const attendance = attendanceRows.find((row) => row.employeeName === employee.name);
+            const attendance = findAttendanceRowForUser(attendanceRows, employee._id);
             const attendanceIndicator = attendance
-              ? attendance.checkOutAt !== undefined
-                ? 'Lengkap'
-                : attendance.checkInAt !== undefined
-                  ? 'Belum check-out'
-                  : 'Belum check-in'
+              ? deriveAttendanceStatusMeta(attendance).label
               : 'Filter untuk lihat';
 
             return (

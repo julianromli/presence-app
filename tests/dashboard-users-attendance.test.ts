@@ -52,6 +52,10 @@ describe("dashboard users attendance helpers", () => {
     expect(filterAttendanceRowsByStatus(rows, "completed").map((row) => row._id)).toEqual(["att_3"]);
   });
 
+  it("filters rows by not-checked-in status", () => {
+    expect(filterAttendanceRowsByStatus(rows, "not-checked-in").map((row) => row._id)).toEqual(["att_1"]);
+  });
+
   it("keeps the full list when status filter is all", () => {
     expect(filterAttendanceRowsByStatus(rows, "all")).toEqual(rows);
   });
