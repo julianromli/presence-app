@@ -427,7 +427,7 @@ export function ScanPanel() {
         : 'Menyiapkan kamera...';
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-secondary/30 pb-20 justify-between">
+    <div className="min-h-screen flex flex-col items-center bg-secondary/30 pb-28 justify-between">
       {/* Header */}
       <div className="w-full px-6 pt-6 pb-4 flex justify-between items-center bg-background border-b z-10 sticky top-0 md:max-w-md">
         <div>
