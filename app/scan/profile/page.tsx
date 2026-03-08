@@ -1,9 +1,14 @@
+import { currentUser } from '@clerk/nextjs/server';
+
 import { requireWorkspaceRolePageFromDb } from '@/lib/auth';
 
 import { ProfilePanel } from './profile-panel';
 
 export default async function ProfilePage() {
-  const session = await requireWorkspaceRolePageFromDb(['karyawan']);
+  const [session, clerkUser] = await Promise.all([
+    requireWorkspaceRolePageFromDb(['karyawan']),
+    currentUser(),
+  ]);
 
   return (
     <ProfilePanel
@@ -12,6 +17,7 @@ export default async function ProfilePage() {
         email: session.user.email,
         role: session.role,
         workspaceName: session.workspace.name,
+        imageUrl: clerkUser?.imageUrl ?? null,
       }}
     />
   );

@@ -3,13 +3,13 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle,
   Bell,
-  CheckCircle2,
-  ChevronRight,
+  CaretRight,
   Info,
-  TriangleAlert,
-} from 'lucide-react';
+  CheckCircle,
+  WarningCircle,
+  WarningDiamond,
+} from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,15 +118,15 @@ function formatRelativeTime(timestamp: number) {
 
 function notificationIcon(item: EmployeeNotificationItem) {
   if (item.severity === 'critical') {
-    return <TriangleAlert className="w-5 h-5 text-rose-600" />;
+    return <WarningDiamond className="w-5 h-5 text-rose-600" weight="fill" />;
   }
   if (item.type === 'attendance_success') {
-    return <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
+    return <CheckCircle className="w-5 h-5 text-emerald-600" weight="fill" />;
   }
   if (item.type === 'attendance_failure' || item.type === 'attendance_reminder') {
-    return <AlertTriangle className="w-5 h-5 text-amber-600" />;
+    return <WarningCircle className="w-5 h-5 text-amber-600" weight="fill" />;
   }
-  return <Info className="w-5 h-5 text-sky-600" />;
+  return <Info className="w-5 h-5 text-sky-600" weight="fill" />;
 }
 
 function actionLabel(item: EmployeeNotificationItem) {
@@ -344,7 +344,7 @@ function NotificationCard({
             {cta ? (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
                 {cta}
-                <ChevronRight className="h-3.5 w-3.5" />
+                <CaretRight className="h-3.5 w-3.5" />
               </span>
             ) : null}
           </div>

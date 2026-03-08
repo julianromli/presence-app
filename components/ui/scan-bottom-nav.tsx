@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ScanLine, History, User } from 'lucide-react';
+import { ClockCounterClockwise, Scan, User } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 const TABS = [
-  { href: '/scan', label: 'Scan', icon: ScanLine },
-  { href: '/scan/history', label: 'Riwayat', icon: History },
+  { href: '/scan', label: 'Scan', icon: Scan },
+  { href: '/scan/history', label: 'Riwayat', icon: ClockCounterClockwise },
   { href: '/scan/profile', label: 'Profil', icon: User },
 ];
 
@@ -41,6 +41,7 @@ export function ScanBottomNav() {
                 />
               )}
               <Icon
+                weight={isActive ? 'fill' : 'regular'}
                 className={cn(
                   'w-[22px] h-[22px] mb-1 transition-colors duration-300',
                   isActive

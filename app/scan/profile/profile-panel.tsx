@@ -2,22 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AlertCircle,
   Bell,
-  Building2,
-  CalendarClock,
-  Clock3,
+  Buildings,
+  CalendarBlank,
+  Clock,
   Medal,
-  Sparkles,
-  User as UserIcon,
-} from 'lucide-react';
+  Sparkle,
+  User,
+  WarningCircle,
+} from '@phosphor-icons/react';
 
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
 import {
   ScanNotificationsDrawer,
   useScanNotifications,
 } from '@/components/ui/scan-notifications-drawer';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +34,7 @@ export type ProfilePanelProps = {
     email: string;
     role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
     workspaceName: string;
+    imageUrl?: string | null;
   };
 };
 
@@ -169,6 +170,9 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
       <div className="flex-1 w-full max-w-md px-6 py-6 mx-auto space-y-6">
         <Card className="p-6 rounded-[24px] border-border shadow-sm flex flex-col items-center bg-card">
           <Avatar className="w-24 h-24 mb-4 border-4 border-background shadow-soft ring-2 ring-primary/20">
+            {initialProfile.imageUrl ? (
+              <AvatarImage src={initialProfile.imageUrl} alt={initialProfile.name} />
+            ) : null}
             <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
               {initials}
             </AvatarFallback>
@@ -210,7 +214,7 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
           <Card className="rounded-[24px] border-rose-200 bg-rose-50 p-5 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                <AlertCircle className="w-5 h-5" />
+                <WarningCircle className="w-5 h-5" weight="fill" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-rose-900">Ringkasan profil tidak bisa dimuat</p>
@@ -230,20 +234,20 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Insight Mingguan</p>
                 <p className="mt-3 text-lg font-semibold tracking-tight text-zinc-50">{payload.insight}</p>
               </div>
-              <Medal className="w-7 h-7 text-emerald-300 shrink-0" />
+              <Medal className="w-7 h-7 text-emerald-300 shrink-0" weight="fill" />
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-zinc-900/70 p-4">
                 <div className="flex items-center gap-2 text-zinc-400">
-                  <Clock3 className="w-4 h-4" />
+                  <Clock className="w-4 h-4" />
                   <p className="text-[11px] font-semibold uppercase tracking-wide">Rata-rata Check-in</p>
                 </div>
                 <p className="mt-2 text-xl font-bold text-zinc-50">{payload.cards.avgCheckInTime}</p>
               </div>
               <div className="rounded-2xl bg-zinc-900/70 p-4">
                 <div className="flex items-center gap-2 text-zinc-400">
-                  <CalendarClock className="w-4 h-4" />
+                  <CalendarBlank className="w-4 h-4" />
                   <p className="text-[11px] font-semibold uppercase tracking-wide">Perubahan</p>
                 </div>
                 <p className="mt-2 text-xl font-bold text-zinc-50">
@@ -259,7 +263,7 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
           <Card className="rounded-[24px] border-border/60 p-4 shadow-sm bg-card">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <UserIcon className="w-5 h-5" />
+                <User className="w-5 h-5" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-foreground">Informasi Pribadi</p>
@@ -274,7 +278,7 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
           <Card className="rounded-[24px] border-border/60 p-4 shadow-sm bg-card">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
-                <Building2 className="w-5 h-5" />
+                <Buildings className="w-5 h-5" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-foreground">Pengaturan Presensi</p>
@@ -289,7 +293,7 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
           <Card className="rounded-[24px] border-border/60 p-4 shadow-sm bg-card">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
-                <Sparkles className="w-5 h-5" />
+                <Sparkle className="w-5 h-5" weight="fill" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-foreground">Badge Mingguan</p>
@@ -310,3 +314,5 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
     </div>
   );
 }
+
+
