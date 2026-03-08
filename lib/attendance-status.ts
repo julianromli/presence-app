@@ -14,6 +14,13 @@ export type AttendanceStatusMeta = {
   edited: boolean;
 };
 
+export type AttendanceStatusFilter =
+  | "all"
+  | "not-checked-in"
+  | "checked-in"
+  | "incomplete"
+  | "completed";
+
 export function deriveAttendanceStatusMeta(row: AttendanceStatusRow): AttendanceStatusMeta {
   if (row.checkInAt === undefined) {
     return {
@@ -39,4 +46,26 @@ export function deriveAttendanceStatusMeta(row: AttendanceStatusRow): Attendance
     tone: "success",
     edited: row.edited,
   };
+}
+
+export function filterAttendanceRowsByStatus(
+  rows: AttendanceStatusRow[],
+  status: AttendanceStatusFilter,
+) {
+  if (status === "all") {
+    return rows;
+  }
+
+  return rows.filter((row) => {
+    if (status === "not-checked-in") {
+      return row.checkInAt === undefined;
+    }
+    if (status === "checked-in") {
+      return row.checkInAt !== undefined;
+    }
+    if (status === "incomplete") {
+      return row.checkInAt !== undefined && row.checkOutAt === undefined;
+    }
+    return row.checkInAt !== undefined && row.checkOutAt !== undefined;
+  });
 }

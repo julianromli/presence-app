@@ -21,6 +21,7 @@ import {
   resolveAttendanceFilters,
   type AttendanceFilters,
 } from '@/lib/attendance-filters';
+import { filterAttendanceRowsByStatus } from '@/lib/attendance-status';
 import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 import type { AdminAttendancePage, AdminAttendanceRow, AdminUserRow } from '@/types/dashboard';
 
@@ -90,21 +91,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const prevHeaderQueryRef = useRef(headerQuery);
 
   const filteredAttendanceRows = useMemo(() => {
-    return attendanceRows.filter((row) => {
-      if (appliedFilters.status === 'not-checked-in') {
-        return row.checkInAt === undefined;
-      }
-      if (appliedFilters.status === 'checked-in') {
-        return row.checkInAt !== undefined;
-      }
-      if (appliedFilters.status === 'incomplete') {
-        return row.checkInAt !== undefined && row.checkOutAt === undefined;
-      }
-      if (appliedFilters.status === 'completed') {
-        return row.checkInAt !== undefined && row.checkOutAt !== undefined;
-      }
-      return true;
-    });
+    return filterAttendanceRowsByStatus(attendanceRows, appliedFilters.status);
   }, [appliedFilters.status, attendanceRows]);
 
   const hasAttendanceFilters = useMemo(
