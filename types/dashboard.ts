@@ -160,6 +160,11 @@ export type EmployeeAttendanceHistoryPayload = {
   };
 };
 
+export type EmployeeAttendanceByDatePayload = {
+  timeZone: string;
+  row: EmployeeAttendanceHistoryRow | null;
+};
+
 export type EmployeeLeaderboardRow = {
   userId: string;
   name: string;

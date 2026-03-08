@@ -96,9 +96,10 @@ export async function normalizeClientError(
       typeof candidate.message === 'string' &&
       typeof candidate.status === 'number'
     ) {
+      const normalizedMessage = pickString(candidate.message) ?? fallbackMessage;
       return {
         code: candidate.code,
-        message: candidate.message,
+        message: normalizedMessage,
         status: candidate.status,
       };
     }

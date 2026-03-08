@@ -27,7 +27,11 @@ import { normalizeClientError, parseApiErrorResponse } from '@/lib/client-error'
 import type { ApiErrorInfo } from '@/lib/client-error';
 import { cn } from '@/lib/utils';
 import { workspaceFetch } from '@/lib/workspace-client';
-import type { EmployeeAttendanceHistoryPayload, EmployeeAttendanceHistoryRow } from '@/types/dashboard';
+import type {
+  EmployeeAttendanceByDatePayload,
+  EmployeeAttendanceHistoryPayload,
+  EmployeeAttendanceHistoryRow,
+} from '@/types/dashboard';
 
 type RangeFilter = '7d' | '30d' | '90d';
 type PanelStatus = 'loading' | 'ready' | 'error';
@@ -54,6 +58,25 @@ async function fetchAttendancePayload(range: RangeFilter, cursor: string | null)
     return (await response.json()) as EmployeeAttendanceHistoryPayload;
   } catch (error) {
     throw await normalizeClientError(error, 'Gagal memuat riwayat absensi.');
+  }
+}
+
+async function fetchAttendanceByDate(dateKey: string) {
+  try {
+    const query = new URLSearchParams();
+    query.set('dateKey', dateKey);
+
+    const response = await workspaceFetch(`/api/karyawan/dashboard/attendance/by-date?${query.toString()}`, {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal memuat detail absensi.');
+    }
+
+    return (await response.json()) as EmployeeAttendanceByDatePayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal memuat detail absensi.');
   }
 }
 
@@ -130,6 +153,7 @@ export function HistoryPanel() {
   const latestRequestRef = useRef(0);
   const handledDateKeyRef = useRef<string | null>(null);
   const resolvingDateKeyRef = useRef<string | null>(null);
+  const deepLinkFrameRef = useRef<number | null>(null);
   const notifications = useScanNotifications();
   const targetDateKey = searchParams.get('dateKey');
   const summary = payload?.summary;
@@ -171,6 +195,11 @@ export function HistoryPanel() {
       dateKey: string,
       initialPayload: EmployeeAttendanceHistoryPayload,
     ) => {
+      const exactPayload = await fetchAttendanceByDate(dateKey);
+      if (exactPayload.row) {
+        return exactPayload.row;
+      }
+
       const localMatch =
         initialPayload.rows.find((row) => row.dateKey === dateKey) ?? null;
       if (localMatch) {
@@ -214,6 +243,10 @@ export function HistoryPanel() {
   useEffect(() => {
     return () => {
       latestRequestRef.current += 1;
+      if (deepLinkFrameRef.current !== null) {
+        cancelAnimationFrame(deepLinkFrameRef.current);
+        deepLinkFrameRef.current = null;
+      }
     };
   }, []);
 
@@ -248,7 +281,13 @@ export function HistoryPanel() {
         handledDateKeyRef.current = targetDateKey;
         resolvingDateKeyRef.current = null;
 
-        const frameId = requestAnimationFrame(() => {
+        if (deepLinkFrameRef.current !== null) {
+          cancelAnimationFrame(deepLinkFrameRef.current);
+          deepLinkFrameRef.current = null;
+        }
+
+        deepLinkFrameRef.current = requestAnimationFrame(() => {
+          deepLinkFrameRef.current = null;
           if (resolvedRow) {
             setSelectedRow(resolvedRow);
             setDrawerOpen(true);
@@ -256,10 +295,6 @@ export function HistoryPanel() {
 
           router.replace('/scan/history', { scroll: false });
         });
-
-        if (cancelled) {
-          cancelAnimationFrame(frameId);
-        }
       } catch {
         if (cancelled) {
           return;
@@ -271,6 +306,10 @@ export function HistoryPanel() {
 
     return () => {
       cancelled = true;
+      if (deepLinkFrameRef.current !== null) {
+        cancelAnimationFrame(deepLinkFrameRef.current);
+        deepLinkFrameRef.current = null;
+      }
       if (resolvingDateKeyRef.current === targetDateKey) {
         resolvingDateKeyRef.current = null;
       }

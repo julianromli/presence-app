@@ -20,6 +20,9 @@ async function setupReadRoute(options: SetupOptions = {}) {
     unreadCount: 0,
   }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
+  const convexErrorResponse = vi.fn((_: unknown, fallbackMessage: string) =>
+    Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+  );
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
@@ -27,14 +30,10 @@ async function setupReadRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull: vi.fn(async () => "convex-token"),
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
-  }));
+  vi.doMock("@/lib/api-error", () => ({ convexErrorResponse }));
 
   const routeModule = await import("../app/api/karyawan/notifications/read/route");
-  return { POST: routeModule.POST, mocks: { mutation } };
+  return { POST: routeModule.POST, mocks: { mutation, convexErrorResponse } };
 }
 
 async function setupReadAllRoute(options: SetupOptions = {}) {
@@ -46,6 +45,9 @@ async function setupReadAllRoute(options: SetupOptions = {}) {
     unreadCount: 0,
   }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
+  const convexErrorResponse = vi.fn((_: unknown, fallbackMessage: string) =>
+    Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+  );
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
@@ -53,14 +55,10 @@ async function setupReadAllRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull: vi.fn(async () => "convex-token"),
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
-  }));
+  vi.doMock("@/lib/api-error", () => ({ convexErrorResponse }));
 
   const routeModule = await import("../app/api/karyawan/notifications/read-all/route");
-  return { POST: routeModule.POST, mocks: { mutation } };
+  return { POST: routeModule.POST, mocks: { mutation, convexErrorResponse } };
 }
 
 describe("karyawan notifications routes", () => {
@@ -137,6 +135,30 @@ describe("karyawan notifications routes", () => {
     expect(mocks.mutation).toHaveBeenCalledWith("notifications:markRead", {
       workspaceId: "workspace_123456",
       notificationId: "notif_123",
+    });
+  });
+
+  it("uses convexErrorResponse when mark-read mutation throws", async () => {
+    const { POST, mocks } = await setupReadRoute();
+    mocks.mutation.mockRejectedValueOnce(new Error("boom"));
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notificationId: "notif_123" }),
+      }),
+    );
+
+    expect(mocks.mutation).toHaveBeenCalledWith("notifications:markRead", {
+      workspaceId: "workspace_123456",
+      notificationId: "notif_123",
+    });
+    expect(mocks.convexErrorResponse).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      code: "INTERNAL_ERROR",
+      message: "Gagal menandai notifikasi sebagai dibaca.",
     });
   });
 });

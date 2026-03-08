@@ -74,6 +74,11 @@ const attendanceHistoryValidator = v.object({
   }),
 });
 
+const attendanceByDateValidator = v.object({
+  timeZone: v.string(),
+  row: v.union(attendanceHistoryRowValidator, v.null()),
+});
+
 const leaderboardRowValidator = v.object({
   userId: v.id("users"),
   name: v.string(),
@@ -386,6 +391,51 @@ export const listAttendanceHistory = query({
         isDone: page.isDone,
       },
       summary,
+    };
+  },
+});
+
+export const getAttendanceByDate = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    dateKey: v.string(),
+  },
+  returns: attendanceByDateValidator,
+  handler: async (ctx, args) => {
+    const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["karyawan"]);
+    const settings = await getGlobalSettingsOrNull(ctx, args.workspaceId);
+    const timezone = resolveTimezone(settings);
+    const cutoffMinutes = getCutoffMinutes();
+
+    const row = await ctx.db
+      .query("attendance")
+      .withIndex("by_workspace_user_date", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("userId", user._id)
+          .eq("dateKey", args.dateKey),
+      )
+      .unique();
+
+    if (!row) {
+      return {
+        timeZone: timezone,
+        row: null,
+      };
+    }
+
+    return {
+      timeZone: timezone,
+      row: {
+        attendanceId: row._id,
+        dateKey: row.dateKey,
+        checkInAt: row.checkInAt,
+        checkOutAt: row.checkOutAt,
+        status: toHistoryStatus(row, timezone, cutoffMinutes),
+        workDurationMinutes: computeDurationMinutes(row.checkInAt, row.checkOutAt),
+        edited: row.edited,
+        points: computeDailyPoints(row, timezone, cutoffMinutes),
+      },
     };
   },
 });
