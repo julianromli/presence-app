@@ -39,6 +39,22 @@ const notificationActionType = v.union(
   v.literal("none"),
 );
 
+const attendanceScheduleDay = v.union(
+  v.literal("monday"),
+  v.literal("tuesday"),
+  v.literal("wednesday"),
+  v.literal("thursday"),
+  v.literal("friday"),
+  v.literal("saturday"),
+  v.literal("sunday"),
+);
+
+const attendanceScheduleRow = v.object({
+  day: attendanceScheduleDay,
+  enabled: v.boolean(),
+  checkInTime: v.optional(v.string()),
+});
+
 export default defineSchema({
   workspaces: defineTable({
     slug: v.string(),
@@ -153,6 +169,7 @@ export default defineSchema({
     geofenceLng: v.optional(v.number()),
     whitelistEnabled: v.boolean(),
     whitelistIps: v.array(v.string()),
+    attendanceSchedule: v.array(attendanceScheduleRow),
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   })

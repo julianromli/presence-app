@@ -2,10 +2,28 @@ import { v } from "convex/values";
 
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import {
+  defaultAttendanceSchedule,
   ensureGlobalSettingsForMutation,
   getGlobalSettingsOrThrow,
+  normalizeAttendanceSchedule,
   requireWorkspaceRole,
 } from "./helpers";
+
+const attendanceScheduleDayValidator = v.union(
+  v.literal("monday"),
+  v.literal("tuesday"),
+  v.literal("wednesday"),
+  v.literal("thursday"),
+  v.literal("friday"),
+  v.literal("saturday"),
+  v.literal("sunday"),
+);
+
+const attendanceScheduleRowValidator = v.object({
+  day: attendanceScheduleDayValidator,
+  enabled: v.boolean(),
+  checkInTime: v.optional(v.string()),
+});
 
 const settingsValidator = v.object({
   key: v.literal("global"),
@@ -20,6 +38,7 @@ const settingsValidator = v.object({
   geofenceLng: v.optional(v.number()),
   whitelistEnabled: v.boolean(),
   whitelistIps: v.array(v.string()),
+  attendanceSchedule: v.array(attendanceScheduleRowValidator),
   updatedBy: v.optional(v.id("users")),
   updatedAt: v.number(),
   _id: v.id("settings"),
@@ -81,6 +100,7 @@ export const update = mutation({
     geofenceLng: v.optional(v.number()),
     whitelistEnabled: v.optional(v.boolean()),
     whitelistIps: v.optional(v.array(v.string())),
+    attendanceSchedule: v.optional(v.array(attendanceScheduleRowValidator)),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -88,6 +108,10 @@ export const update = mutation({
       "superadmin",
     ]);
     const current = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
+    const attendanceSchedule =
+      args.attendanceSchedule !== undefined
+        ? normalizeAttendanceSchedule(args.attendanceSchedule)
+        : current.attendanceSchedule ?? defaultAttendanceSchedule();
 
     await ctx.db.patch(current._id, {
       timezone: args.timezone ?? current.timezone,
@@ -104,6 +128,7 @@ export const update = mutation({
       geofenceLng: args.geofenceLng ?? current.geofenceLng,
       whitelistEnabled: args.whitelistEnabled ?? current.whitelistEnabled,
       whitelistIps: args.whitelistIps ?? current.whitelistIps,
+      attendanceSchedule,
       updatedBy: actor._id,
       updatedAt: Date.now(),
     });

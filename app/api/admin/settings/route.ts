@@ -6,6 +6,76 @@ import {
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 
+type AttendanceScheduleDay =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+type AttendanceScheduleRow = {
+  day: AttendanceScheduleDay;
+  enabled: boolean;
+  checkInTime?: string;
+};
+
+const ATTENDANCE_SCHEDULE_DAYS: AttendanceScheduleDay[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+function isValidClock(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{2}:\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [hourText, minuteText] = value.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
+
+function isValidAttendanceSchedule(
+  value: unknown,
+): value is AttendanceScheduleRow[] {
+  if (!Array.isArray(value) || value.length !== ATTENDANCE_SCHEDULE_DAYS.length) {
+    return false;
+  }
+
+  const seen = new Set<AttendanceScheduleDay>();
+  for (const row of value) {
+    if (
+      !row ||
+      typeof row !== "object" ||
+      !("day" in row) ||
+      !("enabled" in row) ||
+      !ATTENDANCE_SCHEDULE_DAYS.includes(row.day as AttendanceScheduleDay) ||
+      typeof row.enabled !== "boolean" ||
+      seen.has(row.day as AttendanceScheduleDay)
+    ) {
+      return false;
+    }
+
+    seen.add(row.day as AttendanceScheduleDay);
+
+    if (
+      (row.enabled && !isValidClock("checkInTime" in row ? row.checkInTime : undefined)) ||
+      ("checkInTime" in row && row.checkInTime !== undefined && !isValidClock(row.checkInTime))
+    ) {
+      return false;
+    }
+  }
+
+  return seen.size === ATTENDANCE_SCHEDULE_DAYS.length;
+}
+
 export async function GET(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) return workspaceContext.error;
@@ -71,12 +141,23 @@ export async function PATCH(req: Request) {
     geofenceLng?: number;
     whitelistEnabled?: boolean;
     whitelistIps?: string[];
+    attendanceSchedule?: AttendanceScheduleRow[];
   };
   try {
     body = await req.json();
   } catch {
     return Response.json(
       { code: "BAD_REQUEST", message: "Payload JSON tidak valid." },
+      { status: 400 },
+    );
+  }
+
+  if (
+    body.attendanceSchedule !== undefined &&
+    !isValidAttendanceSchedule(body.attendanceSchedule)
+  ) {
+    return Response.json(
+      { code: "BAD_REQUEST", message: "Attendance schedule tidak valid." },
       { status: 400 },
     );
   }
@@ -101,6 +182,7 @@ export async function PATCH(req: Request) {
       geofenceLng: body.geofenceLng,
       whitelistEnabled: body.whitelistEnabled,
       whitelistIps: body.whitelistIps,
+      attendanceSchedule: body.attendanceSchedule,
     });
 
     return Response.json({ ok: true });
