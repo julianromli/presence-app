@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
   Bell,
@@ -14,7 +15,10 @@ import {
 } from 'lucide-react';
 
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
-import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
+import {
+  ScanNotificationsDrawer,
+  useScanNotifications,
+} from '@/components/ui/scan-notifications-drawer';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Sheet, SheetDescription, SheetHeader, SheetPanel, SheetPopup, SheetTitle } from '@/components/ui/sheet';
@@ -108,6 +112,8 @@ function statusBadgeClass(status: EmployeeAttendanceHistoryRow['status']) {
 }
 
 export function HistoryPanel() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [range, setRange] = useState<RangeFilter>('30d');
   const [status, setStatus] = useState<PanelStatus>('loading');
   const [payload, setPayload] = useState<EmployeeAttendanceHistoryPayload | null>(null);
@@ -117,6 +123,17 @@ export function HistoryPanel() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const latestRequestRef = useRef(0);
+  const handledDateKeyRef = useRef<string | null>(null);
+  const notifications = useScanNotifications();
+  const targetDateKey = searchParams.get('dateKey');
+  const summary = payload?.summary;
+  const rows = useMemo(() => payload?.rows ?? [], [payload]);
+  const isLoading = status === 'loading' && !payload;
+  const isReloading = status === 'loading' && !!payload;
+  const targetRow = useMemo(
+    () => (targetDateKey ? rows.find((row) => row.dateKey === targetDateKey) ?? null : null),
+    [rows, targetDateKey],
+  );
 
   const currentCursor = cursorStack[cursorStack.length - 1];
 
@@ -157,6 +174,29 @@ export function HistoryPanel() {
     return () => window.removeEventListener('dashboard:refresh', handleRefresh as EventListener);
   }, [currentCursor, loadHistory, range]);
 
+  useEffect(() => {
+    if (!targetDateKey) {
+      handledDateKeyRef.current = null;
+      return;
+    }
+
+    if (status !== 'ready' || handledDateKeyRef.current === targetDateKey) {
+      return;
+    }
+
+    handledDateKeyRef.current = targetDateKey;
+    const frameId = requestAnimationFrame(() => {
+      if (targetRow) {
+        setSelectedRow(targetRow);
+        setDrawerOpen(true);
+      }
+
+      router.replace('/scan/history', { scroll: false });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [router, status, targetDateKey, targetRow]);
+
   const openDetail = (row: EmployeeAttendanceHistoryRow) => {
     setSelectedRow(row);
     setDrawerOpen(true);
@@ -183,11 +223,6 @@ export function HistoryPanel() {
     setCursorStack((prev) => prev.slice(0, -1));
   };
 
-  const summary = payload?.summary;
-  const rows = payload?.rows ?? [];
-  const isLoading = status === 'loading' && !payload;
-  const isReloading = status === 'loading' && !!payload;
-
   return (
     <div className="min-h-screen flex flex-col items-center bg-secondary/30 pb-20">
       <div className="w-full px-6 pt-6 pb-4 flex justify-between items-center bg-background border-b z-20 sticky top-0 md:max-w-md">
@@ -204,11 +239,19 @@ export function HistoryPanel() {
           className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
         >
           <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background ring-offset-0" />
+          {notifications.unreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+              {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
+            </span>
+          ) : null}
         </button>
       </div>
 
-      <ScanNotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
+      <ScanNotificationsDrawer
+        open={notifOpen}
+        onOpenChange={setNotifOpen}
+        controller={notifications}
+      />
 
       <div className="flex-1 w-full max-w-md px-6 py-6 mx-auto space-y-5">
         <Card className="p-4 rounded-[24px] border-border/60 shadow-sm bg-card">

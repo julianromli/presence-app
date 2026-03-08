@@ -20,7 +20,10 @@ import { Input } from '@/components/ui/input';
 import { workspaceFetch } from '@/lib/workspace-client';
 import { cn } from '@/lib/utils';
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
-import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
+import {
+  ScanNotificationsDrawer,
+  useScanNotifications,
+} from '@/components/ui/scan-notifications-drawer';
 import {
   Dialog,
   DialogDescription,
@@ -118,6 +121,7 @@ export function ScanPanel() {
     message: string;
     metadata?: string;
   } | null>(null);
+  const notifications = useScanNotifications();
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -439,11 +443,19 @@ export function ScanPanel() {
           className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
         >
           <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background ring-offset-0" />
+          {notifications.unreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+              {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
+            </span>
+          ) : null}
         </button>
       </div>
 
-      <ScanNotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
+      <ScanNotificationsDrawer
+        open={notifOpen}
+        onOpenChange={setNotifOpen}
+        controller={notifications}
+      />
 
       {/* Main Content */}
       <div className="flex-1 w-full max-w-md flex flex-col px-6 relative py-8 mx-auto items-center">

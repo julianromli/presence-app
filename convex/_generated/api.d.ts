@@ -20,6 +20,7 @@ import type * as devices from "../devices.js";
 import type * as employeeDashboardKpi from "../employeeDashboardKpi.js";
 import type * as helpers from "../helpers.js";
 import type * as legacyDeviceMigration from "../legacyDeviceMigration.js";
+import type * as notifications from "../notifications.js";
 import type * as qrPolicy from "../qrPolicy.js";
 import type * as qrTokens from "../qrTokens.js";
 import type * as reportIdempotency from "../reportIdempotency.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   employeeDashboardKpi: typeof employeeDashboardKpi;
   helpers: typeof helpers;
   legacyDeviceMigration: typeof legacyDeviceMigration;
+  notifications: typeof notifications;
   qrPolicy: typeof qrPolicy;
   qrTokens: typeof qrTokens;
   reportIdempotency: typeof reportIdempotency;

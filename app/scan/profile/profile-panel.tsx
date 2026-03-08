@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 
 import { ScanBottomNav } from '@/components/ui/scan-bottom-nav';
-import { ScanNotificationsDrawer } from '@/components/ui/scan-notifications-drawer';
+import {
+  ScanNotificationsDrawer,
+  useScanNotifications,
+} from '@/components/ui/scan-notifications-drawer';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -67,6 +70,7 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
   const [payload, setPayload] = useState<EmployeeDashboardOverviewPayload | null>(null);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifications = useScanNotifications();
 
   const loadOverview = useCallback(async () => {
     setStatus('loading');
@@ -118,11 +122,19 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
           className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
         >
           <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background ring-offset-0" />
+          {notifications.unreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+              {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
+            </span>
+          ) : null}
         </button>
       </div>
 
-      <ScanNotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
+      <ScanNotificationsDrawer
+        open={notifOpen}
+        onOpenChange={setNotifOpen}
+        controller={notifications}
+      />
 
       <div className="flex-1 w-full max-w-md px-6 py-6 mx-auto space-y-6">
         <Card className="p-6 rounded-[24px] border-border shadow-sm flex flex-col items-center bg-card">
