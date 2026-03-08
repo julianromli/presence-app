@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildAttendanceQueryString,
   DEFAULT_ATTENDANCE_FILTERS,
+  getAttendanceEditedFilterLabel,
+  getAttendanceStatusFilterLabel,
   resolveAttendanceFilters,
   serializeAttendanceFilters,
 } from "../lib/attendance-filters";
@@ -62,5 +64,12 @@ describe("attendance filters", () => {
     expect(query).toContain("q=Budi");
     expect(query).toContain("status=checked-in");
     expect(query).toContain("edited=true");
+  });
+
+  it("maps attendance filter values into stable menu labels", () => {
+    expect(getAttendanceStatusFilterLabel("all")).toBe("Semua");
+    expect(getAttendanceStatusFilterLabel("incomplete")).toBe("Belum check-out");
+    expect(getAttendanceEditedFilterLabel("all")).toBe("Semua");
+    expect(getAttendanceEditedFilterLabel("false")).toBe("Original");
   });
 });

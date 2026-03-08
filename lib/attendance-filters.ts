@@ -23,6 +23,26 @@ export const DEFAULT_ATTENDANCE_FILTERS: AttendanceFilters = {
   edited: "all",
 };
 
+export const ATTENDANCE_STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "Semua" },
+  { value: "not-checked-in", label: "Belum check-in" },
+  { value: "checked-in", label: "Sudah check-in" },
+  { value: "incomplete", label: "Belum check-out" },
+  { value: "completed", label: "Lengkap" },
+] as const satisfies ReadonlyArray<{
+  value: AttendanceStatusFilter;
+  label: string;
+}>;
+
+export const ATTENDANCE_EDITED_FILTER_OPTIONS = [
+  { value: "all", label: "Semua" },
+  { value: "true", label: "Edited" },
+  { value: "false", label: "Original" },
+] as const satisfies ReadonlyArray<{
+  value: AttendanceEditedFilter;
+  label: string;
+}>;
+
 const STATUS_FILTERS = new Set<AttendanceStatusFilter>([
   "all",
   "not-checked-in",
@@ -32,6 +52,18 @@ const STATUS_FILTERS = new Set<AttendanceStatusFilter>([
 ]);
 
 const EDITED_FILTERS = new Set<AttendanceEditedFilter>(["all", "true", "false"]);
+
+export function getAttendanceStatusFilterLabel(value: AttendanceStatusFilter) {
+  return (
+    ATTENDANCE_STATUS_FILTER_OPTIONS.find((option) => option.value === value)?.label ?? "Semua"
+  );
+}
+
+export function getAttendanceEditedFilterLabel(value: AttendanceEditedFilter) {
+  return (
+    ATTENDANCE_EDITED_FILTER_OPTIONS.find((option) => option.value === value)?.label ?? "Semua"
+  );
+}
 
 export function resolveAttendanceFilters(
   input?: Partial<AttendanceFilters>,

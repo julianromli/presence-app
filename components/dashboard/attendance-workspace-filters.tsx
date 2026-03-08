@@ -1,14 +1,21 @@
 'use client';
 
 import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, ChevronDown } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { Popover, PopoverPopup, PopoverTrigger } from '@/components/ui/popover';
+import {
+  ATTENDANCE_EDITED_FILTER_OPTIONS,
+  ATTENDANCE_STATUS_FILTER_OPTIONS,
+  getAttendanceEditedFilterLabel,
+  getAttendanceStatusFilterLabel,
+  type AttendanceFilters,
+} from '@/lib/attendance-filters';
 import { cn } from '@/lib/utils';
-import type { AttendanceFilters } from '@/lib/attendance-filters';
 
 type AttendanceWorkspaceFiltersProps = {
   filters: AttendanceFilters;
@@ -75,30 +82,66 @@ export function AttendanceWorkspaceFilters({
 
         <label className="space-y-1.5">
           <span className="text-xs font-medium text-zinc-700">Status attendance</span>
-          <select
-            value={filters.status}
-            onChange={(event) => onChange({ status: event.target.value as AttendanceFilters['status'] })}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
-          >
-            <option value="all">Semua</option>
-            <option value="not-checked-in">Belum check-in</option>
-            <option value="checked-in">Sudah check-in</option>
-            <option value="incomplete">Belum check-out</option>
-            <option value="completed">Lengkap</option>
-          </select>
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+                />
+              }
+            >
+              {getAttendanceStatusFilterLabel(filters.status)}
+              <ChevronDown className="h-4 w-4 opacity-70" />
+            </MenuTrigger>
+            <MenuPopup align="start" className="w-[var(--anchor-width)]">
+              <MenuRadioGroup
+                value={filters.status}
+                onValueChange={(value) =>
+                  onChange({ status: value as AttendanceFilters['status'] })
+                }
+              >
+                {ATTENDANCE_STATUS_FILTER_OPTIONS.map((option) => (
+                  <MenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+            </MenuPopup>
+          </Menu>
         </label>
 
         <label className="space-y-1.5">
           <span className="text-xs font-medium text-zinc-700">Status edit</span>
-          <select
-            value={filters.edited}
-            onChange={(event) => onChange({ edited: event.target.value as AttendanceFilters['edited'] })}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
-          >
-            <option value="all">Semua</option>
-            <option value="true">Edited</option>
-            <option value="false">Original</option>
-          </select>
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+                />
+              }
+            >
+              {getAttendanceEditedFilterLabel(filters.edited)}
+              <ChevronDown className="h-4 w-4 opacity-70" />
+            </MenuTrigger>
+            <MenuPopup align="start" className="w-[var(--anchor-width)]">
+              <MenuRadioGroup
+                value={filters.edited}
+                onValueChange={(value) =>
+                  onChange({ edited: value as AttendanceFilters['edited'] })
+                }
+              >
+                {ATTENDANCE_EDITED_FILTER_OPTIONS.map((option) => (
+                  <MenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+            </MenuPopup>
+          </Menu>
         </label>
 
         <div className="flex items-end gap-2">
