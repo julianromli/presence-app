@@ -12,31 +12,14 @@ function makeWorkspaceContext(options: SetupOptions) {
 }
 
 async function setupReadRoute(options: SetupOptions = {}) {
-  vi.resetModules();
-
-  const query = vi.fn(async () => null);
-  const mutation = vi.fn(async () => ({
-    ok: true,
-    unreadCount: 0,
-  }));
-  const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
-  const convexErrorResponse = vi.fn((_: unknown, fallbackMessage: string) =>
-    Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-  );
-
-  vi.doMock("@/lib/auth", () => ({
-    requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
-    requireWorkspaceRoleApiFromDb: vi.fn(async () => ({ session: { role: "karyawan" } })),
-    getConvexTokenOrNull: vi.fn(async () => "convex-token"),
-  }));
-  vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
-  vi.doMock("@/lib/api-error", () => ({ convexErrorResponse }));
-
-  const routeModule = await import("../app/api/karyawan/notifications/read/route");
-  return { POST: routeModule.POST, mocks: { mutation, convexErrorResponse } };
+  return makeSetupRoute("../app/api/karyawan/notifications/read/route", options);
 }
 
 async function setupReadAllRoute(options: SetupOptions = {}) {
+  return makeSetupRoute("../app/api/karyawan/notifications/read-all/route", options);
+}
+
+async function makeSetupRoute(routePath: string, options: SetupOptions = {}) {
   vi.resetModules();
 
   const query = vi.fn(async () => null);
@@ -57,7 +40,7 @@ async function setupReadAllRoute(options: SetupOptions = {}) {
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
   vi.doMock("@/lib/api-error", () => ({ convexErrorResponse }));
 
-  const routeModule = await import("../app/api/karyawan/notifications/read-all/route");
+  const routeModule = await import(routePath);
   return { POST: routeModule.POST, mocks: { mutation, convexErrorResponse } };
 }
 
@@ -159,6 +142,28 @@ describe("karyawan notifications routes", () => {
     await expect(response.json()).resolves.toEqual({
       code: "INTERNAL_ERROR",
       message: "Gagal menandai notifikasi sebagai dibaca.",
+    });
+  });
+
+  it("uses convexErrorResponse when mark-all-read mutation throws", async () => {
+    const { POST, mocks } = await setupReadAllRoute();
+    mocks.mutation.mockRejectedValueOnce(new Error("boom"));
+
+    const response = await POST(
+      new Request("http://localhost/api/karyawan/notifications/read-all", {
+        method: "POST",
+      }),
+    );
+
+    expect(mocks.mutation).toHaveBeenCalledWith("notifications:markAllRead", {
+      workspaceId: "workspace_123456",
+      beforeTs: undefined,
+    });
+    expect(mocks.convexErrorResponse).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      code: "INTERNAL_ERROR",
+      message: "Gagal menandai semua notifikasi sebagai dibaca.",
     });
   });
 });

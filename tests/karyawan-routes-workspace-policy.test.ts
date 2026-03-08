@@ -224,6 +224,38 @@ describe("karyawan route workspace policy", () => {
     });
   });
 
+  it("returns 400 when attendance-by-date dateKey is missing", async () => {
+    const { GET, mocks } = await setupAttendanceByDateRoute();
+    const response = await GET(
+      new Request("http://localhost/api/karyawan/dashboard/attendance/by-date"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "VALIDATION_ERROR",
+      message: "dateKey tidak valid.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when attendance-by-date dateKey is blank", async () => {
+    const { GET, mocks } = await setupAttendanceByDateRoute();
+    const response = await GET(
+      new Request(
+        "http://localhost/api/karyawan/dashboard/attendance/by-date?dateKey=",
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "VALIDATION_ERROR",
+      message: "dateKey tidak valid.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
   it("passes strict workspaceId to leaderboard query", async () => {
     const { GET, mocks } = await setupLeaderboardRoute();
     const response = await GET(new Request("http://localhost/api/karyawan/dashboard/leaderboard"));

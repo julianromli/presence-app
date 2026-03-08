@@ -407,7 +407,7 @@ export const getAttendanceByDate = query({
     const timezone = resolveTimezone(settings);
     const cutoffMinutes = getCutoffMinutes();
 
-    const row = await ctx.db
+    const matchingRows = await ctx.db
       .query("attendance")
       .withIndex("by_workspace_user_date", (q) =>
         q
@@ -415,7 +415,17 @@ export const getAttendanceByDate = query({
           .eq("userId", user._id)
           .eq("dateKey", args.dateKey),
       )
-      .unique();
+      .collect();
+    const row = matchingRows[matchingRows.length - 1] ?? null;
+
+    if (matchingRows.length > 1) {
+      console.warn("[attendance-by-date-duplicate]", {
+        workspaceId: String(args.workspaceId),
+        userId: String(user._id),
+        dateKey: args.dateKey,
+        count: matchingRows.length,
+      });
+    }
 
     if (!row) {
       return {

@@ -132,6 +132,10 @@ function statusLabel(status: EmployeeAttendanceHistoryRow['status']) {
   return 'Tidak hadir';
 }
 
+function editedLabel(edited: boolean) {
+  return edited ? 'Diubah' : 'Tidak';
+}
+
 function statusBadgeClass(status: EmployeeAttendanceHistoryRow['status']) {
   if (status === 'on-time') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
   if (status === 'late') return 'bg-amber-100 text-amber-800 border-amber-200';
@@ -300,7 +304,12 @@ export function HistoryPanel() {
           return;
         }
         resolvingDateKeyRef.current = null;
-        router.replace('/scan/history', { scroll: false });
+        setError({
+          code: 'INTERNAL_ERROR',
+          message: 'Gagal memuat detail absensi dari notifikasi.',
+          status: 500,
+        });
+        setStatus('error');
       }
     })();
 
@@ -455,7 +464,7 @@ export function HistoryPanel() {
           ) : null}
         </Card>
 
-        {status === 'error' && error ? (
+        {status === 'error' && error && !payload ? (
           <Card className="rounded-[24px] border-rose-200 bg-rose-50 p-5 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
@@ -472,6 +481,24 @@ export function HistoryPanel() {
           </Card>
         ) : (
           <div className="space-y-3">
+            {status === 'error' && error && payload ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">Pembaruan riwayat gagal</p>
+                    <p className="mt-1 text-amber-800">[{error.code}] {error.message}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 rounded-full border-amber-300 bg-transparent text-amber-900 hover:bg-amber-100"
+                    onClick={() => void loadHistory(range, currentCursor)}
+                  >
+                    Coba lagi
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {isLoading ? (
               [...Array.from({ length: 4 })].map((_, index) => (
                 <Card key={index} className="p-4 rounded-[24px] border-border/60 shadow-sm">
@@ -544,7 +571,7 @@ export function HistoryPanel() {
                           {row.edited ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800">
                               <PencilLine className="h-3.5 w-3.5" />
-                              Edited
+                              {editedLabel(true)}
                             </span>
                           ) : null}
                         </div>
@@ -670,7 +697,7 @@ export function HistoryPanel() {
                     </div>
                     <div className="rounded-2xl border border-border/60 bg-card p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Perubahan manual</p>
-                      <p className="mt-2 text-lg font-bold text-foreground">{selectedRow.edited ? 'Ya' : 'Tidak'}</p>
+                      <p className="mt-2 text-lg font-bold text-foreground">{editedLabel(selectedRow.edited)}</p>
                     </div>
                   </div>
                 </div>
