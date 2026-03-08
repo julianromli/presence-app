@@ -145,6 +145,7 @@ export type EmployeeAttendanceHistoryRow = {
 };
 
 export type EmployeeAttendanceHistoryPayload = {
+  timeZone: string;
   rows: EmployeeAttendanceHistoryRow[];
   pageInfo: {
     continueCursor: string;

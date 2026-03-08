@@ -152,10 +152,16 @@ export async function createOrMergeNotification(ctx, payload) {
 
   if (existing) {
     await ctx.db.patch(existing._id, nextValues);
-    return existing._id;
+    return {
+      notificationId: existing._id,
+      created: false,
+    };
   }
 
-  return await ctx.db.insert("employee_notifications", nextValues);
+  return {
+    notificationId: await ctx.db.insert("employee_notifications", nextValues),
+    created: true,
+  };
 }
 
 export async function expireCheckoutReminderForDate(
@@ -328,7 +334,7 @@ export const runCheckoutReminders = internalMutation({
           continue;
         }
 
-        await createOrMergeNotification(ctx, {
+        const reminderResult = await createOrMergeNotification(ctx, {
           workspaceId: workspace._id,
           userId: member.userId,
           type: "attendance_reminder",
@@ -346,7 +352,9 @@ export const runCheckoutReminders = internalMutation({
           },
           createdAt: now,
         });
-        remindersCreated += 1;
+        if (reminderResult.created) {
+          remindersCreated += 1;
+        }
       }
     }
 

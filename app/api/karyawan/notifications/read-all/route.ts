@@ -7,6 +7,14 @@ import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import type { EmployeeNotificationReadPayload } from "@/types/notifications";
 
+function isJsonObject(
+  value: unknown,
+): value is {
+  beforeTs?: number;
+} {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) return workspaceContext.error;
@@ -18,10 +26,25 @@ export async function POST(req: Request) {
   let body: {
     beforeTs?: number;
   } = {};
-  try {
-    body = (await req.json()) as { beforeTs?: number };
-  } catch {
-    body = {};
+  if (req.body !== null) {
+    let parsedBody: unknown;
+    try {
+      parsedBody = await req.json();
+    } catch {
+      return Response.json(
+        { code: "BAD_REQUEST", message: "Payload JSON tidak valid." },
+        { status: 400 },
+      );
+    }
+
+    if (!isJsonObject(parsedBody)) {
+      return Response.json(
+        { code: "VALIDATION_ERROR", message: "Payload JSON harus berupa object." },
+        { status: 400 },
+      );
+    }
+
+    body = parsedBody;
   }
 
   const token = await getConvexTokenOrNull();

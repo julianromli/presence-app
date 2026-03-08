@@ -59,6 +59,7 @@ const attendanceHistoryRowValidator = v.object({
 });
 
 const attendanceHistoryValidator = v.object({
+  timeZone: v.string(),
   rows: v.array(attendanceHistoryRowValidator),
   pageInfo: v.object({
     continueCursor: v.string(),
@@ -378,6 +379,7 @@ export const listAttendanceHistory = query({
     };
 
     return {
+      timeZone: timezone,
       rows: page.page,
       pageInfo: {
         continueCursor: page.continueCursor,

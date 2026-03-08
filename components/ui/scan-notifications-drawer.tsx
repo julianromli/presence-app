@@ -23,7 +23,7 @@ import {
   SheetPopup,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { parseApiErrorResponse } from '@/lib/client-error';
+import { normalizeClientError, parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
 import { buildNotificationActionHref } from '@/lib/notification-navigation';
 import { cn } from '@/lib/utils';
@@ -47,43 +47,55 @@ export type ScanNotificationsController = {
 };
 
 async function fetchNotifications(limit = 20) {
-  const response = await workspaceFetch(`/api/karyawan/notifications?limit=${limit}`, {
-    cache: 'no-store',
-  });
+  try {
+    const response = await workspaceFetch(`/api/karyawan/notifications?limit=${limit}`, {
+      cache: 'no-store',
+    });
 
-  if (!response.ok) {
-    throw await parseApiErrorResponse(response, 'Gagal memuat notifikasi.');
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal memuat notifikasi.');
+    }
+
+    return (await response.json()) as EmployeeNotificationsPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal memuat notifikasi.');
   }
-
-  return (await response.json()) as EmployeeNotificationsPayload;
 }
 
 async function requestMarkRead(notificationId: string) {
-  const response = await workspaceFetch('/api/karyawan/notifications/read', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ notificationId }),
-  });
+  try {
+    const response = await workspaceFetch('/api/karyawan/notifications/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationId }),
+    });
 
-  if (!response.ok) {
-    throw await parseApiErrorResponse(response, 'Gagal menandai notifikasi sebagai dibaca.');
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal menandai notifikasi sebagai dibaca.');
+    }
+
+    return (await response.json()) as EmployeeNotificationReadPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal menandai notifikasi sebagai dibaca.');
   }
-
-  return (await response.json()) as EmployeeNotificationReadPayload;
 }
 
 async function requestMarkAllRead(beforeTs: number) {
-  const response = await workspaceFetch('/api/karyawan/notifications/read-all', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ beforeTs }),
-  });
+  try {
+    const response = await workspaceFetch('/api/karyawan/notifications/read-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beforeTs }),
+    });
 
-  if (!response.ok) {
-    throw await parseApiErrorResponse(response, 'Gagal menandai semua notifikasi sebagai dibaca.');
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal menandai semua notifikasi sebagai dibaca.');
+    }
+
+    return (await response.json()) as EmployeeNotificationReadPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal menandai semua notifikasi sebagai dibaca.');
   }
-
-  return (await response.json()) as EmployeeNotificationReadPayload;
 }
 
 function formatRelativeTime(timestamp: number) {
@@ -168,20 +180,34 @@ export function useScanNotifications(limit = 20): ScanNotificationsController {
   const [status, setStatus] = React.useState<NotificationsStatus>('loading');
   const [payload, setPayload] = React.useState<EmployeeNotificationsPayload | null>(null);
   const [error, setError] = React.useState<ApiErrorInfo | null>(null);
+  const latestRefreshRef = React.useRef(0);
 
   const refresh = React.useCallback(async () => {
+    const requestId = ++latestRefreshRef.current;
     setStatus('loading');
     setError(null);
 
     try {
       const nextPayload = await fetchNotifications(limit);
+      if (requestId !== latestRefreshRef.current) {
+        return;
+      }
       setPayload(nextPayload);
       setStatus('ready');
     } catch (nextError) {
+      if (requestId !== latestRefreshRef.current) {
+        return;
+      }
       setError(nextError as ApiErrorInfo);
       setStatus('error');
     }
   }, [limit]);
+
+  React.useEffect(() => {
+    return () => {
+      latestRefreshRef.current += 1;
+    };
+  }, []);
 
   React.useEffect(() => {
     void refresh();
@@ -198,12 +224,14 @@ export function useScanNotifications(limit = 20): ScanNotificationsController {
 
   const markRead = React.useCallback(async (notificationId: string) => {
     const optimisticReadAt = Date.now();
+    latestRefreshRef.current += 1;
     React.startTransition(() => {
       setPayload((current) => optimisticMarkRead(current, notificationId, optimisticReadAt));
     });
 
     try {
       const next = await requestMarkRead(notificationId);
+      latestRefreshRef.current += 1;
       React.startTransition(() => {
         setPayload((current) => {
           const optimistic = optimisticMarkRead(current, notificationId, next.readAt);
@@ -220,12 +248,14 @@ export function useScanNotifications(limit = 20): ScanNotificationsController {
 
   const markAllRead = React.useCallback(async () => {
     const optimisticReadAt = Date.now();
+    latestRefreshRef.current += 1;
     React.startTransition(() => {
       setPayload((current) => optimisticMarkAllRead(current, optimisticReadAt));
     });
 
     try {
       const next = await requestMarkAllRead(optimisticReadAt);
+      latestRefreshRef.current += 1;
       React.startTransition(() => {
         setPayload((current) => {
           const optimistic = optimisticMarkAllRead(current, next.readAt);

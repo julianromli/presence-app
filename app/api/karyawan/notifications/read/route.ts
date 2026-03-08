@@ -7,6 +7,14 @@ import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import type { EmployeeNotificationReadPayload } from "@/types/notifications";
 
+function isJsonObject(
+  value: unknown,
+): value is {
+  notificationId?: string;
+} {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) return workspaceContext.error;
@@ -15,11 +23,9 @@ export async function POST(req: Request) {
   const role = await requireWorkspaceRoleApiFromDb(["karyawan"], workspaceId);
   if ("error" in role) return role.error;
 
-  let body: {
-    notificationId?: string;
-  };
+  let parsedBody: unknown;
   try {
-    body = await req.json();
+    parsedBody = await req.json();
   } catch {
     return Response.json(
       { code: "BAD_REQUEST", message: "Payload JSON tidak valid." },
@@ -27,7 +33,18 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!body.notificationId) {
+  if (!isJsonObject(parsedBody)) {
+    return Response.json(
+      { code: "VALIDATION_ERROR", message: "Payload JSON harus berupa object." },
+      { status: 400 },
+    );
+  }
+
+  const notificationId =
+    typeof parsedBody.notificationId === "string"
+      ? parsedBody.notificationId.trim()
+      : "";
+  if (!notificationId) {
     return Response.json(
       { code: "VALIDATION_ERROR", message: "notificationId wajib diisi." },
       { status: 400 },
@@ -55,7 +72,7 @@ export async function POST(req: Request) {
       "notifications:markRead",
       {
         workspaceId,
-        notificationId: body.notificationId,
+        notificationId,
       },
     );
     return Response.json(payload);

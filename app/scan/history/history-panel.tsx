@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Sheet, SheetDescription, SheetHeader, SheetPanel, SheetPopup, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { parseApiErrorResponse } from '@/lib/client-error';
+import { normalizeClientError, parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
 import { cn } from '@/lib/utils';
 import { workspaceFetch } from '@/lib/workspace-client';
@@ -35,22 +35,26 @@ type PanelStatus = 'loading' | 'ready' | 'error';
 const RANGE_OPTIONS: RangeFilter[] = ['7d', '30d', '90d'];
 
 async function fetchAttendancePayload(range: RangeFilter, cursor: string | null) {
-  const query = new URLSearchParams();
-  query.set('range', range);
-  query.set('limit', '12');
-  if (cursor) {
-    query.set('cursor', cursor);
+  try {
+    const query = new URLSearchParams();
+    query.set('range', range);
+    query.set('limit', '12');
+    if (cursor) {
+      query.set('cursor', cursor);
+    }
+
+    const response = await workspaceFetch(`/api/karyawan/dashboard/attendance?${query.toString()}`, {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal memuat riwayat absensi.');
+    }
+
+    return (await response.json()) as EmployeeAttendanceHistoryPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal memuat riwayat absensi.');
   }
-
-  const response = await workspaceFetch(`/api/karyawan/dashboard/attendance?${query.toString()}`, {
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    throw await parseApiErrorResponse(response, 'Gagal memuat riwayat absensi.');
-  }
-
-  return (await response.json()) as EmployeeAttendanceHistoryPayload;
 }
 
 function formatDateLabel(dateKey: string) {
@@ -67,7 +71,7 @@ function formatDateLabel(dateKey: string) {
   });
 }
 
-function formatTimeLabel(timestamp?: number) {
+function formatTimeLabel(timestamp: number | undefined, timeZone: string) {
   if (!timestamp) {
     return '-';
   }
@@ -75,6 +79,7 @@ function formatTimeLabel(timestamp?: number) {
   return new Date(timestamp).toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone,
   });
 }
 
@@ -124,10 +129,12 @@ export function HistoryPanel() {
   const [notifOpen, setNotifOpen] = useState(false);
   const latestRequestRef = useRef(0);
   const handledDateKeyRef = useRef<string | null>(null);
+  const resolvingDateKeyRef = useRef<string | null>(null);
   const notifications = useScanNotifications();
   const targetDateKey = searchParams.get('dateKey');
   const summary = payload?.summary;
   const rows = useMemo(() => payload?.rows ?? [], [payload]);
+  const timeZone = payload?.timeZone ?? 'Asia/Jakarta';
   const isLoading = status === 'loading' && !payload;
   const isReloading = status === 'loading' && !!payload;
   const targetRow = useMemo(
@@ -158,6 +165,36 @@ export function HistoryPanel() {
     }
   }, []);
 
+  const findOrFetchRowForDateKey = useCallback(
+    async (
+      nextRange: RangeFilter,
+      dateKey: string,
+      initialPayload: EmployeeAttendanceHistoryPayload,
+    ) => {
+      const localMatch =
+        initialPayload.rows.find((row) => row.dateKey === dateKey) ?? null;
+      if (localMatch) {
+        return localMatch;
+      }
+
+      let cursor = initialPayload.pageInfo.continueCursor || null;
+      let isDone = initialPayload.pageInfo.isDone;
+
+      while (!isDone && cursor) {
+        const nextPayload = await fetchAttendancePayload(nextRange, cursor);
+        const match = nextPayload.rows.find((row) => row.dateKey === dateKey) ?? null;
+        if (match) {
+          return match;
+        }
+        cursor = nextPayload.pageInfo.continueCursor || null;
+        isDone = nextPayload.pageInfo.isDone;
+      }
+
+      return null;
+    },
+    [],
+  );
+
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
       void loadHistory(range, currentCursor);
@@ -175,27 +212,70 @@ export function HistoryPanel() {
   }, [currentCursor, loadHistory, range]);
 
   useEffect(() => {
+    return () => {
+      latestRequestRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!targetDateKey) {
       handledDateKeyRef.current = null;
+      resolvingDateKeyRef.current = null;
       return;
     }
 
-    if (status !== 'ready' || handledDateKeyRef.current === targetDateKey) {
+    if (
+      status !== 'ready' ||
+      !payload ||
+      handledDateKeyRef.current === targetDateKey ||
+      resolvingDateKeyRef.current === targetDateKey
+    ) {
       return;
     }
 
-    handledDateKeyRef.current = targetDateKey;
-    const frameId = requestAnimationFrame(() => {
-      if (targetRow) {
-        setSelectedRow(targetRow);
-        setDrawerOpen(true);
+    resolvingDateKeyRef.current = targetDateKey;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const resolvedRow =
+          targetRow ?? (await findOrFetchRowForDateKey(range, targetDateKey, payload));
+
+        if (cancelled) {
+          return;
+        }
+
+        handledDateKeyRef.current = targetDateKey;
+        resolvingDateKeyRef.current = null;
+
+        const frameId = requestAnimationFrame(() => {
+          if (resolvedRow) {
+            setSelectedRow(resolvedRow);
+            setDrawerOpen(true);
+          }
+
+          router.replace('/scan/history', { scroll: false });
+        });
+
+        if (cancelled) {
+          cancelAnimationFrame(frameId);
+        }
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        resolvingDateKeyRef.current = null;
+        router.replace('/scan/history', { scroll: false });
       }
+    })();
 
-      router.replace('/scan/history', { scroll: false });
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [router, status, targetDateKey, targetRow]);
+    return () => {
+      cancelled = true;
+      if (resolvingDateKeyRef.current === targetDateKey) {
+        resolvingDateKeyRef.current = null;
+      }
+    };
+  }, [findOrFetchRowForDateKey, payload, range, router, status, targetDateKey, targetRow]);
 
   const openDetail = (row: EmployeeAttendanceHistoryRow) => {
     setSelectedRow(row);
@@ -235,12 +315,24 @@ export function HistoryPanel() {
           </h1>
         </div>
         <button
+          type="button"
           onClick={() => setNotifOpen(true)}
+          aria-label={
+            notifications.unreadCount > 0
+              ? `Buka notifikasi, ${notifications.unreadCount} belum dibaca`
+              : 'Buka notifikasi'
+          }
           className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
         >
-          <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
+          <Bell
+            aria-hidden="true"
+            className="w-5 h-5 text-foreground transition-transform group-active:scale-90"
+          />
           {notifications.unreadCount > 0 ? (
-            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground"
+            >
               {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
             </span>
           ) : null}
@@ -271,11 +363,16 @@ export function HistoryPanel() {
             <Button
               variant="outline"
               size="icon"
+              type="button"
               className="rounded-full bg-background border-border/60 shrink-0"
               onClick={() => void loadHistory(range, currentCursor)}
               disabled={status === 'loading'}
+              aria-label={status === 'loading' ? 'Memperbarui riwayat' : 'Refresh history'}
             >
-              <Loader2 className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
+              <Loader2
+                aria-hidden="true"
+                className={cn('h-4 w-4', status === 'loading' && 'animate-spin')}
+              />
             </Button>
           </div>
 
@@ -353,10 +450,16 @@ export function HistoryPanel() {
               rows.map((row) => (
                 <Card
                   key={row.attendanceId}
-                  className="p-4 rounded-[24px] border-border/60 shadow-sm cursor-pointer transition-all active:scale-[0.99] hover:bg-secondary/15"
-                  onClick={() => openDetail(row)}
+                  className="rounded-[24px] border-border/60 shadow-sm"
                 >
-                  <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => openDetail(row)}
+                    className="w-full rounded-[24px] p-4 text-left transition-all hover:bg-secondary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-[0.99]"
+                    aria-label={`Lihat detail absensi ${formatDateLabel(row.dateKey)}`}
+                    aria-controls="history-detail-sheet"
+                  >
+                    <div className="flex items-start gap-3">
                     <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                       <CheckCircle2 className="w-5 h-5" />
                     </div>
@@ -381,11 +484,11 @@ export function HistoryPanel() {
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         <div className="rounded-2xl border border-border/60 bg-secondary/35 px-3 py-3">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Check-in</p>
-                          <p className="mt-1 text-base font-bold text-foreground">{formatTimeLabel(row.checkInAt)}</p>
+                          <p className="mt-1 text-base font-bold text-foreground">{formatTimeLabel(row.checkInAt, timeZone)}</p>
                         </div>
                         <div className="rounded-2xl border border-border/60 bg-secondary/35 px-3 py-3">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Check-out</p>
-                          <p className="mt-1 text-base font-bold text-foreground">{formatTimeLabel(row.checkOutAt)}</p>
+                          <p className="mt-1 text-base font-bold text-foreground">{formatTimeLabel(row.checkOutAt, timeZone)}</p>
                         </div>
                       </div>
 
@@ -413,7 +516,8 @@ export function HistoryPanel() {
                         <ChevronRight className="ml-1 h-4 w-4" />
                       </div>
                     </div>
-                  </div>
+                    </div>
+                  </button>
                 </Card>
               ))
             ) : (
@@ -462,7 +566,11 @@ export function HistoryPanel() {
       <ScanBottomNav />
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetPopup side="bottom" className="bg-background border-border max-w-md mx-auto overflow-hidden rounded-t-[32px]">
+        <SheetPopup
+          id="history-detail-sheet"
+          side="bottom"
+          className="bg-background border-border max-w-md mx-auto overflow-hidden rounded-t-[32px]"
+        >
           <SheetHeader className="text-left border-b border-border/50 pb-4">
             <div className="flex items-start gap-3">
               <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -508,11 +616,11 @@ export function HistoryPanel() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-border/60 bg-card p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Check-in</p>
-                      <p className="mt-2 text-lg font-bold text-foreground">{formatTimeLabel(selectedRow.checkInAt)}</p>
+                      <p className="mt-2 text-lg font-bold text-foreground">{formatTimeLabel(selectedRow.checkInAt, timeZone)}</p>
                     </div>
                     <div className="rounded-2xl border border-border/60 bg-card p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Check-out</p>
-                      <p className="mt-2 text-lg font-bold text-foreground">{formatTimeLabel(selectedRow.checkOutAt)}</p>
+                      <p className="mt-2 text-lg font-bold text-foreground">{formatTimeLabel(selectedRow.checkOutAt, timeZone)}</p>
                     </div>
                   </div>
 

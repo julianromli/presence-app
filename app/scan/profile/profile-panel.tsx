@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   Bell,
@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { parseApiErrorResponse } from '@/lib/client-error';
+import { normalizeClientError, parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
 import { workspaceFetch } from '@/lib/workspace-client';
 import type { EmployeeDashboardOverviewPayload } from '@/types/dashboard';
@@ -38,15 +38,19 @@ export type ProfilePanelProps = {
 };
 
 async function fetchOverviewPayload() {
-  const response = await workspaceFetch('/api/karyawan/dashboard/overview', {
-    cache: 'no-store',
-  });
+  try {
+    const response = await workspaceFetch('/api/karyawan/dashboard/overview', {
+      cache: 'no-store',
+    });
 
-  if (!response.ok) {
-    throw await parseApiErrorResponse(response, 'Gagal memuat ringkasan profil.');
+    if (!response.ok) {
+      throw await parseApiErrorResponse(response, 'Gagal memuat ringkasan profil.');
+    }
+
+    return (await response.json()) as EmployeeDashboardOverviewPayload;
+  } catch (error) {
+    throw await normalizeClientError(error, 'Gagal memuat ringkasan profil.');
   }
-
-  return (await response.json()) as EmployeeDashboardOverviewPayload;
 }
 
 function initialsFromName(name: string) {
@@ -70,20 +74,34 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
   const [payload, setPayload] = useState<EmployeeDashboardOverviewPayload | null>(null);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
+  const latestRequestRef = useRef(0);
   const notifications = useScanNotifications();
 
   const loadOverview = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
     setStatus('loading');
     setError(null);
 
     try {
       const nextPayload = await fetchOverviewPayload();
+      if (requestId !== latestRequestRef.current) {
+        return;
+      }
       setPayload(nextPayload);
       setStatus('success');
     } catch (nextError) {
+      if (requestId !== latestRequestRef.current) {
+        return;
+      }
       setError(nextError as ApiErrorInfo);
       setStatus('error');
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      latestRequestRef.current += 1;
+    };
   }, []);
 
   useEffect(() => {
@@ -118,12 +136,24 @@ export function ProfilePanel({ initialProfile }: ProfilePanelProps) {
           </h1>
         </div>
         <button
+          type="button"
           onClick={() => setNotifOpen(true)}
+          aria-label={
+            notifications.unreadCount > 0
+              ? `Notifikasi, ${notifications.unreadCount} belum dibaca`
+              : 'Notifikasi'
+          }
           className="relative w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors group"
         >
-          <Bell className="w-5 h-5 text-foreground transition-transform group-active:scale-90" />
+          <Bell
+            aria-hidden="true"
+            className="w-5 h-5 text-foreground transition-transform group-active:scale-90"
+          />
           {notifications.unreadCount > 0 ? (
-            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground"
+            >
               {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
             </span>
           ) : null}
