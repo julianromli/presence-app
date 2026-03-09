@@ -8,6 +8,22 @@
 @custom-variant dark (&:is(.dark *));
 
 :root { /* #FFFFFF */ /* #0D0D12 */
+  --font-geist:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  --font-geist-mono:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
   --card: oklch(1 0 0); /* #FFFFFF */
   --card-foreground: oklch(0.145 0 0); /* #0D0D12 */
   --popover: oklch(1 0 0); /* #FFFFFF */

@@ -169,7 +169,7 @@ export default defineSchema({
     geofenceLng: v.optional(v.number()),
     whitelistEnabled: v.boolean(),
     whitelistIps: v.array(v.string()),
-    attendanceSchedule: v.array(attendanceScheduleRow),
+    attendanceSchedule: v.optional(v.array(attendanceScheduleRow)),
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   })
