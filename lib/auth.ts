@@ -78,6 +78,12 @@ type ClerkApiResponseErrorLike = {
   status?: number;
 };
 
+function missingClerkConvexTemplateError() {
+  return new Error(
+    'Missing Clerk JWT template "convex". Configure the template before calling Convex.',
+  );
+}
+
 function forbiddenResponse() {
   return new Response(
     JSON.stringify({ code: "FORBIDDEN", message: "Forbidden" }),
@@ -149,7 +155,7 @@ export async function getConvexTokenOrNull() {
     return (await session.getToken({ template: "convex" })) ?? null;
   } catch (error) {
     if (isMissingClerkTokenTemplateError(error)) {
-      return null;
+      throw missingClerkConvexTemplateError();
     }
     throw error;
   }

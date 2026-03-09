@@ -34,6 +34,10 @@ const summaryValidator = v.object({
   inactive: v.number(),
 });
 
+const clerkWebhookSecretFields = {
+  secret: v.string(),
+};
+
 const userRowValidator = v.object({
   _id: v.id("users"),
   _creationTime: v.number(),
@@ -45,6 +49,16 @@ const userRowValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
 });
+
+function assertClerkSyncSecret(secret) {
+  const expected = process.env.CLERK_SYNC_SHARED_SECRET;
+  if (!expected || secret !== expected) {
+    throw new ConvexError({
+      code: "FORBIDDEN",
+      message: "Invalid Clerk sync secret.",
+    });
+  }
+}
 
 function assertAdminManagedTargetPolicy(actorRole, targetRole, nextActive) {
   if (actorRole !== "admin" || nextActive === undefined) {
@@ -153,6 +167,86 @@ export const upsertFromClerk = mutation({
     });
 
     return inserted;
+  },
+});
+
+export const upsertFromClerkWebhook = mutation({
+  args: {
+    ...clerkWebhookSecretFields,
+    clerkUserId: v.string(),
+    name: v.string(),
+    email: v.string(),
+  },
+  returns: v.id("users"),
+  handler: async (ctx, args) => {
+    assertClerkSyncSecret(args.secret);
+
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        name: args.name,
+        email: args.email,
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("users", {
+      clerkUserId: args.clerkUserId,
+      name: args.name,
+      email: args.email,
+      role: "karyawan",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const deleteFromClerkWebhook = mutation({
+  args: {
+    ...clerkWebhookSecretFields,
+    clerkUserId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    assertClerkSyncSecret(args.secret);
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .unique();
+
+    if (!user) {
+      return null;
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(user._id, {
+      isActive: false,
+      updatedAt: now,
+    });
+
+    const memberships = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_user_and_workspace", (q) => q.eq("userId", user._id))
+      .collect();
+
+    await Promise.all(
+      memberships.map((membership) =>
+        ctx.db.patch(membership._id, {
+          isActive: false,
+          updatedAt: now,
+        }),
+      ),
+    );
+
+    return null;
   },
 });
 

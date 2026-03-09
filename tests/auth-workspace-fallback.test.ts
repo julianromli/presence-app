@@ -107,7 +107,7 @@ describe("auth workspace fallback", () => {
     vi.restoreAllMocks();
   });
 
-  it("treats a missing Clerk convex token as an anonymous Convex session instead of throwing", async () => {
+  it("throws a configuration error when the Clerk convex token template is missing", async () => {
     vi.resetModules();
 
     vi.doMock("@clerk/nextjs/server", () => ({
@@ -146,13 +146,10 @@ describe("auth workspace fallback", () => {
     }));
 
     const authModule = await import("../lib/auth");
-    const session = await authModule.getCurrentSession();
 
-    expect(session).toEqual({
-      userId: "clerk_u1",
-      role: null,
-      user: null,
-    });
+    await expect(authModule.getCurrentSession()).rejects.toThrow(
+      'Missing Clerk JWT template "convex"',
+    );
     expect(getAuthedConvexHttpClient).not.toHaveBeenCalled();
     expect(query).not.toHaveBeenCalled();
   });

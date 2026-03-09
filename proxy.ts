@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   '/device-qr(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/api/webhooks/clerk(.*)',
   '/api/device(.*)',
   '/api/health(.*)',
 ]);
