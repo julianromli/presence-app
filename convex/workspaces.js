@@ -1,7 +1,11 @@
 import { ConvexError, v } from "convex/values";
 
 import { internalQuery, mutation, query } from "./_generated/server";
-import { requireIdentityUser, requireWorkspaceRole } from "./helpers";
+import {
+  defaultAttendanceSchedule,
+  requireIdentityUser,
+  requireWorkspaceRole,
+} from "./helpers";
 import { toInviteCodeView } from "./workspaceInviteView";
 import { listActiveInviteCodeIds } from "./workspaceInvitePolicy";
 
@@ -319,6 +323,7 @@ export const createWorkspace = mutation({
       geofenceLng: undefined,
       whitelistEnabled: false,
       whitelistIps: [],
+      attendanceSchedule: defaultAttendanceSchedule(),
       updatedBy: user._id,
       updatedAt: now,
     });

@@ -65,6 +65,7 @@ export type AdminAttendanceRow = {
   dateKey: string;
   checkInAt?: number;
   checkOutAt?: number;
+  punctuality?: 'on-time' | 'late' | 'not-applicable';
   edited: boolean;
 };
 
@@ -111,6 +112,35 @@ export type WorkspaceManagementPayload = {
     activeCount: number;
     activeCountExcludingCurrentUser: number;
   };
+};
+
+export type AttendanceScheduleDay =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export type AttendanceScheduleRow = {
+  day: AttendanceScheduleDay;
+  enabled: boolean;
+  checkInTime?: string;
+};
+
+export type WorkspaceSettingsPayload = {
+  timezone: string;
+  geofenceEnabled: boolean;
+  geofenceRadiusMeters: number;
+  scanCooldownSeconds: number;
+  minLocationAccuracyMeters: number;
+  enforceDeviceHeartbeat: boolean;
+  geofenceLat?: number;
+  geofenceLng?: number;
+  whitelistEnabled: boolean;
+  whitelistIps: string[];
+  attendanceSchedule: AttendanceScheduleRow[];
 };
 
 export type DeviceRegistrationCodeRow = {
@@ -167,6 +197,7 @@ export type EmployeeAttendanceHistoryRow = {
   checkInAt?: number;
   checkOutAt?: number;
   status: "on-time" | "late" | "incomplete" | "absent";
+  punctuality: "on-time" | "late" | "not-applicable";
   workDurationMinutes: number;
   edited: boolean;
   points: number;

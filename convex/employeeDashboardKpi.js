@@ -1,6 +1,68 @@
 const DEFAULT_CUTOFF_MINUTES = 8 * 60;
 const DEFAULT_TIME_ZONE = "UTC";
 const validTimeZoneCache = new Map();
+const WEEKDAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+export function defaultAttendanceSchedule() {
+  return [
+    { day: "monday", enabled: true, checkInTime: "08:00" },
+    { day: "tuesday", enabled: true, checkInTime: "08:00" },
+    { day: "wednesday", enabled: true, checkInTime: "08:00" },
+    { day: "thursday", enabled: true, checkInTime: "08:00" },
+    { day: "friday", enabled: true, checkInTime: "08:00" },
+    { day: "saturday", enabled: false },
+    { day: "sunday", enabled: false },
+  ];
+}
+
+export function parseClockToMinutes(clock) {
+  if (typeof clock !== "string" || !/^\d{2}:\d{2}$/.test(clock)) {
+    return null;
+  }
+
+  const [hourText, minuteText] = clock.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+export function getScheduleForDateKey(dateKey, schedule) {
+  const day = WEEKDAY_KEYS[new Date(`${dateKey}T00:00:00.000Z`).getUTCDay()];
+  return schedule.find((row) => row.day === day) ?? null;
+}
+
+export function resolveCheckInPunctuality({ dateKey, checkInAt, timezone, schedule }) {
+  const row = getScheduleForDateKey(dateKey, schedule);
+  if (!row?.enabled) {
+    return "not-applicable";
+  }
+
+  const scheduledMinutes = parseClockToMinutes(row.checkInTime);
+  if (scheduledMinutes === null || checkInAt === undefined) {
+    return "not-applicable";
+  }
+
+  return getMinutesInTimezone(checkInAt, timezone) <= scheduledMinutes ? "on-time" : "late";
+}
 
 function resolveTimeZone(timezone) {
   if (typeof timezone !== "string" || timezone.trim().length === 0) {
@@ -86,13 +148,29 @@ export function isOnTimeCheckIn(checkInAt, timezone, cutoffMinutes = DEFAULT_CUT
   return getMinutesInTimezone(checkInAt, timezone) <= cutoffMinutes;
 }
 
-export function computeDailyPoints(row, timezone, cutoffMinutes = DEFAULT_CUTOFF_MINUTES) {
+function resolveLegacyPunctuality(checkInAt, timezone, cutoffMinutes = DEFAULT_CUTOFF_MINUTES) {
+  return isOnTimeCheckIn(checkInAt, timezone, cutoffMinutes) ? "on-time" : "late";
+}
+
+/**
+ * @param {{ dateKey: string, checkInAt?: number, checkOutAt?: number }} row
+ * @param {string} timezone
+ * @param {number | Array<{ day: string, enabled: boolean, checkInTime?: string }>} [scheduleOrCutoff=DEFAULT_CUTOFF_MINUTES]
+ */
+export function computeDailyPoints(row, timezone, scheduleOrCutoff = DEFAULT_CUTOFF_MINUTES) {
   if (row.checkInAt === undefined) {
     return 0;
   }
 
-  const onTime = isOnTimeCheckIn(row.checkInAt, timezone, cutoffMinutes);
-  let points = onTime ? 10 : -3;
+  const punctuality = Array.isArray(scheduleOrCutoff)
+    ? resolveCheckInPunctuality({
+        dateKey: row.dateKey,
+        checkInAt: row.checkInAt,
+        timezone,
+        schedule: scheduleOrCutoff,
+      })
+    : resolveLegacyPunctuality(row.checkInAt, timezone, scheduleOrCutoff);
+  let points = punctuality === "late" ? -3 : 10;
   if (row.checkOutAt !== undefined) {
     points += 4;
   }

@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  defaultAttendanceSchedule,
+  ensureGlobalSettingsForMutation,
+} from "../convex/helpers";
 
 type RoleResult = { error: Response } | { session: { role: string } };
 
@@ -258,6 +262,64 @@ describe("security auth and rbac routes", () => {
     });
   });
 
+  it("provides the default weekly attendance schedule", () => {
+    expect(defaultAttendanceSchedule()).toEqual([
+      { day: "monday", enabled: true, checkInTime: "08:00" },
+      { day: "tuesday", enabled: true, checkInTime: "08:00" },
+      { day: "wednesday", enabled: true, checkInTime: "08:00" },
+      { day: "thursday", enabled: true, checkInTime: "08:00" },
+      { day: "friday", enabled: true, checkInTime: "08:00" },
+      { day: "saturday", enabled: false },
+      { day: "sunday", enabled: false },
+    ]);
+  });
+
+  it("backfills attendanceSchedule during ensure flow for older settings", async () => {
+    const existing = {
+      _id: "settings_123",
+      workspaceId: "workspace_123456",
+      timezone: "Asia/Jakarta",
+      geofenceEnabled: false,
+      geofenceRadiusMeters: 100,
+      whitelistEnabled: false,
+      whitelistIps: [],
+      updatedAt: 1,
+    };
+    const patch = vi.fn(async () => null);
+    const get = vi.fn(async () => ({
+      ...existing,
+      scanCooldownSeconds: 30,
+      minLocationAccuracyMeters: 100,
+      enforceDeviceHeartbeat: false,
+      attendanceSchedule: defaultAttendanceSchedule(),
+    }));
+    const unique = vi.fn(async () => existing);
+
+    const result = await ensureGlobalSettingsForMutation(
+      {
+        db: {
+          query: vi.fn(() => ({
+            withIndex: vi.fn(() => ({
+              unique,
+            })),
+          })),
+          patch,
+          get,
+          insert: vi.fn(),
+        },
+      },
+      "workspace_123456",
+    );
+
+    expect(patch).toHaveBeenCalledWith("settings_123", {
+      scanCooldownSeconds: 30,
+      minLocationAccuracyMeters: 100,
+      enforceDeviceHeartbeat: false,
+      attendanceSchedule: defaultAttendanceSchedule(),
+    });
+    expect(result.attendanceSchedule).toEqual(defaultAttendanceSchedule());
+  });
+
   it("updates settings via PATCH for superadmin", async () => {
     const mutation = vi.fn(async () => null);
     const { PATCH } = await setupAdminSettingsRoute({
@@ -276,6 +338,15 @@ describe("security auth and rbac routes", () => {
           geofenceLng: 106.8,
           whitelistEnabled: true,
           whitelistIps: ["203.0.113.1"],
+          attendanceSchedule: [
+            { day: "monday", enabled: true, checkInTime: "08:00" },
+            { day: "tuesday", enabled: true, checkInTime: "08:00" },
+            { day: "wednesday", enabled: true, checkInTime: "08:00" },
+            { day: "thursday", enabled: true, checkInTime: "08:00" },
+            { day: "friday", enabled: true, checkInTime: "08:00" },
+            { day: "saturday", enabled: false },
+            { day: "sunday", enabled: false },
+          ],
         }),
       }),
     );
@@ -290,7 +361,72 @@ describe("security auth and rbac routes", () => {
       geofenceLng: 106.8,
       whitelistEnabled: true,
       whitelistIps: ["203.0.113.1"],
+      attendanceSchedule: defaultAttendanceSchedule(),
     });
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("rejects attendanceSchedule rows with invalid HH:mm", async () => {
+    const mutation = vi.fn(async () => null);
+    const { PATCH } = await setupAdminSettingsRoute({
+      convexClient: { mutation, query: vi.fn() },
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          attendanceSchedule: [
+            { day: "monday", enabled: true, checkInTime: "25:00" },
+            { day: "tuesday", enabled: true, checkInTime: "08:00" },
+            { day: "wednesday", enabled: true, checkInTime: "08:00" },
+            { day: "thursday", enabled: true, checkInTime: "08:00" },
+            { day: "friday", enabled: true, checkInTime: "08:00" },
+            { day: "saturday", enabled: false },
+            { day: "sunday", enabled: false },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "BAD_REQUEST",
+      message: "Attendance schedule tidak valid.",
+    });
+    expect(mutation).not.toHaveBeenCalled();
+  });
+
+  it("rejects enabled attendanceSchedule rows without checkInTime", async () => {
+    const mutation = vi.fn(async () => null);
+    const { PATCH } = await setupAdminSettingsRoute({
+      convexClient: { mutation, query: vi.fn() },
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          attendanceSchedule: [
+            { day: "monday", enabled: true },
+            { day: "tuesday", enabled: true, checkInTime: "08:00" },
+            { day: "wednesday", enabled: true, checkInTime: "08:00" },
+            { day: "thursday", enabled: true, checkInTime: "08:00" },
+            { day: "friday", enabled: true, checkInTime: "08:00" },
+            { day: "saturday", enabled: false },
+            { day: "sunday", enabled: false },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "BAD_REQUEST",
+      message: "Attendance schedule tidak valid.",
+    });
+    expect(mutation).not.toHaveBeenCalled();
   });
 });

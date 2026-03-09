@@ -1,5 +1,15 @@
 import { ConvexError } from 'convex/values';
 
+export const ATTENDANCE_SCHEDULE_DAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
+
 export async function requireIdentity(ctx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -69,6 +79,104 @@ export function buildDateKey(ts, timezone) {
   return formatter.format(new Date(ts));
 }
 
+export function defaultAttendanceSchedule() {
+  return [
+    { day: 'monday', enabled: true, checkInTime: '08:00' },
+    { day: 'tuesday', enabled: true, checkInTime: '08:00' },
+    { day: 'wednesday', enabled: true, checkInTime: '08:00' },
+    { day: 'thursday', enabled: true, checkInTime: '08:00' },
+    { day: 'friday', enabled: true, checkInTime: '08:00' },
+    { day: 'saturday', enabled: false },
+    { day: 'sunday', enabled: false },
+  ];
+}
+
+function isValidClock(value) {
+  if (typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [hourText, minuteText] = value.split(':');
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  return (
+    Number.isInteger(hour) &&
+    Number.isInteger(minute) &&
+    hour >= 0 &&
+    hour <= 23 &&
+    minute >= 0 &&
+    minute <= 59
+  );
+}
+
+export function normalizeAttendanceSchedule(schedule) {
+  if (schedule === undefined) {
+    return defaultAttendanceSchedule();
+  }
+
+  if (!Array.isArray(schedule) || schedule.length !== ATTENDANCE_SCHEDULE_DAYS.length) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Attendance schedule tidak valid.',
+    });
+  }
+
+  const byDay = new Map();
+  for (const row of schedule) {
+    if (
+      !row ||
+      typeof row !== 'object' ||
+      !ATTENDANCE_SCHEDULE_DAYS.includes(row.day) ||
+      typeof row.enabled !== 'boolean' ||
+      byDay.has(row.day)
+    ) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Attendance schedule tidak valid.',
+      });
+    }
+
+    if (row.enabled && !isValidClock(row.checkInTime)) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Attendance schedule tidak valid.',
+      });
+    }
+
+    if (row.checkInTime !== undefined && !isValidClock(row.checkInTime)) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Attendance schedule tidak valid.',
+      });
+    }
+
+    byDay.set(row.day, row);
+  }
+
+  return ATTENDANCE_SCHEDULE_DAYS.map((day) => {
+    const row = byDay.get(day);
+    if (!row) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Attendance schedule tidak valid.',
+      });
+    }
+
+    if (row.enabled) {
+      return {
+        day,
+        enabled: true,
+        checkInTime: row.checkInTime,
+      };
+    }
+
+    return {
+      day,
+      enabled: false,
+    };
+  });
+}
+
 function buildDefaultGlobalSettings(now = Date.now(), workspaceId) {
   return {
     key: 'global',
@@ -83,6 +191,7 @@ function buildDefaultGlobalSettings(now = Date.now(), workspaceId) {
     geofenceLng: undefined,
     whitelistEnabled: false,
     whitelistIps: [],
+    attendanceSchedule: defaultAttendanceSchedule(),
     updatedBy: undefined,
     updatedAt: now,
   };
@@ -98,7 +207,11 @@ export async function getGlobalSettingsOrNull(ctx, workspaceId) {
 export async function getGlobalSettingsOrThrow(ctx, workspaceId) {
   const existing = await getGlobalSettingsOrNull(ctx, workspaceId);
   if (existing) {
-    return existing;
+    return {
+      ...existing,
+      attendanceSchedule:
+        existing.attendanceSchedule ?? defaultAttendanceSchedule(),
+    };
   }
 
   throw new ConvexError({
@@ -120,6 +233,9 @@ export async function ensureGlobalSettingsForMutation(ctx, workspaceId) {
     }
     if (existing.enforceDeviceHeartbeat === undefined) {
       patch.enforceDeviceHeartbeat = false;
+    }
+    if (existing.attendanceSchedule === undefined) {
+      patch.attendanceSchedule = defaultAttendanceSchedule();
     }
 
     if (Object.keys(patch).length > 0) {
