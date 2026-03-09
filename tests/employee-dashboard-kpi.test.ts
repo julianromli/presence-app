@@ -2,18 +2,71 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeDisciplineScore,
+  computeDailyPoints,
   computeStreakBonus,
+  defaultAttendanceSchedule,
   getMinutesInTimezone,
-  isOnTimeCheckIn,
+  resolveCheckInPunctuality,
 } from '../convex/employeeDashboardKpi';
 
 describe('employee dashboard kpi', () => {
-  it('marks on-time check-in based on fixed cutoff', () => {
-    const checkInAt = new Date('2026-03-05T00:59:00.000Z').getTime(); // 07:59 WIB
-    const lateCheckInAt = new Date('2026-03-05T01:01:00.000Z').getTime(); // 08:01 WIB
+  it('resolves punctuality from the configured weekday schedule', () => {
+    const checkInAt = new Date('2026-03-10T02:05:00.000Z').getTime(); // 09:05 WIB
 
-    expect(isOnTimeCheckIn(checkInAt, 'Asia/Jakarta', 8 * 60)).toBe(true);
-    expect(isOnTimeCheckIn(lateCheckInAt, 'Asia/Jakarta', 8 * 60)).toBe(false);
+    expect(
+      resolveCheckInPunctuality({
+        dateKey: '2026-03-10',
+        checkInAt,
+        timezone: 'Asia/Jakarta',
+        schedule: [
+          { day: 'monday', enabled: true, checkInTime: '08:00' },
+          { day: 'tuesday', enabled: true, checkInTime: '09:15' },
+          { day: 'wednesday', enabled: true, checkInTime: '08:00' },
+          { day: 'thursday', enabled: true, checkInTime: '08:00' },
+          { day: 'friday', enabled: true, checkInTime: '08:00' },
+          { day: 'saturday', enabled: false },
+          { day: 'sunday', enabled: false },
+        ],
+      }),
+    ).toBe('on-time');
+  });
+
+  it('awards on-time points using the configured weekday schedule', () => {
+    const checkInAt = new Date('2026-03-10T02:05:00.000Z').getTime(); // 09:05 WIB
+    const checkOutAt = new Date('2026-03-10T09:00:00.000Z').getTime();
+
+    expect(
+      computeDailyPoints(
+        {
+          dateKey: '2026-03-10',
+          checkInAt,
+          checkOutAt,
+        },
+        'Asia/Jakarta',
+        [
+          { day: 'monday', enabled: true, checkInTime: '08:00' },
+          { day: 'tuesday', enabled: true, checkInTime: '09:15' },
+          { day: 'wednesday', enabled: true, checkInTime: '08:00' },
+          { day: 'thursday', enabled: true, checkInTime: '08:00' },
+          { day: 'friday', enabled: true, checkInTime: '08:00' },
+          { day: 'saturday', enabled: false },
+          { day: 'sunday', enabled: false },
+        ],
+      ),
+    ).toBe(14);
+  });
+
+  it('returns not-applicable punctuality for disabled schedule days', () => {
+    const checkInAt = new Date('2026-03-08T01:30:00.000Z').getTime();
+
+    expect(
+      resolveCheckInPunctuality({
+        dateKey: '2026-03-08',
+        checkInAt,
+        timezone: 'Asia/Jakarta',
+        schedule: defaultAttendanceSchedule(),
+      }),
+    ).toBe('not-applicable');
   });
 
   it('computes streak bonus every 3 consecutive on-time days', () => {

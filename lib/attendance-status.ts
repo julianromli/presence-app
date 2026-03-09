@@ -9,6 +9,12 @@ export type AttendanceStatusMeta = {
   edited: boolean;
 };
 
+export type AttendancePunctualityMeta = {
+  key: "on-time" | "late" | "not-applicable";
+  label: string;
+  tone: "muted" | "warning" | "success";
+};
+
 export type AttendanceStatusFilter =
   | "all"
   | "not-checked-in"
@@ -40,6 +46,32 @@ export function deriveAttendanceStatusMeta(row: AttendanceStatusRow): Attendance
     label: "Lengkap",
     tone: "success",
     edited: row.edited,
+  };
+}
+
+export function deriveAttendancePunctualityMeta(
+  row: AttendanceStatusRow,
+): AttendancePunctualityMeta {
+  if (row.punctuality === "on-time") {
+    return {
+      key: "on-time",
+      label: "Tepat waktu",
+      tone: "success",
+    };
+  }
+
+  if (row.punctuality === "late") {
+    return {
+      key: "late",
+      label: "Terlambat",
+      tone: "warning",
+    };
+  }
+
+  return {
+    key: "not-applicable",
+    label: "Tidak dinilai",
+    tone: "muted",
   };
 }
 

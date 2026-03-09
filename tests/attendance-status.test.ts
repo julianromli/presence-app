@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveAttendanceStatusMeta,
+  deriveAttendancePunctualityMeta,
   findAttendanceRowForUser,
 } from "../lib/attendance-status";
 
@@ -95,5 +96,56 @@ describe("attendance status helpers", () => {
     ];
 
     expect(findAttendanceRowForUser(rows, "user_2")?._id).toBe("att_ali_2");
+  });
+
+  it("exposes punctuality metadata separately for on-time rows", () => {
+    expect(
+      deriveAttendancePunctualityMeta({
+        _id: "att_5",
+        employeeName: "Mira",
+        dateKey: "2026-03-08",
+        checkInAt: 100,
+        checkOutAt: 200,
+        punctuality: "on-time",
+        edited: false,
+      }),
+    ).toEqual({
+      key: "on-time",
+      label: "Tepat waktu",
+      tone: "success",
+    });
+  });
+
+  it("exposes punctuality metadata separately for late rows", () => {
+    expect(
+      deriveAttendancePunctualityMeta({
+        _id: "att_6",
+        employeeName: "Dewi",
+        dateKey: "2026-03-08",
+        checkInAt: 100,
+        checkOutAt: 200,
+        punctuality: "late",
+        edited: false,
+      }),
+    ).toEqual({
+      key: "late",
+      label: "Terlambat",
+      tone: "warning",
+    });
+  });
+
+  it("defaults punctuality metadata to not-applicable when no punctuality is present", () => {
+    expect(
+      deriveAttendancePunctualityMeta({
+        _id: "att_7",
+        employeeName: "Putra",
+        dateKey: "2026-03-08",
+        edited: false,
+      }),
+    ).toEqual({
+      key: "not-applicable",
+      label: "Tidak dinilai",
+      tone: "muted",
+    });
   });
 });

@@ -148,13 +148,29 @@ export function isOnTimeCheckIn(checkInAt, timezone, cutoffMinutes = DEFAULT_CUT
   return getMinutesInTimezone(checkInAt, timezone) <= cutoffMinutes;
 }
 
-export function computeDailyPoints(row, timezone, cutoffMinutes = DEFAULT_CUTOFF_MINUTES) {
+function resolveLegacyPunctuality(checkInAt, timezone, cutoffMinutes = DEFAULT_CUTOFF_MINUTES) {
+  return isOnTimeCheckIn(checkInAt, timezone, cutoffMinutes) ? "on-time" : "late";
+}
+
+/**
+ * @param {{ dateKey: string, checkInAt?: number, checkOutAt?: number }} row
+ * @param {string} timezone
+ * @param {number | Array<{ day: string, enabled: boolean, checkInTime?: string }>} [scheduleOrCutoff=DEFAULT_CUTOFF_MINUTES]
+ */
+export function computeDailyPoints(row, timezone, scheduleOrCutoff = DEFAULT_CUTOFF_MINUTES) {
   if (row.checkInAt === undefined) {
     return 0;
   }
 
-  const onTime = isOnTimeCheckIn(row.checkInAt, timezone, cutoffMinutes);
-  let points = onTime ? 10 : -3;
+  const punctuality = Array.isArray(scheduleOrCutoff)
+    ? resolveCheckInPunctuality({
+        dateKey: row.dateKey,
+        checkInAt: row.checkInAt,
+        timezone,
+        schedule: scheduleOrCutoff,
+      })
+    : resolveLegacyPunctuality(row.checkInAt, timezone, scheduleOrCutoff);
+  let points = punctuality === "late" ? -3 : 10;
   if (row.checkOutAt !== undefined) {
     points += 4;
   }

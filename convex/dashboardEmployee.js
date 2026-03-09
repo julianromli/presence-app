@@ -6,12 +6,12 @@ import {
   computeDailyPoints,
   computeDisciplineScore,
   computeStreakBonus,
+  defaultAttendanceSchedule,
   formatMinutesToClock,
-  getCutoffMinutes,
   getMinutesInTimezone,
-  isOnTimeCheckIn,
   isWorkday,
   paginateRows,
+  resolveCheckInPunctuality,
 } from "./employeeDashboardKpi";
 
 const trendPointValidator = v.object({
@@ -52,6 +52,11 @@ const attendanceHistoryRowValidator = v.object({
     v.literal("late"),
     v.literal("incomplete"),
     v.literal("absent"),
+  ),
+  punctuality: v.union(
+    v.literal("on-time"),
+    v.literal("late"),
+    v.literal("not-applicable"),
   ),
   workDurationMinutes: v.number(),
   edited: v.boolean(),
@@ -110,14 +115,38 @@ function resolveTimezone(settings) {
   return settings?.timezone ?? "Asia/Jakarta";
 }
 
-function toHistoryStatus(row, timezone, cutoffMinutes) {
+function resolveSchedule(settings) {
+  return settings?.attendanceSchedule ?? defaultAttendanceSchedule();
+}
+
+function toHistoryStatus(row, timezone, schedule) {
   if (row.checkInAt === undefined) {
     return "absent";
   }
   if (row.checkOutAt === undefined) {
     return "incomplete";
   }
-  return isOnTimeCheckIn(row.checkInAt, timezone, cutoffMinutes) ? "on-time" : "late";
+  return resolveCheckInPunctuality({
+    dateKey: row.dateKey,
+    checkInAt: row.checkInAt,
+    timezone,
+    schedule,
+  }) === "late"
+    ? "late"
+    : "on-time";
+}
+
+function resolveRowPunctuality(row, timezone, schedule) {
+  if (row.checkInAt === undefined) {
+    return "not-applicable";
+  }
+
+  return resolveCheckInPunctuality({
+    dateKey: row.dateKey,
+    checkInAt: row.checkInAt,
+    timezone,
+    schedule,
+  });
 }
 
 function computeDurationMinutes(checkInAt, checkOutAt) {
@@ -165,7 +194,7 @@ function safeAverage(minutes) {
   return Math.round(sum / minutes.length);
 }
 
-function currentStreakFromRows(rowsByDateKey, orderedDateKeys, timezone, cutoffMinutes) {
+function currentStreakFromRows(rowsByDateKey, orderedDateKeys, timezone, schedule) {
   let streak = 0;
   for (let index = orderedDateKeys.length - 1; index >= 0; index -= 1) {
     const dateKey = orderedDateKeys[index];
@@ -176,7 +205,16 @@ function currentStreakFromRows(rowsByDateKey, orderedDateKeys, timezone, cutoffM
     if (!row || row.checkInAt === undefined) {
       break;
     }
-    if (!isOnTimeCheckIn(row.checkInAt, timezone, cutoffMinutes)) {
+    const punctuality = resolveCheckInPunctuality({
+      dateKey,
+      checkInAt: row.checkInAt,
+      timezone,
+      schedule,
+    });
+    if (punctuality === "not-applicable") {
+      continue;
+    }
+    if (punctuality !== "on-time") {
       break;
     }
     streak += 1;
@@ -209,7 +247,7 @@ export const getOverview = query({
     const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["karyawan"]);
     const settings = await getGlobalSettingsOrNull(ctx, args.workspaceId);
     const timezone = resolveTimezone(settings);
-    const cutoffMinutes = getCutoffMinutes();
+    const attendanceSchedule = resolveSchedule(settings);
     const now = Date.now();
 
     const recent30Keys = buildRecentDateKeys(now, timezone, 30);
@@ -251,21 +289,27 @@ export const getOverview = query({
         streakSequence.push(false);
         continue;
       }
-      const onTime = isOnTimeCheckIn(row.checkInAt, timezone, cutoffMinutes);
-      if (onTime) {
+      const punctuality = resolveCheckInPunctuality({
+        dateKey,
+        checkInAt: row.checkInAt,
+        timezone,
+        schedule: attendanceSchedule,
+      });
+      if (punctuality === "on-time") {
         onTimeThisWeek += 1;
-      } else {
+        streakSequence.push(true);
+      } else if (punctuality === "late") {
         lateThisWeek += 1;
+        streakSequence.push(false);
       }
-      weeklyBasePoints += computeDailyPoints(row, timezone, cutoffMinutes);
-      streakSequence.push(onTime);
+      weeklyBasePoints += computeDailyPoints(row, timezone, attendanceSchedule);
     }
 
     const weeklyStreakBonus = computeStreakBonus(streakSequence);
     const weeklyPoints = weeklyBasePoints + weeklyStreakBonus;
     const workdayCount = weekKeys.filter((dateKey) => isWorkday(dateKey)).length;
     const disciplineScore = computeDisciplineScore(weeklyPoints, workdayCount);
-    const streakDays = currentStreakFromRows(rowsByDateKey, weekKeys, timezone, cutoffMinutes);
+    const streakDays = currentStreakFromRows(rowsByDateKey, weekKeys, timezone, attendanceSchedule);
 
     const thisWeekCheckInMinutes = weekKeys
       .map((dateKey) => rowsByDateKey.get(dateKey))
@@ -295,7 +339,13 @@ export const getOverview = query({
       return {
         dateKey,
         checkInMinute,
-        onTime: checkInMinute <= cutoffMinutes,
+        onTime:
+          resolveCheckInPunctuality({
+            dateKey,
+            checkInAt: row.checkInAt,
+            timezone,
+            schedule: attendanceSchedule,
+          }) === "on-time",
         hasCheckIn: true,
       };
     });
@@ -332,7 +382,7 @@ export const listAttendanceHistory = query({
     const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["karyawan"]);
     const settings = await getGlobalSettingsOrNull(ctx, args.workspaceId);
     const timezone = resolveTimezone(settings);
-    const cutoffMinutes = getCutoffMinutes();
+    const attendanceSchedule = resolveSchedule(settings);
 
     const days = args.range === "7d" ? 7 : args.range === "90d" ? 90 : 30;
     const dateKeys = buildRecentDateKeys(Date.now(), timezone, days);
@@ -361,10 +411,11 @@ export const listAttendanceHistory = query({
           dateKey,
           checkInAt: row.checkInAt,
           checkOutAt: row.checkOutAt,
-          status: toHistoryStatus(row, timezone, cutoffMinutes),
+          status: toHistoryStatus(row, timezone, attendanceSchedule),
+          punctuality: resolveRowPunctuality(row, timezone, attendanceSchedule),
           workDurationMinutes: computeDurationMinutes(row.checkInAt, row.checkOutAt),
           edited: row.edited,
-          points: computeDailyPoints(row, timezone, cutoffMinutes),
+          points: computeDailyPoints(row, timezone, attendanceSchedule),
         };
       })
       .filter((item) => item !== null);
@@ -405,7 +456,7 @@ export const getAttendanceByDate = query({
     const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["karyawan"]);
     const settings = await getGlobalSettingsOrNull(ctx, args.workspaceId);
     const timezone = resolveTimezone(settings);
-    const cutoffMinutes = getCutoffMinutes();
+    const attendanceSchedule = resolveSchedule(settings);
 
     const matchingRows = await ctx.db
       .query("attendance")
@@ -441,10 +492,11 @@ export const getAttendanceByDate = query({
         dateKey: row.dateKey,
         checkInAt: row.checkInAt,
         checkOutAt: row.checkOutAt,
-        status: toHistoryStatus(row, timezone, cutoffMinutes),
+        status: toHistoryStatus(row, timezone, attendanceSchedule),
+        punctuality: resolveRowPunctuality(row, timezone, attendanceSchedule),
         workDurationMinutes: computeDurationMinutes(row.checkInAt, row.checkOutAt),
         edited: row.edited,
-        points: computeDailyPoints(row, timezone, cutoffMinutes),
+        points: computeDailyPoints(row, timezone, attendanceSchedule),
       },
     };
   },
@@ -459,7 +511,7 @@ export const getLeaderboard = query({
     const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["karyawan"]);
     const settings = await getGlobalSettingsOrNull(ctx, args.workspaceId);
     const timezone = resolveTimezone(settings);
-    const cutoffMinutes = getCutoffMinutes();
+    const attendanceSchedule = resolveSchedule(settings);
     const now = Date.now();
     const weekKeys = buildRecentDateKeys(now, timezone, 7);
     const weekStart = weekKeys[0];
@@ -520,12 +572,19 @@ export const getLeaderboard = query({
           continue;
         }
 
-        const onTime = isOnTimeCheckIn(row.checkInAt, timezone, cutoffMinutes);
-        if (onTime) {
+        const punctuality = resolveCheckInPunctuality({
+          dateKey,
+          checkInAt: row.checkInAt,
+          timezone,
+          schedule: attendanceSchedule,
+        });
+        if (punctuality === "on-time") {
           onTimeDays += 1;
+          sequence.push(true);
+        } else if (punctuality === "late") {
+          sequence.push(false);
         }
-        sequence.push(onTime);
-        totalPoints += computeDailyPoints(row, timezone, cutoffMinutes);
+        totalPoints += computeDailyPoints(row, timezone, attendanceSchedule);
       }
 
       totalPoints += computeStreakBonus(sequence);

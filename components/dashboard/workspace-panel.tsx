@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import {
@@ -23,9 +24,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { WorkspaceManagementPayload, AdminUsersPage, AdminUserRow } from '@/types/dashboard';
+import type {
+  WorkspaceManagementPayload,
+  AdminUsersPage,
+  AdminUserRow,
+  WorkspaceSettingsPayload,
+} from '@/types/dashboard';
 import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 import { parseApiErrorResponse } from '@/lib/client-error';
+import {
+  buildAttendanceScheduleDraft,
+  serializeAttendanceScheduleDraft,
+  type AttendanceScheduleDraftRow,
+} from '@/lib/workspace-attendance-schedule';
 import {
   buildUsersQueryString,
   DEFAULT_USERS_FILTERS,
@@ -60,8 +71,13 @@ export function WorkspacePanel() {
   const [renameValue, setRenameValue] = useState('');
   const [inviteVisible, setInviteVisible] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
+  const [loadingSettings, setLoadingSettings] = useState(true);
   const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members' | 'delete'>('none');
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
+  const [scheduleRows, setScheduleRows] = useState<AttendanceScheduleDraftRow[]>(() =>
+    buildAttendanceScheduleDraft(),
+  );
 
   const initialFilters = useMemo<UsersPanelFilters>(
     () => ({
@@ -112,6 +128,26 @@ export function WorkspacePanel() {
     }
   }, []);
 
+  const loadSettingsData = useCallback(async () => {
+    setLoadingSettings(true);
+    try {
+      const res = await workspaceFetch('/api/admin/settings', { cache: 'no-store' });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memuat pengaturan workspace.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+
+      const payload = (await res.json()) as WorkspaceSettingsPayload;
+      setScheduleRows(buildAttendanceScheduleDraft(payload.attendanceSchedule));
+    } finally {
+      setLoadingSettings(false);
+    }
+  }, []);
+
   const loadMembers = useCallback(async (
     opts: { append: boolean; cursor: string | null; activeFilters?: UsersPanelFilters } = {
       append: false,
@@ -152,8 +188,9 @@ export function WorkspacePanel() {
     if (hasLoadedInitial.current) return;
     hasLoadedInitial.current = true;
     void loadWorkspaceData();
+    void loadSettingsData();
     void loadMembers({ append: false, cursor: null, activeFilters: initialFilters });
-  }, [initialFilters, loadMembers, loadWorkspaceData]);
+  }, [initialFilters, loadMembers, loadSettingsData, loadWorkspaceData]);
 
   useEffect(() => {
     if (prevHeaderQueryRef.current === headerQuery) return;
@@ -302,6 +339,53 @@ export function WorkspacePanel() {
     }
   };
 
+  const updateScheduleRow = useCallback(
+    (
+      day: AttendanceScheduleDraftRow['day'],
+      next: Partial<Pick<AttendanceScheduleDraftRow, 'enabled' | 'checkInTime'>>,
+    ) => {
+      setScheduleRows((prev) =>
+        prev.map((row) => {
+          if (row.day !== day) return row;
+          return {
+            ...row,
+            ...next,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const handleSaveSchedule = async () => {
+    setSavingSchedule(true);
+    setNotice({ tone: 'info', text: 'Menyimpan jadwal jam masuk workspace...' });
+
+    try {
+      const res = await workspaceFetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          attendanceSchedule: serializeAttendanceScheduleDraft(scheduleRows),
+        }),
+      });
+
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal menyimpan jadwal jam masuk.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+
+      await loadSettingsData();
+      setNotice({ tone: 'success', text: 'Jadwal jam masuk workspace berhasil disimpan.' });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
   if (loadingWorkspace && !workspaceData) {
     return (
       <div className="space-y-4">
@@ -401,6 +485,71 @@ export function WorkspacePanel() {
             </Button>
           </div>
         </article>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">Jam Masuk Workspace</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Atur jam masuk per hari untuk menentukan status tepat waktu atau terlambat.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => void handleSaveSchedule()}
+            disabled={loadingSettings || savingSchedule}
+          >
+            {savingSchedule ? 'Menyimpan...' : 'Simpan Jadwal'}
+          </Button>
+        </div>
+
+        {loadingSettings ? (
+          <div className="mt-4 h-56 animate-pulse rounded-xl border border-zinc-200 bg-zinc-50" />
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[180px]">Hari</TableHead>
+                  <TableHead className="w-[120px]">Aktif</TableHead>
+                  <TableHead>Jam masuk</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scheduleRows.map((row) => (
+                  <TableRow key={row.day}>
+                    <TableCell className="font-medium text-zinc-900">{row.label}</TableCell>
+                    <TableCell>
+                      <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                        <Checkbox
+                          checked={row.enabled}
+                          onCheckedChange={(checked) =>
+                            updateScheduleRow(row.day, { enabled: checked === true })
+                          }
+                        />
+                        {row.enabled ? 'Aktif' : 'Nonaktif'}
+                      </label>
+                    </TableCell>
+                    <TableCell>
+                      <div className="max-w-[180px]">
+                        <Input
+                          type="time"
+                          step={60}
+                          value={row.checkInTime}
+                          disabled={!row.enabled}
+                          onChange={(event) =>
+                            updateScheduleRow(row.day, { checkInTime: event.target.value })
+                          }
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
