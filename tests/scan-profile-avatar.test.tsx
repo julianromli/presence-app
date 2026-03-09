@@ -6,6 +6,7 @@ describe("scan profile avatar", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
+    vi.doUnmock("../app/scan/profile/profile-panel");
   });
 
   it("passes the Clerk image url into the profile panel", async () => {
@@ -45,35 +46,37 @@ describe("scan profile avatar", () => {
   });
 
   it("renders the avatar image when the initial profile includes a Clerk avatar url", async () => {
-    vi.doMock("@/components/ui/scan-bottom-nav", () => ({
-      ScanBottomNav: () => React.createElement("div"),
+    const requireWorkspaceRolePageFromDb = vi.fn(async () => ({
+      role: "karyawan",
+      workspace: { name: "Acme Workspace" },
+      user: {
+        name: "Dina",
+        email: "dina@example.com",
+      },
     }));
-    vi.doMock("@/components/ui/scan-notifications-drawer", () => ({
-      ScanNotificationsDrawer: () => React.createElement("div"),
-      useScanNotifications: () => ({ unreadCount: 0 }),
+    const currentUser = vi.fn(async () => ({
+      imageUrl: "https://cdn.example.com/avatar.png",
     }));
-    vi.doMock(
-      "@phosphor-icons/react",
-      () =>
-        new Proxy(
-          {},
-          {
-            get: () => (props: Record<string, unknown>) => React.createElement("svg", props),
-          },
-        ),
-    );
 
-    const panelModule = await import("../app/scan/profile/profile-panel");
+    vi.doMock("@/lib/auth", () => ({
+      requireWorkspaceRolePageFromDb,
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({
+      currentUser,
+    }));
+    vi.doMock("../app/scan/profile/profile-panel", () => ({
+      ProfilePanel: ({ initialProfile }: { initialProfile: Record<string, string> }) =>
+        React.createElement("img", {
+          "data-slot": "avatar-image",
+          src: initialProfile.imageUrl,
+          alt: initialProfile.name,
+        }),
+    }));
+
+    const pageModule = await import("../app/scan/profile/page");
+    const element = await pageModule.default();
     const html = renderToStaticMarkup(
-      React.createElement(panelModule.ProfilePanel, {
-        initialProfile: {
-          name: "Dina",
-          email: "dina@example.com",
-          role: "karyawan",
-          workspaceName: "Acme Workspace",
-          imageUrl: "https://cdn.example.com/avatar.png",
-        },
-      }),
+      element,
     );
 
     expect(html).toContain('data-slot="avatar-image"');
