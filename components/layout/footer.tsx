@@ -1,4 +1,3 @@
-import { FacebookLogo, LinkedinLogo, XLogo } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 
 const columns = [
@@ -8,31 +7,24 @@ const columns = [
       { name: 'Beranda', href: '/' },
       { name: 'Fitur', href: '/#fitur' },
       { name: 'Integrasi', href: '/#integrasi' },
-      { name: 'Demo scan', href: '/scan' },
-    ],
-  },
-  {
-    title: 'Operasional',
-    links: [
-      { name: 'Dashboard', href: '/dashboard' },
-      { name: 'QR Device', href: '/device-qr' },
       { name: 'FAQ', href: '/#faq' },
     ],
   },
   {
-    title: 'Akses',
+    title: 'Mulai',
     links: [
       { name: 'Daftar', href: '/sign-up' },
       { name: 'Masuk', href: '/sign-in' },
       { name: 'Kontak', href: 'mailto:hello@absenin.id' },
     ],
   },
-];
-
-const socials = [
-  { Icon: LinkedinLogo, href: 'https://linkedin.com' },
-  { Icon: XLogo, href: 'https://twitter.com' },
-  { Icon: FacebookLogo, href: 'https://facebook.com' },
+  {
+    title: 'Legal',
+    links: [
+      { name: 'Kebijakan Privasi', href: '/privacy' },
+      { name: 'Syarat Layanan', href: '/terms' },
+    ],
+  },
 ];
 
 export const Footer = () => {
@@ -75,19 +67,12 @@ export const Footer = () => {
           <p className="text-muted-foreground text-sm font-normal">
             © {new Date().getFullYear()} Absenin.id. All rights reserved.
           </p>
-
-          <div className="flex items-center gap-4">
-            {socials.map(({ Icon, href }) => (
-              <Link
-                key={href}
-                href={href}
-                aria-label={href}
-                className="text-muted-foreground hover:text-primary-foreground transition-colors"
-              >
-                <Icon weight="regular" className="h-5 w-5" />
-              </Link>
-            ))}
-          </div>
+          <Link
+            href="mailto:hello@absenin.id"
+            className="text-muted-foreground hover:text-primary-foreground text-sm transition-colors"
+          >
+            hello@absenin.id
+          </Link>
         </div>
       </div>
     </footer>

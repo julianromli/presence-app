@@ -38,19 +38,19 @@ const MetafiHero = () => {
           </p>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
             <Button
-              render={<Link href="/scan" />}
+              render={<Link href="/sign-up" />}
               className="w-full sm:w-auto"
-              aria-label="Coba scan sekarang"
+              aria-label="Daftar sekarang"
             >
-              Coba scan sekarang
+              Daftar sekarang
             </Button>
             <Button
-              render={<Link href="/dashboard" />}
+              render={<Link href="/#fitur" />}
               variant="outline"
               className="w-full sm:w-auto"
-              aria-label="Buka dashboard"
+              aria-label="Lihat fitur"
             >
-              Buka dashboard
+              Lihat fitur
             </Button>
           </div>
         </div>

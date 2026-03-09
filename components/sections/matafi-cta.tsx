@@ -35,11 +35,11 @@ const MetafiCta = () => {
 
           {/* Transparent button */}
           <Button
-            render={<Link href="/scan" />}
+            render={<Link href="/#fitur" />}
             variant="ghost"
             className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 h-12 w-full rounded-[12px] border bg-transparent sm:w-auto"
           >
-            Lihat demo scan
+            Lihat fitur
           </Button>
         </div>
       </div>

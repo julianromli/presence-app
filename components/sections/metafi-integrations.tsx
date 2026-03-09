@@ -99,8 +99,8 @@ const MetafiIntegrations = () => {
         </p>
 
         <div className="mt-6 flex justify-center">
-          <Button className="w-full sm:w-auto" render={<Link href="/dashboard" />}>
-            Lihat ringkasan operasional
+          <Button className="w-full sm:w-auto" render={<Link href="/sign-up" />}>
+            Mulai sekarang
           </Button>
         </div>
       </div>

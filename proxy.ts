@@ -7,6 +7,10 @@ const authorizedParties = process.env.CLERK_AUTHORIZED_PARTIES?.split(',')
 
 const isPublicRoute = createRouteMatcher([
   '/',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/privacy(.*)',
+  '/terms(.*)',
   '/device-qr(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',

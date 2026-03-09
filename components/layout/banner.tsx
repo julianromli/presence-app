@@ -1,6 +1,7 @@
 'use client';
 
 import { X } from '@phosphor-icons/react/dist/ssr';
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -20,8 +21,8 @@ const Banner = () => {
           <span className="text-primary-foreground text-center text-sm font-medium">
             Absenin.id siap dipakai untuk absensi QR dinamis real-time
           </span>
-          <Button size="sm" variant="secondary" render={<a href="/scan" />}>
-            Coba Scan
+          <Button size="sm" variant="secondary" render={<Link href="/sign-up" />}>
+            Daftar
           </Button>
         </div>
         <button

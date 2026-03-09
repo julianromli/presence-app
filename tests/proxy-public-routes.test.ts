@@ -27,6 +27,18 @@ vi.mock("@clerk/nextjs/server", () => ({
         if (pattern === "/") {
           return pathname === "/";
         }
+        if (pattern === "/robots.txt") {
+          return pathname === "/robots.txt";
+        }
+        if (pattern === "/sitemap.xml") {
+          return pathname === "/sitemap.xml";
+        }
+        if (pattern === "/privacy(.*)") {
+          return pathname === "/privacy" || pathname.startsWith("/privacy/");
+        }
+        if (pattern === "/terms(.*)") {
+          return pathname === "/terms" || pathname.startsWith("/terms/");
+        }
         if (pattern === "/device-qr(.*)") {
           return pathname === "/device-qr" || pathname.startsWith("/device-qr/");
         }
@@ -82,6 +94,66 @@ describe("proxy public routes", () => {
         userId: null,
       }),
       new Request("https://app.example.com/api/device/qr-token"),
+    );
+
+    expect(response).toEqual({ kind: "next" });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("allows /robots.txt without Clerk session", async () => {
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
+
+    const response = await proxy(
+      async () => ({
+        userId: null,
+      }),
+      new Request("https://app.example.com/robots.txt"),
+    );
+
+    expect(response).toEqual({ kind: "next" });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("allows /sitemap.xml without Clerk session", async () => {
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
+
+    const response = await proxy(
+      async () => ({
+        userId: null,
+      }),
+      new Request("https://app.example.com/sitemap.xml"),
+    );
+
+    expect(response).toEqual({ kind: "next" });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("allows /privacy without Clerk session", async () => {
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
+
+    const response = await proxy(
+      async () => ({
+        userId: null,
+      }),
+      new Request("https://app.example.com/privacy"),
+    );
+
+    expect(response).toEqual({ kind: "next" });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("allows /terms without Clerk session", async () => {
+    const { default: importedProxy } = await import("../proxy");
+    const proxy = importedProxy as unknown as ProxyHandler;
+
+    const response = await proxy(
+      async () => ({
+        userId: null,
+      }),
+      new Request("https://app.example.com/terms"),
     );
 
     expect(response).toEqual({ kind: "next" });
