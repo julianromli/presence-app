@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getConvexTokenOrNull } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { ensureCurrentUserInConvex } from "@/lib/user-sync";
 import { ACTIVE_WORKSPACE_COOKIE } from "@/lib/workspace-context";
 
 type MembershipsResponse = {
@@ -39,6 +40,11 @@ export async function GET() {
   }
 
   try {
+    const syncResponse = await ensureCurrentUserInConvex(token);
+    if (syncResponse) {
+      return syncResponse;
+    }
+
     const payload = await convex.query<MembershipsResponse>(
       "workspaces:myOnboardingState",
       {},

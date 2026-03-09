@@ -24,11 +24,15 @@ async function setupMembershipsRoute(options: SetupOptions = {}) {
   };
 
   const query = vi.fn(async () => payload);
+  const ensureCurrentUserInConvex = vi.fn(async () => null);
   vi.doMock("@/lib/auth", () => ({
     getConvexTokenOrNull: vi.fn(async () => "convex-token"),
   }));
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient: vi.fn(() => ({ query })),
+  }));
+  vi.doMock("@/lib/user-sync", () => ({
+    ensureCurrentUserInConvex,
   }));
   vi.doMock("@/lib/workspace-context", () => ({
     ACTIVE_WORKSPACE_COOKIE: "active_workspace_id",
@@ -49,7 +53,7 @@ async function setupMembershipsRoute(options: SetupOptions = {}) {
   }));
 
   const route = await import("../app/api/workspaces/memberships/route");
-  return { GET: route.GET, mocks: { query } };
+  return { GET: route.GET, mocks: { query, ensureCurrentUserInConvex } };
 }
 
 describe("workspaces memberships route", () => {
@@ -58,7 +62,7 @@ describe("workspaces memberships route", () => {
   });
 
   it("auto-selects first workspace and sets cookie when cookie missing", async () => {
-    const { GET } = await setupMembershipsRoute({
+    const { GET, mocks } = await setupMembershipsRoute({
       memberships: [
         {
           membershipId: "m1",
@@ -76,6 +80,7 @@ describe("workspaces memberships route", () => {
 
     const response = await GET();
     expect(response.status).toBe(200);
+    expect(mocks.ensureCurrentUserInConvex).toHaveBeenCalledWith("convex-token");
     await expect(response.json()).resolves.toMatchObject({
       activeWorkspaceId: "workspace_123456",
     });

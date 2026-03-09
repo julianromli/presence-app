@@ -1,13 +1,26 @@
 import { SignedIn, SignedOut, SignIn, UserButton } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { AuthPageShell } from "@/components/auth/auth-page-shell";
 import { Button } from "@/components/ui/button";
+import { getConvexTokenOrNull } from "@/lib/auth";
+import { ensureCurrentUserInConvex } from "@/lib/user-sync";
 
 const SIGN_IN_FALLBACK_REDIRECT_URL = "/dashboard";
 const SIGN_UP_FALLBACK_REDIRECT_URL = "/onboarding/workspace";
 
-export default function SignInPage() {
+export default async function SignInPage() {
+  const { userId } = await auth();
+  if (userId) {
+    const token = await getConvexTokenOrNull();
+    if (token) {
+      await ensureCurrentUserInConvex(token);
+    }
+    redirect("/onboarding/workspace");
+  }
+
   return (
     <AuthPageShell
       activeTab="sign-in"
