@@ -1,9 +1,15 @@
 import type { AuthConfig } from "convex/server";
 
+const clerkFrontendApiUrl = process.env.CLERK_FRONTEND_API_URL;
+
+if (!clerkFrontendApiUrl) {
+  throw new Error("Missing CLERK_FRONTEND_API_URL for Convex auth config.");
+}
+
 export default {
   providers: [
     {
-      domain: "https://clerk.absenin.id",
+      domain: clerkFrontendApiUrl,
       applicationID: "convex",
     },
   ],

@@ -1,4 +1,5 @@
 import { verifyWebhook } from '@clerk/nextjs/webhooks';
+import type { NextRequest } from 'next/server';
 
 import { getPublicConvexHttpClient } from '@/lib/convex-http';
 
@@ -20,7 +21,7 @@ function buildPrimaryEmail(data: {
   return primaryEmail ?? data.email_addresses?.[0]?.email_address ?? `${data.id ?? 'unknown'}@unknown.local`;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const sharedSecret = process.env.CLERK_SYNC_SHARED_SECRET;
   if (!sharedSecret) {
     return Response.json(
