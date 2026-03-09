@@ -7,6 +7,13 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ConvexClientProvider } from '@/components/providers/convex-client-provider';
 import { UserSyncBootstrap } from '@/components/providers/user-sync-bootstrap';
 import { ThemeProvider } from '@/components/theme-provider';
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_OG_DESCRIPTION,
+  SITE_TITLE,
+  SITE_URL,
+} from '@/lib/site-config';
 
 const CLERK_SIGN_IN_URL = '/sign-in';
 const CLERK_SIGN_UP_URL = '/sign-up';
@@ -28,12 +35,43 @@ const geistMono = Geist_Mono({
 const REACT_GRAB_VERSION = '0.1.22';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
   title: {
-    default: 'Absenin.id - Absensi Digital',
-    template: '%s | Absenin.id',
+    default: SITE_TITLE,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    'Sistem absensi digital berbasis QR dinamis dengan guard role, dashboard operasional, dan report mingguan.',
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: '/',
+  },
+  icons: {
+    icon: [
+      {
+        url: '/favicon/favicon.png',
+        type: 'image/png',
+      },
+      {
+        url: '/favicon/favicon.ico',
+      },
+    ],
+    apple: '/favicon/apple-touch-icon.png',
+    shortcut: '/favicon/favicon.ico',
+  },
+  manifest: '/favicon/site.webmanifest',
+  openGraph: {
+    type: 'website',
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_OG_DESCRIPTION,
+    locale: 'id_ID',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_OG_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
