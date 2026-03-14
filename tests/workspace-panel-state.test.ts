@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildWorkspaceDeleteConfirmation,
   canStartWorkspaceMutation,
+  finishWorkspaceMemberAction,
   isWorkspaceMemberActionPending,
   isWorkspaceMutationBusy,
   resolveWorkspaceButtonLoadingState,
-} from "../components/dashboard/workspace-panel-state";
+  startWorkspaceMemberAction,
+  type WorkspaceMemberPendingState,
+} from "@/components/dashboard/workspace-panel-state";
 
 describe("workspace panel state", () => {
   it("marks only the active top-level action as loading", () => {
@@ -47,8 +50,17 @@ describe("workspace panel state", () => {
   });
 
   it("keeps member row loading scoped to the active user", () => {
-    expect(isWorkspaceMemberActionPending("user_123", "user_123")).toBe(true);
-    expect(isWorkspaceMemberActionPending("user_999", "user_123")).toBe(false);
+    let pendingState: WorkspaceMemberPendingState = {};
+    pendingState = startWorkspaceMemberAction(pendingState, "user_123");
+    pendingState = startWorkspaceMemberAction(pendingState, "user_999");
+
+    expect(isWorkspaceMemberActionPending("user_123", pendingState)).toBe(true);
+    expect(isWorkspaceMemberActionPending("user_999", pendingState)).toBe(true);
+
+    pendingState = finishWorkspaceMemberAction(pendingState, "user_123");
+
+    expect(isWorkspaceMemberActionPending("user_123", pendingState)).toBe(false);
+    expect(isWorkspaceMemberActionPending("user_999", pendingState)).toBe(true);
   });
 
   it("builds destructive confirmation copy for workspace deletion", () => {

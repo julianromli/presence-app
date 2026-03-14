@@ -841,7 +841,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             variant="outline"
             size="sm"
             type="button"
-            onClick={triggerWeeklyReport}
+            onClick={() => void triggerWeeklyReport()}
             isLoading={isReportToolbarActionPending(
               toolbarPendingState,
               "trigger-weekly",

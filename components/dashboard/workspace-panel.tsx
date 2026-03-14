@@ -47,9 +47,12 @@ import {
 import {
   buildWorkspaceDeleteConfirmation,
   canStartWorkspaceMutation,
+  finishWorkspaceMemberAction,
   isWorkspaceMemberActionPending,
   isWorkspaceMutationBusy,
   resolveWorkspaceButtonLoadingState,
+  startWorkspaceMemberAction,
+  type WorkspaceMemberPendingState,
   type WorkspacePanelBusyAction,
 } from '@/components/dashboard/workspace-panel-state';
 
@@ -109,7 +112,8 @@ export function WorkspacePanel() {
   const [isLastPage, setIsLastPage] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [membersAction, setMembersAction] = useState<'none' | 'apply' | 'reset' | 'load-more'>('none');
-  const [memberActionUserId, setMemberActionUserId] = useState<string | null>(null);
+  const [memberPendingState, setMemberPendingState] =
+    useState<WorkspaceMemberPendingState>({});
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
   const workspaceMutationLockRef = useRef(false);
@@ -227,6 +231,13 @@ export function WorkspacePanel() {
 
       try {
         await operation();
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Terjadi kesalahan tidak terduga saat memproses perubahan workspace.';
+        console.error('workspace mutation failed', error);
+        setNotice({ tone: 'error', text: `[UNEXPECTED_ERROR] ${message}` });
       } finally {
         workspaceMutationLockRef.current = false;
         setBusyAction('none');
@@ -334,7 +345,7 @@ export function WorkspacePanel() {
   };
 
   const updateMember = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
-    setMemberActionUserId(payload.userId);
+    setMemberPendingState((prev) => startWorkspaceMemberAction(prev, payload.userId));
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/users', {
@@ -356,7 +367,7 @@ export function WorkspacePanel() {
       ]);
       setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
     } finally {
-      setMemberActionUserId(null);
+      setMemberPendingState((prev) => finishWorkspaceMemberAction(prev, payload.userId));
     }
   };
 
@@ -801,7 +812,7 @@ export function WorkspacePanel() {
                               variant="outline"
                             />
                           }
-                          disabled={isWorkspaceMemberActionPending(row._id, memberActionUserId)}
+                          disabled={isWorkspaceMemberActionPending(row._id, memberPendingState)}
                         >
                           {row.role}
                           <CaretDown weight="regular" className="h-3.5 w-3.5 text-zinc-500" />
@@ -834,7 +845,7 @@ export function WorkspacePanel() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        isLoading={isWorkspaceMemberActionPending(row._id, memberActionUserId)}
+                        isLoading={isWorkspaceMemberActionPending(row._id, memberPendingState)}
                         onClick={() => void updateMember({ userId: row._id, isActive: !row.isActive })}
                       >
                         {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}

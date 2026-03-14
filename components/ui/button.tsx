@@ -76,7 +76,7 @@ function hasTextContent(node: React.ReactNode): boolean {
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ children, className, disabled, isLoading = false, loadingText, render, size, type, variant, ...props }, ref) => {
     const childNodes = React.Children.toArray(children).filter(
-      (child) => child !== null && child !== undefined && child !== false,
+      (child) => child !== null && child !== undefined,
     );
     const hasTextChild = hasTextContent(children);
     const isIconOnly = !hasTextChild && childNodes.length <= 1;

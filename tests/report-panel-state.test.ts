@@ -5,7 +5,7 @@ import {
   isReportToolbarActionPending,
   startReportToolbarAction,
   type ReportToolbarPendingState,
-} from "../components/dashboard/report-panel-state";
+} from "@/components/dashboard/report-panel-state";
 
 describe("report panel state", () => {
   it("keeps overlapping toolbar actions pending independently", () => {

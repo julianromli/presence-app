@@ -12,17 +12,18 @@ describe("button loading", () => {
   });
 
   it("renders a spinner and keeps the existing label when loading", async () => {
-    const { Button } = await import("../components/ui/button");
+    const { Button } = await import("@/components/ui/button");
     const html = renderToStaticMarkup(<Button isLoading>Save changes</Button>);
+    const buttonTag = html.match(/^<button\b[^>]*>/)?.[0];
 
     expect(html).toContain('data-loading="true"');
     expect(html).toContain('data-slot="spinner"');
     expect(html).toContain("Save changes");
-    expect(html).toContain("disabled");
+    expect(buttonTag).toMatch(/\sdisabled(?:=""|(?=[ >]))/);
   });
 
   it("renders loading text instead of the default label when provided", async () => {
-    const { Button } = await import("../components/ui/button");
+    const { Button } = await import("@/components/ui/button");
     const html = renderToStaticMarkup(
       <Button isLoading loadingText="Saving...">
         Save changes
@@ -35,7 +36,7 @@ describe("button loading", () => {
   });
 
   it("keeps wrapped text labels visible while loading", async () => {
-    const { Button } = await import("../components/ui/button");
+    const { Button } = await import("@/components/ui/button");
     const html = renderToStaticMarkup(
       <Button isLoading>
         <span>Save changes</span>
@@ -48,7 +49,7 @@ describe("button loading", () => {
   });
 
   it("replaces icon-only content with a spinner while preserving accessible labeling", async () => {
-    const { Button } = await import("../components/ui/button");
+    const { Button } = await import("@/components/ui/button");
     const html = renderToStaticMarkup(
       <Button isLoading size="icon" aria-label="Refresh dashboard">
         <ArrowsClockwise weight="regular" />
