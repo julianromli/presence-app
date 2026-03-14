@@ -1,5 +1,13 @@
 export type WorkspacePanelBusyAction = "none" | "rename" | "rotate" | "delete";
 
+export function isWorkspaceMutationBusy(busyAction: WorkspacePanelBusyAction) {
+  return busyAction !== "none";
+}
+
+export function canStartWorkspaceMutation(busyAction: WorkspacePanelBusyAction) {
+  return !isWorkspaceMutationBusy(busyAction);
+}
+
 export function buildWorkspaceDeleteConfirmation(workspaceName: string) {
   return {
     title: "Hapus workspace ini?",

@@ -55,18 +55,30 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
     render?: React.ReactElement;
   };
 
+function hasTextContent(node: React.ReactNode): boolean {
+  return React.Children.toArray(node).some((child) => {
+    if (typeof child === "string") {
+      return child.trim().length > 0;
+    }
+
+    if (typeof child === "number") {
+      return true;
+    }
+
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return false;
+    }
+
+    return hasTextContent(child.props.children);
+  });
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ children, className, disabled, isLoading = false, loadingText, render, size, type, variant, ...props }, ref) => {
     const childNodes = React.Children.toArray(children).filter(
       (child) => child !== null && child !== undefined && child !== false,
     );
-    const hasTextChild = childNodes.some((child) => {
-      if (typeof child === "string") {
-        return child.trim().length > 0;
-      }
-
-      return typeof child === "number";
-    });
+    const hasTextChild = hasTextContent(children);
     const isIconOnly = !hasTextChild && childNodes.length <= 1;
 
     let content = children;

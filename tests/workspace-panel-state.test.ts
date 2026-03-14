@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildWorkspaceDeleteConfirmation,
+  canStartWorkspaceMutation,
   isWorkspaceMemberActionPending,
+  isWorkspaceMutationBusy,
   resolveWorkspaceButtonLoadingState,
 } from "../components/dashboard/workspace-panel-state";
 
@@ -33,6 +35,15 @@ describe("workspace panel state", () => {
       rotateInviteCode: false,
       saveSchedule: true,
     });
+  });
+
+  it("treats any active workspace mutation as a global lock", () => {
+    expect(isWorkspaceMutationBusy("rename")).toBe(true);
+    expect(isWorkspaceMutationBusy("rotate")).toBe(true);
+    expect(isWorkspaceMutationBusy("delete")).toBe(true);
+    expect(isWorkspaceMutationBusy("none")).toBe(false);
+    expect(canStartWorkspaceMutation("none")).toBe(true);
+    expect(canStartWorkspaceMutation("rename")).toBe(false);
   });
 
   it("keeps member row loading scoped to the active user", () => {

@@ -46,7 +46,9 @@ import {
 } from '@/lib/users-filters';
 import {
   buildWorkspaceDeleteConfirmation,
+  canStartWorkspaceMutation,
   isWorkspaceMemberActionPending,
+  isWorkspaceMutationBusy,
   resolveWorkspaceButtonLoadingState,
   type WorkspacePanelBusyAction,
 } from '@/components/dashboard/workspace-panel-state';
@@ -110,6 +112,7 @@ export function WorkspacePanel() {
   const [memberActionUserId, setMemberActionUserId] = useState<string | null>(null);
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
+  const workspaceMutationLockRef = useRef(false);
 
   const hasFilter = useMemo(
     () =>
@@ -212,10 +215,28 @@ export function WorkspacePanel() {
     return () => window.clearTimeout(timer);
   }, [appliedFilters, headerQuery, loadMembers]);
 
+  const runWorkspaceMutation = useCallback(
+    async (action: Exclude<WorkspacePanelBusyAction, 'none'>, operation: () => Promise<void>) => {
+      if (!canStartWorkspaceMutation(busyAction) || workspaceMutationLockRef.current) {
+        return;
+      }
+
+      workspaceMutationLockRef.current = true;
+      setBusyAction(action);
+      setNotice(null);
+
+      try {
+        await operation();
+      } finally {
+        workspaceMutationLockRef.current = false;
+        setBusyAction('none');
+      }
+    },
+    [busyAction],
+  );
+
   const handleRename = async () => {
-    setBusyAction('rename');
-    setNotice(null);
-    try {
+    await runWorkspaceMutation('rename', async () => {
       const res = await workspaceFetch('/api/admin/workspace', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -231,15 +252,11 @@ export function WorkspacePanel() {
       }
       await loadWorkspaceData();
       setNotice({ tone: 'success', text: 'Nama workspace berhasil diperbarui.' });
-    } finally {
-      setBusyAction('none');
-    }
+    });
   };
 
   const handleRotateInviteCode = async () => {
-    setBusyAction('rotate');
-    setNotice(null);
-    try {
+    await runWorkspaceMutation('rotate', async () => {
       const res = await workspaceFetch('/api/admin/workspace', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -256,13 +273,11 @@ export function WorkspacePanel() {
       await loadWorkspaceData();
       setInviteVisible(true);
       setNotice({ tone: 'success', text: 'Invitation code baru berhasil dibuat.' });
-    } finally {
-      setBusyAction('none');
-    }
+    });
   };
 
   const requestDeleteWorkspace = () => {
-    if (!workspaceData) {
+    if (!workspaceData || workspaceMutationLockRef.current) {
       return;
     }
 
@@ -282,9 +297,7 @@ export function WorkspacePanel() {
       return;
     }
 
-    setBusyAction('delete');
-    setNotice(null);
-    try {
+    await runWorkspaceMutation('delete', async () => {
       const res = await workspaceFetch('/api/admin/workspace', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -301,10 +314,8 @@ export function WorkspacePanel() {
 
       setNotice({ tone: 'info', text: 'Workspace berhasil dihapus. Mengalihkan akses...' });
       recoverWorkspaceScopeViolation('WORKSPACE_ACCESS_LOST');
-    } finally {
       setDeleteConfirmationOpen(false);
-      setBusyAction('none');
-    }
+    });
   };
 
   const copyInviteCode = async () => {
@@ -411,6 +422,7 @@ export function WorkspacePanel() {
   const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
   const deleteBlocked = activeMembersExcludingCurrentUser > 0;
   const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyAction, savingSchedule });
+  const workspaceMutationBusy = isWorkspaceMutationBusy(busyAction);
   const deleteConfirmation = workspaceData
     ? buildWorkspaceDeleteConfirmation(workspaceData.workspace.name)
     : null;
@@ -484,6 +496,7 @@ export function WorkspacePanel() {
               variant="outline"
               size="sm"
               onClick={() => void handleRotateInviteCode()}
+              disabled={workspaceMutationBusy}
               isLoading={actionLoadingState.rotateInviteCode}
             >
               {!actionLoadingState.rotateInviteCode ? (
@@ -516,7 +529,7 @@ export function WorkspacePanel() {
             <Button
               type="button"
               onClick={() => void handleRename()}
-              disabled={renameValue.trim().length < 3}
+              disabled={renameValue.trim().length < 3 || workspaceMutationBusy}
               isLoading={actionLoadingState.renameWorkspace}
             >
               Simpan Nama Workspace
@@ -604,7 +617,7 @@ export function WorkspacePanel() {
             type="button"
             variant="outline"
             className="border-rose-300 text-rose-900 hover:bg-rose-100"
-            disabled={deleteBlocked}
+            disabled={deleteBlocked || workspaceMutationBusy}
             onClick={requestDeleteWorkspace}
             isLoading={actionLoadingState.deleteWorkspace}
           >
