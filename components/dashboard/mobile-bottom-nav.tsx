@@ -1,12 +1,32 @@
 'use client';
 
-import { SignOutButton } from '@clerk/nextjs';
-import { ChartBar, ClockCounterClockwise, MapPinArea, SquaresFour, Trophy, UserCircle, UsersThree } from '@phosphor-icons/react/dist/ssr';
+import { UserButton } from '@clerk/nextjs';
+import {
+  DotsThreeCircle,
+  CaretRight,
+} from '@phosphor-icons/react/dist/ssr';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import {
+  getDashboardNavLabel,
+  getDashboardNavigation,
+  hasDashboardMoreContent,
+  isDashboardMoreRouteActive,
+  isDashboardPrimaryRouteHighlighted,
+  isDashboardRouteActive,
+  resolveDashboardNavHref,
+} from '@/components/dashboard/navigation-config';
+import {
+  Sheet,
+  SheetDescription,
+  SheetHeader,
+  SheetPanel,
+  SheetPopup,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
 type MobileBottomNavProps = {
@@ -15,123 +35,292 @@ type MobileBottomNavProps = {
   email: string;
 };
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: typeof SquaresFour;
+type DashboardMobileMoreSheetProps = {
+  role: string;
+  name: string;
+  email: string;
+  pathname: string;
+  activeQuery: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
-const baseItems: NavItem[] = [
-  { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
-];
+export function DashboardMobileMoreSheet({
+  role,
+  name,
+  email,
+  pathname,
+  activeQuery,
+  open,
+  onOpenChange,
+}: DashboardMobileMoreSheetProps) {
+  const navigation = getDashboardNavigation(role);
+  const manageAccountAction = navigation.mobileAccountActions.find(
+    (item) => item.key === 'manage-account',
+  );
 
-const adminItems: NavItem[] = [
-  ...baseItems,
-  { href: '/dashboard/report', label: 'Laporan', icon: ChartBar },
-  { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree },
-];
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetPopup
+        side="bottom"
+        showCloseButton={false}
+        className="mx-auto max-h-[min(82vh,680px)] max-w-md overflow-hidden rounded-t-[30px] border-border bg-background md:hidden"
+      >
+        <SheetHeader className="border-b border-border/50 pb-4 text-left">
+          <div className="mx-auto mb-1 h-1.5 w-12 rounded-full bg-muted-foreground/25" />
+          <SheetTitle className="text-xl font-bold">More</SheetTitle>
+          <SheetDescription>
+            Shortcut tambahan dashboard dan akses akun dalam satu panel.
+          </SheetDescription>
+        </SheetHeader>
 
-const employeeItems: NavItem[] = [
-  ...baseItems,
-  { href: '/dashboard/attendance', label: 'Absensi', icon: ClockCounterClockwise },
-  { href: '/dashboard/leaderboard', label: 'Peringkat', icon: Trophy },
-];
+        <SheetPanel className="space-y-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          {navigation.mobileSecondary.length > 0 ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Navigasi
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {navigation.mobileSecondary.length} item
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {navigation.mobileSecondary.map((item) => {
+                  const active = isDashboardRouteActive(pathname, item.href);
+                  const Icon = item.icon;
 
-function isActive(pathname: string, href: string) {
-  if (href === '/dashboard') {
-    return pathname === '/dashboard';
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={resolveDashboardNavHref(item.href, activeQuery)}
+                      onClick={() => onOpenChange(false)}
+                      className={cn(
+                        'rounded-[22px] border px-4 py-4 transition-colors',
+                        active
+                          ? 'border-primary/20 bg-primary/8 text-primary'
+                          : 'border-border/60 bg-card text-foreground hover:bg-secondary/50',
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <Icon
+                            weight={active ? 'fill' : 'regular'}
+                            className={cn(
+                              'h-5 w-5',
+                              active ? 'text-primary' : 'text-muted-foreground',
+                            )}
+                          />
+                          <p className="mt-3 text-sm font-semibold">
+                            {getDashboardNavLabel(item, 'mobile')}
+                          </p>
+                        </div>
+                        <CaretRight
+                          weight="bold"
+                          className={cn(
+                            'mt-0.5 h-4 w-4',
+                            active ? 'text-primary' : 'text-muted-foreground',
+                          )}
+                        />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {navigation.mobileAccountSection ? (
+            <section className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {navigation.mobileAccountSection.label}
+              </p>
+
+              <div className="rounded-[24px] border border-border/60 bg-card p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{name}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{email}</p>
+                    <p className="mt-3 inline-flex rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-foreground">
+                      {role}
+                    </p>
+                    {manageAccountAction ? (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {manageAccountAction.label} lewat kontrol Clerk di panel ini.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="shrink-0">
+                    <UserButton
+                      afterSignOutUrl="/"
+                      appearance={{
+                        elements: {
+                          userButtonAvatarBox:
+                            'h-11 w-11 rounded-full ring-1 ring-border shadow-sm',
+                        },
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+        </SheetPanel>
+      </SheetPopup>
+    </Sheet>
+  );
 }
 
 export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [moreState, setMoreState] = useState({ open: false, pathname });
   const activeQuery = (searchParams.get('q') ?? '').trim();
-  const items = role === 'karyawan'
-    ? employeeItems
-    : role === 'superadmin'
-      ? [...adminItems, { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea }]
-      : adminItems;
-  const showAccount = role === 'karyawan' || role === 'admin';
+  const navigation = getDashboardNavigation(role);
+  const showMore = hasDashboardMoreContent(navigation);
+  const moreOpen = moreState.open && moreState.pathname === pathname;
+  const moreActive =
+    moreOpen || isDashboardMoreRouteActive(pathname, navigation.mobileSecondary);
 
-  const resolveItemHref = (href: string) => {
-    if (!activeQuery) return href;
-    const params = new URLSearchParams();
-    params.set('q', activeQuery);
-    return `${href}?${params.toString()}`;
-  };
+  const dockItems = showMore
+    ? [
+        ...navigation.mobilePrimary.map((item) => ({
+          key: item.href,
+          kind: 'route' as const,
+          item,
+        })),
+        {
+          key: 'more',
+          kind: 'more' as const,
+        },
+      ]
+    : navigation.mobilePrimary.map((item) => ({
+        key: item.href,
+        kind: 'route' as const,
+        item,
+      }));
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-300 bg-slate-50/95 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
-        <ul className="grid grid-cols-4 gap-1">
-          {items.map((item) => {
-            const active = isActive(pathname, item.href);
+      <div className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-50 flex w-full justify-center px-4 md:hidden">
+        <div
+          className={cn(
+            'pointer-events-auto relative flex w-full items-center justify-between overflow-hidden rounded-full border border-border/50 bg-background/90 p-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.16)] backdrop-blur-2xl',
+            showMore ? 'max-w-[360px]' : 'max-w-[320px]',
+          )}
+        >
+          {dockItems.map((dockItem) => {
+            if (dockItem.kind === 'more') {
+              return (
+                <button
+                  key={dockItem.key}
+                  type="button"
+                  onClick={() =>
+                    setMoreState((prev) => ({
+                      open: prev.pathname === pathname ? !prev.open : true,
+                      pathname,
+                    }))
+                  }
+                  className="group relative z-10 flex h-[60px] flex-1 flex-col items-center justify-center py-2 outline-none"
+                >
+                  {moreActive ? (
+                    <motion.div
+                      layoutId="dashboard-mobile-nav-indicator"
+                      className="absolute inset-0 -z-10 rounded-full bg-primary/10"
+                      initial={false}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 400,
+                        damping: 30,
+                      }}
+                    />
+                  ) : null}
+                  <DotsThreeCircle
+                    weight={moreActive ? 'fill' : 'regular'}
+                    className={cn(
+                      'mb-1 h-[22px] w-[22px] transition-colors duration-300',
+                      moreActive
+                        ? 'text-primary'
+                        : 'text-muted-foreground group-hover:text-foreground',
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      'text-[11px] transition-colors duration-300',
+                      moreActive
+                        ? 'font-bold text-primary'
+                        : 'font-medium text-muted-foreground group-hover:text-foreground',
+                    )}
+                  >
+                    More
+                  </span>
+                </button>
+              );
+            }
+
+            const { item } = dockItem;
+            const active = isDashboardPrimaryRouteHighlighted(
+              pathname,
+              item.href,
+              moreOpen,
+            );
             const Icon = item.icon;
+
             return (
-              <li key={item.href}>
-                <Link
-                  href={resolveItemHref(item.href)}
+              <Link
+                key={dockItem.key}
+                href={resolveDashboardNavHref(item.href, activeQuery)}
+                className="group relative z-10 flex h-[60px] flex-1 flex-col items-center justify-center py-2 outline-none"
+              >
+                {active ? (
+                  <motion.div
+                    layoutId="dashboard-mobile-nav-indicator"
+                    className="absolute inset-0 -z-10 rounded-full bg-primary/10"
+                    initial={false}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 30,
+                    }}
+                  />
+                ) : null}
+                <Icon
+                  weight={active ? 'fill' : 'regular'}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium transition active:scale-[0.98]',
-                    active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
+                    'mb-1 h-[22px] w-[22px] transition-colors duration-300',
+                    active
+                      ? 'text-primary'
+                      : 'text-muted-foreground group-hover:text-foreground',
+                  )}
+                />
+                <span
+                  className={cn(
+                    'text-[11px] transition-colors duration-300',
+                    active
+                      ? 'font-bold text-primary'
+                      : 'font-medium text-muted-foreground group-hover:text-foreground',
                   )}
                 >
-                  <Icon
-                    weight="regular"
-                    className={cn('h-4 w-4', active ? 'text-indigo-500' : 'text-slate-400')}
-                  />
-                  {item.label}
-                </Link>
-              </li>
+                  {getDashboardNavLabel(item, 'mobile')}
+                </span>
+              </Link>
             );
           })}
-          {showAccount ? (
-            <li>
-              <button
-                type="button"
-                onClick={() => setAccountOpen((prev) => !prev)}
-                className={cn(
-                  'flex w-full flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium transition active:scale-[0.98]',
-                  accountOpen ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-200/80',
-                )}
-              >
-                <UserCircle
-                  weight="regular"
-                  className={cn('h-4 w-4', accountOpen ? 'text-indigo-500' : 'text-slate-400')}
-                />
-                Akun
-              </button>
-            </li>
-          ) : null}
-        </ul>
-      </nav>
-
-      {showAccount && accountOpen ? (
-        <div className="fixed inset-0 z-50 bg-slate-900/30 md:hidden">
-          <button
-            type="button"
-            aria-label="Tutup panel akun"
-            className="absolute inset-0"
-            onClick={() => setAccountOpen(false)}
-          />
-          <div className="absolute inset-x-0 bottom-20 mx-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-            <p className="text-sm font-semibold text-slate-900">{name}</p>
-            <p className="mt-1 text-xs text-slate-500">{email}</p>
-            <p className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
-              {role}
-            </p>
-            <SignOutButton>
-              <Button type="button" variant="outline" className="mt-4 w-full">
-                Keluar
-              </Button>
-            </SignOutButton>
-          </div>
         </div>
+      </div>
+
+      {showMore ? (
+        <DashboardMobileMoreSheet
+          role={role}
+          name={name}
+          email={email}
+          pathname={pathname}
+          activeQuery={activeQuery}
+          open={moreOpen}
+          onOpenChange={(open) => setMoreState({ open, pathname })}
+        />
       ) : null}
     </>
   );
 }
-
