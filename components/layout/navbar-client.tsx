@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { UserButton } from '@clerk/nextjs';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { UserButton } from "@clerk/nextjs";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import type { AppRole } from '@/lib/auth';
-import { cn } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import type { AppRole } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
-import { ThemeToggle } from '../ui/theme-toggle';
+import { ThemeToggle } from "../ui/theme-toggle";
 
 type NavItem = {
   label: string;
@@ -24,21 +24,21 @@ export type NavbarClientProps = {
 };
 
 const ITEMS: NavItem[] = [
-  { label: 'Beranda', href: '/' },
-  { label: 'Fitur', href: '/#fitur' },
-  { label: 'Integrasi', href: '/#integrasi' },
-  { label: 'FAQ', href: '/#faq' },
-  { label: 'Dashboard', href: '/dashboard', roles: ['admin', 'superadmin'] },
-  { label: 'QR Device', href: '/device-qr', roles: ['device-qr'] },
+  { label: "Beranda", href: "/" },
+  { label: "Fitur", href: "/#fitur" },
+  { label: "Integrasi", href: "/#integrasi" },
+  { label: "FAQ", href: "/#faq" },
+  { label: "Dashboard", href: "/dashboard", roles: ["admin", "superadmin"] },
+  { label: "QR Device", href: "/device-qr", roles: ["device-qr"] },
 ];
 
 function isActivePath(pathname: string, href: string) {
-  if (href.startsWith('/#')) {
-    return pathname === '/';
+  if (href.startsWith("/#")) {
+    return pathname === "/";
   }
 
-  if (href === '/') {
-    return pathname === '/';
+  if (href === "/") {
+    return pathname === "/";
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -74,11 +74,11 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
           aria-label="Absenin.id"
         >
           <Image
-            src="/absenin-id.svg"
+            src="/absenin-id-logo.png"
             alt="Absenin.id"
-            width={535}
-            height={72}
-            className="h-5 w-auto sm:h-6"
+            width={512}
+            height={512}
+            className="h-8 w-auto"
             priority
           />
         </Link>
@@ -89,8 +89,8 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
               key={link.label}
               href={link.href}
               className={cn(
-                'text-muted-foreground hover:text-foreground text-sm font-medium transition-colors',
-                isActivePath(pathname, link.href) && 'text-foreground',
+                "text-muted-foreground hover:text-foreground text-sm font-medium transition-colors",
+                isActivePath(pathname, link.href) && "text-foreground",
               )}
             >
               {link.label}
@@ -139,8 +139,8 @@ export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
                 className={cn(
-                  'text-muted-foreground hover:text-foreground text-sm font-medium transition-colors',
-                  isActivePath(pathname, link.href) && 'text-foreground',
+                  "text-muted-foreground hover:text-foreground text-sm font-medium transition-colors",
+                  isActivePath(pathname, link.href) && "text-foreground",
                 )}
               >
                 {link.label}
