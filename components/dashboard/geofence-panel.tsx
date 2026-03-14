@@ -79,29 +79,31 @@ export function GeofencePanel() {
     setLoading(true);
     setNotice({ tone: 'info', text: 'Menyimpan pengaturan geofence...' });
 
-    const whitelistIps = ipText
-      .split(',')
-      .map((ip) => ip.trim())
-      .filter(Boolean);
+    try {
+      const whitelistIps = ipText
+        .split(',')
+        .map((ip) => ip.trim())
+        .filter(Boolean);
 
-    const res = await workspaceFetch('/api/admin/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, whitelistIps }),
-    });
+      const res = await workspaceFetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, whitelistIps }),
+      });
 
-    if (!res.ok) {
-      const parsed = await parseApiErrorResponse(res, 'Gagal menyimpan pengaturan geofence.');
-      if (recoverWorkspaceScopeViolation(parsed.code)) {
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal menyimpan pengaturan geofence.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
-      setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
-      setLoading(false);
-      return;
-    }
 
-    setLoading(false);
-    setNotice({ tone: 'success', text: 'Pengaturan geofence berhasil disimpan.' });
+      setNotice({ tone: 'success', text: 'Pengaturan geofence berhasil disimpan.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (initialLoading) {
@@ -221,8 +223,14 @@ export function GeofencePanel() {
       </section>
 
       <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
-        <Button type="submit" disabled={loading} className="min-w-40">
-          {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+        <Button
+          type="submit"
+          disabled={loading}
+          className="min-w-40"
+          isLoading={loading}
+          loadingText="Menyimpan..."
+        >
+          Simpan Perubahan
         </Button>
       </div>
     </form>

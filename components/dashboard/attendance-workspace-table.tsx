@@ -26,12 +26,10 @@ type AttendanceWorkspaceTableProps = {
   hasNextPage: boolean;
   readOnly: boolean;
   activeDraft: AttendanceEditDraft;
-  pendingSaveAttendanceId: string | null;
   rowActionAttendanceId: string | null;
   onStartEdit: (row: AdminAttendanceRow) => void;
   onDraftChange: (draft: AttendanceEditDraft) => void;
   onCancelEdit: () => void;
-  onRequestSave: (row: AdminAttendanceRow) => void;
   onConfirmSave: (row: AdminAttendanceRow) => void;
   onLoadMore: () => void;
 };
@@ -53,12 +51,10 @@ export function AttendanceWorkspaceTable({
   hasNextPage,
   readOnly,
   activeDraft,
-  pendingSaveAttendanceId,
   rowActionAttendanceId,
   onStartEdit,
   onDraftChange,
   onCancelEdit,
-  onRequestSave,
   onConfirmSave,
   onLoadMore,
 }: AttendanceWorkspaceTableProps) {
@@ -113,7 +109,6 @@ export function AttendanceWorkspaceTable({
             rows.map((row) => {
               const statusMeta = deriveAttendanceStatusMeta(row);
               const isEditing = activeDraft.attendanceId === row._id;
-              const isConfirming = pendingSaveAttendanceId === row._id;
               const isActing = rowActionAttendanceId === row._id;
 
               return (
@@ -190,11 +185,6 @@ export function AttendanceWorkspaceTable({
                           placeholder="Tuliskan alasan koreksi"
                           className="min-h-[72px] text-sm"
                         />
-                        {isConfirming ? (
-                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900">
-                            Simpan koreksi ini ke audit log?
-                          </div>
-                        ) : null}
                         <div className="flex justify-end gap-2">
                           <Button
                             type="button"
@@ -210,20 +200,13 @@ export function AttendanceWorkspaceTable({
                           </Button>
                           <Button
                             type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onRequestSave(row)}
-                            disabled={isActing || readOnly}
-                          >
-                            Review
-                          </Button>
-                          <Button
-                            type="button"
                             size="sm"
                             onClick={() => onConfirmSave(row)}
-                            disabled={isActing || readOnly || !isConfirming}
+                            disabled={isActing || readOnly}
+                            isLoading={isActing}
+                            loadingText="Menyimpan..."
                           >
-                            {isActing ? 'Menyimpan...' : 'Simpan'}
+                            Simpan
                           </Button>
                         </div>
                       </div>
@@ -251,8 +234,8 @@ export function AttendanceWorkspaceTable({
 
       {hasNextPage ? (
         <div className="border-t border-slate-100 p-3">
-          <Button type="button" variant="outline" onClick={onLoadMore} disabled={isLoading}>
-            {isLoading ? 'Memuat...' : 'Muat lagi'}
+          <Button type="button" variant="outline" onClick={onLoadMore} disabled={isLoading} isLoading={isLoading}>
+            Muat lagi
           </Button>
         </div>
       ) : null}

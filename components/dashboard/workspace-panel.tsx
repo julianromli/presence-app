@@ -43,6 +43,12 @@ import {
   resolveUsersFilters,
   type UsersPanelFilters,
 } from '@/lib/users-filters';
+import {
+  buildWorkspaceDeleteConfirmation,
+  isWorkspaceMemberActionPending,
+  resolveWorkspaceButtonLoadingState,
+  type WorkspacePanelBusyAction,
+} from '@/components/dashboard/workspace-panel-state';
 
 type NoticeTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -72,7 +78,8 @@ export function WorkspacePanel() {
   const [inviteVisible, setInviteVisible] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
-  const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members' | 'delete'>('none');
+  const [busyAction, setBusyAction] = useState<WorkspacePanelBusyAction>('none');
+  const [copyingInviteCode, setCopyingInviteCode] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [scheduleRows, setScheduleRows] = useState<AttendanceScheduleDraftRow[]>(() =>
@@ -97,6 +104,8 @@ export function WorkspacePanel() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLastPage, setIsLastPage] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [membersAction, setMembersAction] = useState<'none' | 'apply' | 'reset' | 'load-more'>('none');
+  const [memberActionUserId, setMemberActionUserId] = useState<string | null>(null);
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
 
@@ -156,9 +165,6 @@ export function WorkspacePanel() {
   ) => {
     const activeFilters = resolveUsersFilters(appliedFilters, opts.activeFilters);
     setLoadingMembers(true);
-    if (!opts.append) {
-      setBusyAction('members');
-    }
     try {
       const res = await workspaceFetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
         cache: 'no-store',
@@ -178,9 +184,6 @@ export function WorkspacePanel() {
       setIsLastPage(payload.pageInfo.isDone);
     } finally {
       setLoadingMembers(false);
-      if (!opts.append) {
-        setBusyAction('none');
-      }
     }
   }, [appliedFilters]);
 
@@ -269,8 +272,9 @@ export function WorkspacePanel() {
       return;
     }
 
+    const deleteConfirmation = buildWorkspaceDeleteConfirmation(workspaceData.workspace.name);
     const confirmed = window.confirm(
-      `Hapus workspace "${workspaceData.workspace.name}"? Workspace akan dinonaktifkan dan akses Anda akan ditutup.`,
+      `${deleteConfirmation.title}\n\n${deleteConfirmation.description}`,
     );
     if (!confirmed) {
       return;
@@ -304,16 +308,19 @@ export function WorkspacePanel() {
     if (!workspaceData?.activeInviteCode?.code) {
       return;
     }
+    setCopyingInviteCode(true);
     try {
       await navigator.clipboard.writeText(workspaceData.activeInviteCode.code);
       setNotice({ tone: 'success', text: 'Invitation code berhasil disalin.' });
     } catch {
       setNotice({ tone: 'warning', text: 'Clipboard tidak tersedia. Salin secara manual.' });
+    } finally {
+      setCopyingInviteCode(false);
     }
   };
 
   const updateMember = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
-    setBusyAction('members');
+    setMemberActionUserId(payload.userId);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/users', {
@@ -335,7 +342,7 @@ export function WorkspacePanel() {
       ]);
       setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
     } finally {
-      setBusyAction('none');
+      setMemberActionUserId(null);
     }
   };
 
@@ -400,6 +407,7 @@ export function WorkspacePanel() {
     : '-';
   const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
   const deleteBlocked = activeMembersExcludingCurrentUser > 0;
+  const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyAction, savingSchedule });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -437,8 +445,14 @@ export function WorkspacePanel() {
             </p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyInviteCode()}>
-              <Copy weight="regular" className="mr-1 h-4 w-4" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copyInviteCode()}
+              isLoading={copyingInviteCode}
+            >
+              {!copyingInviteCode ? <Copy weight="regular" className="mr-1 h-4 w-4" /> : null}
               Copy
             </Button>
             <Button
@@ -446,12 +460,11 @@ export function WorkspacePanel() {
               variant="outline"
               size="sm"
               onClick={() => void handleRotateInviteCode()}
-              disabled={busyAction !== 'none'}
+              isLoading={actionLoadingState.rotateInviteCode}
             >
-              <ArrowsClockwise
-                weight="regular"
-                className={`mr-1 h-4 w-4 ${busyAction === 'rotate' ? 'animate-spin' : ''}`}
-              />
+              {!actionLoadingState.rotateInviteCode ? (
+                <ArrowsClockwise weight="regular" className="mr-1 h-4 w-4" />
+              ) : null}
               Rotate
             </Button>
           </div>
@@ -479,7 +492,8 @@ export function WorkspacePanel() {
             <Button
               type="button"
               onClick={() => void handleRename()}
-              disabled={busyAction !== 'none' || renameValue.trim().length < 3}
+              disabled={renameValue.trim().length < 3}
+              isLoading={actionLoadingState.renameWorkspace}
             >
               Simpan Nama Workspace
             </Button>
@@ -499,8 +513,10 @@ export function WorkspacePanel() {
             type="button"
             onClick={() => void handleSaveSchedule()}
             disabled={loadingSettings || savingSchedule}
+            isLoading={actionLoadingState.saveSchedule}
+            loadingText="Menyimpan..."
           >
-            {savingSchedule ? 'Menyimpan...' : 'Simpan Jadwal'}
+            Simpan Jadwal
           </Button>
         </div>
 
@@ -564,8 +580,9 @@ export function WorkspacePanel() {
             type="button"
             variant="outline"
             className="border-rose-300 text-rose-900 hover:bg-rose-100"
-            disabled={busyAction !== 'none' || deleteBlocked}
+            disabled={deleteBlocked}
             onClick={() => void handleDeleteWorkspace()}
+            isLoading={actionLoadingState.deleteWorkspace}
           >
             Hapus Workspace
           </Button>
@@ -606,7 +623,10 @@ export function WorkspacePanel() {
             event.preventDefault();
             const nextFilters = resolveUsersFilters(filters);
             setAppliedFilters(nextFilters);
-            void loadMembers({ append: false, cursor: null, activeFilters: nextFilters });
+            setMembersAction('apply');
+            void loadMembers({ append: false, cursor: null, activeFilters: nextFilters }).finally(() =>
+              setMembersAction('none'),
+            );
           }}
         >
           <label className="space-y-1">
@@ -684,16 +704,21 @@ export function WorkspacePanel() {
             </Menu>
           </label>
           <div className="flex items-end gap-2">
-            <Button type="submit" disabled={busyAction !== 'none'}>
+            <Button type="submit" disabled={loadingMembers} isLoading={membersAction === 'apply'}>
               Terapkan
             </Button>
             <Button
               type="button"
               variant="outline"
+              disabled={loadingMembers}
+              isLoading={membersAction === 'reset'}
               onClick={() => {
                 setFilters(DEFAULT_USERS_FILTERS);
                 setAppliedFilters(DEFAULT_USERS_FILTERS);
-                void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS });
+                setMembersAction('reset');
+                void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS }).finally(() =>
+                  setMembersAction('none'),
+                );
               }}
             >
               Reset
@@ -739,7 +764,7 @@ export function WorkspacePanel() {
                               variant="outline"
                             />
                           }
-                          disabled={busyAction !== 'none'}
+                          disabled={isWorkspaceMemberActionPending(row._id, memberActionUserId)}
                         >
                           {row.role}
                           <CaretDown weight="regular" className="h-3.5 w-3.5 text-zinc-500" />
@@ -772,7 +797,7 @@ export function WorkspacePanel() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={busyAction !== 'none'}
+                        isLoading={isWorkspaceMemberActionPending(row._id, memberActionUserId)}
                         onClick={() => void updateMember({ userId: row._id, isActive: !row.isActive })}
                       >
                         {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
@@ -791,7 +816,13 @@ export function WorkspacePanel() {
               type="button"
               variant="outline"
               disabled={loadingMembers || !nextCursor}
-              onClick={() => void loadMembers({ append: true, cursor: nextCursor, activeFilters: appliedFilters })}
+              isLoading={membersAction === 'load-more'}
+              onClick={() => {
+                setMembersAction('load-more');
+                void loadMembers({ append: true, cursor: nextCursor, activeFilters: appliedFilters }).finally(() =>
+                  setMembersAction('none'),
+                );
+              }}
             >
               Muat Lagi
             </Button>

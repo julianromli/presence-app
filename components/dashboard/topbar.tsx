@@ -291,16 +291,15 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
               </Menu>
             </div>
 
-            <button
+            <Button
               type="button"
               onClick={() => void refreshDashboard()}
               disabled={busy !== 'none'}
-              className="inline-flex items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-base text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              variant="outline"
+              className="h-auto items-center gap-3 rounded-xl border-slate-300 bg-white px-4 py-2.5 text-base text-slate-600 shadow-sm hover:border-slate-400 hover:text-slate-800"
+              isLoading={busy === 'refresh'}
             >
-              <ArrowsClockwise
-                weight="regular"
-                className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`}
-              />
+              {busy !== 'refresh' ? <ArrowsClockwise weight="regular" className="h-4 w-4" /> : null}
               <span>
                 Last updated:{' '}
                 {lastUpdatedAt.toLocaleDateString('en-US', {
@@ -309,7 +308,7 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
                   year: 'numeric',
                 })}
               </span>
-            </button>
+            </Button>
 
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -329,8 +328,11 @@ export function DashboardTopbar({ name, email }: DashboardTopbarProps) {
                   className="h-11 rounded-xl border-slate-300 bg-white px-4 text-base font-medium text-slate-600 hover:bg-slate-50"
                   onClick={() => setMenuOpen((prev) => !prev)}
                   disabled={busy !== 'none'}
+                  isLoading={busy === 'report' || busy === 'export'}
                 >
-                  <DownloadSimple weight="regular" className="mr-2 h-4 w-4" />
+                  {busy !== 'report' && busy !== 'export' ? (
+                    <DownloadSimple weight="regular" className="mr-2 h-4 w-4" />
+                  ) : null}
                   Import/Export
                   <CaretDown weight="regular" className="ml-2 h-4 w-4" />
                 </Button>

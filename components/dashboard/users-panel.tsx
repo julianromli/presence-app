@@ -7,6 +7,7 @@ import { AttendanceWorkspaceFilters } from '@/components/dashboard/attendance-wo
 import { AttendanceWorkspaceHeader } from '@/components/dashboard/attendance-workspace-header';
 import { AttendanceWorkspaceTable } from '@/components/dashboard/attendance-workspace-table';
 import { EmployeeQuickList } from '@/components/dashboard/employee-quick-list';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import type { ApiErrorInfo } from '@/lib/client-error';
 import {
@@ -93,8 +94,9 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
   const [attendanceCursor, setAttendanceCursor] = useState<string | null>(null);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
   const [isEmployeeLoading, setIsEmployeeLoading] = useState(false);
+  const [filtersAction, setFiltersAction] = useState<'submit' | 'refresh' | 'reset' | null>(null);
   const [editDraft, setEditDraft] = useState<AttendanceEditDraft>(createEmptyAttendanceEditDraft());
-  const [pendingSaveAttendanceId, setPendingSaveAttendanceId] = useState<string | null>(null);
+  const [confirmSaveAttendanceRow, setConfirmSaveAttendanceRow] = useState<AdminAttendanceRow | null>(null);
   const [rowActionAttendanceId, setRowActionAttendanceId] = useState<string | null>(null);
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
@@ -249,7 +251,7 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
     await refreshWorkspaceSections(resolved);
   };
 
-  const handleConfirmSave = async (row: AdminAttendanceRow) => {
+  const requestSaveAttendance = (row: AdminAttendanceRow) => {
     const validation = validateAttendanceEditDraft(row.dateKey, editDraft);
     if (!validation.ok) {
       setAttendanceNotice({
@@ -259,40 +261,80 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
       return;
     }
 
-    setRowActionAttendanceId(row._id);
-    const response = await workspaceFetch('/api/admin/attendance/edit', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validation.payload),
-    });
+    setConfirmSaveAttendanceRow(row);
+  };
 
-    if (!response.ok) {
-      const parsed = await parseApiErrorResponse(response, 'Edit attendance gagal.');
-      if (recoverWorkspaceScopeViolation(parsed.code)) {
-        setRowActionAttendanceId(null);
+  const handleConfirmSave = async () => {
+    if (!confirmSaveAttendanceRow) {
+      return;
+    }
+
+    const validation = validateAttendanceEditDraft(confirmSaveAttendanceRow.dateKey, editDraft);
+    if (!validation.ok) {
+      setAttendanceNotice({
+        tone: 'warning',
+        text: `[${validation.code}] ${validation.message}`,
+      });
+      setConfirmSaveAttendanceRow(null);
+      return;
+    }
+
+    setRowActionAttendanceId(confirmSaveAttendanceRow._id);
+    try {
+      const response = await workspaceFetch('/api/admin/attendance/edit', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validation.payload),
+      });
+
+      if (!response.ok) {
+        const parsed = await parseApiErrorResponse(response, 'Edit attendance gagal.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+
+        setAttendanceNotice({
+          tone: 'error',
+          text: `[${parsed.code}] ${parsed.message}`,
+        });
         return;
       }
 
       setAttendanceNotice({
-        tone: 'error',
-        text: `[${parsed.code}] ${parsed.message}`,
+        tone: 'success',
+        text: 'Edit attendance tersimpan dan attendance table sudah diperbarui.',
       });
+      setEditDraft(createEmptyAttendanceEditDraft());
+      await loadAttendance({ activeFilters: appliedFilters });
+    } finally {
+      setConfirmSaveAttendanceRow(null);
       setRowActionAttendanceId(null);
-      return;
     }
-
-    setAttendanceNotice({
-      tone: 'success',
-      text: 'Edit attendance tersimpan dan attendance table sudah diperbarui.',
-    });
-    setEditDraft(createEmptyAttendanceEditDraft());
-    setPendingSaveAttendanceId(null);
-    await loadAttendance({ activeFilters: appliedFilters });
-    setRowActionAttendanceId(null);
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <ConfirmationDialog
+        open={Boolean(confirmSaveAttendanceRow)}
+        title="Simpan koreksi attendance ini?"
+        description={
+          confirmSaveAttendanceRow
+            ? `Perubahan jam attendance untuk ${confirmSaveAttendanceRow.employeeName} pada ${confirmSaveAttendanceRow.dateKey} akan masuk ke audit log.`
+            : ''
+        }
+        confirmLabel="Simpan"
+        cancelLabel="Batal"
+        isPending={confirmSaveAttendanceRow ? rowActionAttendanceId === confirmSaveAttendanceRow._id : false}
+        onConfirm={() => {
+          void handleConfirmSave();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmSaveAttendanceRow(null);
+          }
+        }}
+      />
+
       <AttendanceWorkspaceHeader
         viewerRole={viewerRole}
         readOnly={readOnly}
@@ -302,14 +344,22 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
       <AttendanceWorkspaceFilters
         filters={filters}
         isLoading={isAttendanceLoading || isEmployeeLoading}
-        onSubmit={() => void applyFilters(filters)}
-        onRefresh={() => void loadAttendance({ activeFilters: appliedFilters })}
-        onReset={() =>
+        pendingAction={filtersAction}
+        onSubmit={() => {
+          setFiltersAction('submit');
+          void applyFilters(filters).finally(() => setFiltersAction(null));
+        }}
+        onRefresh={() => {
+          setFiltersAction('refresh');
+          void loadAttendance({ activeFilters: appliedFilters }).finally(() => setFiltersAction(null));
+        }}
+        onReset={() => {
+          setFiltersAction('reset');
           void applyFilters({
             ...createDefaultAttendanceFilters(),
             q: headerQuery,
-          })
-        }
+          }).finally(() => setFiltersAction(null));
+        }}
         onChange={(patch) => {
           setFilters((current) => resolveAttendanceFilters({ ...current, ...patch }));
         }}
@@ -331,36 +381,20 @@ export function UsersPanel({ viewerRole, readOnly = false }: UsersPanelProps) {
           hasNextPage={Boolean(attendanceCursor)}
           readOnly={readOnly}
           activeDraft={editDraft}
-          pendingSaveAttendanceId={pendingSaveAttendanceId}
           rowActionAttendanceId={rowActionAttendanceId}
           onStartEdit={(row) => {
             setEditDraft(createAttendanceEditDraft(row));
-            setPendingSaveAttendanceId(null);
+            setConfirmSaveAttendanceRow(null);
           }}
           onDraftChange={(draft) => {
             setEditDraft(draft);
           }}
           onCancelEdit={() => {
             setEditDraft(createEmptyAttendanceEditDraft());
-            setPendingSaveAttendanceId(null);
-          }}
-          onRequestSave={(row) => {
-            const validation = validateAttendanceEditDraft(row.dateKey, editDraft);
-            if (!validation.ok) {
-              setAttendanceNotice({
-                tone: 'warning',
-                text: `[${validation.code}] ${validation.message}`,
-              });
-              return;
-            }
-            setPendingSaveAttendanceId(row._id);
-            setAttendanceNotice({
-              tone: 'info',
-              text: `Konfirmasi simpan koreksi attendance untuk ${row.employeeName}.`,
-            });
+            setConfirmSaveAttendanceRow(null);
           }}
           onConfirmSave={(row) => {
-            void handleConfirmSave(row);
+            requestSaveAttendance(row);
           }}
           onLoadMore={() => {
             void loadAttendance({

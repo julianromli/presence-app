@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -23,12 +24,14 @@ import type {
 } from "@/types/dashboard";
 
 import {
+  buildDeviceRevokeConfirmation,
   buildDeviceSetupUrl,
   buildGeneratedCodeNotice,
   type GeneratedRegistrationCode,
+  isDeviceActionPending,
   isDeviceManagementVisible,
   startRenameSubmission,
-  toggleRevokeConfirmation,
+  startRevokeSubmission,
 } from "./device-management-panel-state";
 import { LatestRegistrationCodeCard } from "./latest-registration-code-card";
 
@@ -45,8 +48,10 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
   const [renameDeviceId, setRenameDeviceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [submittingRenameId, setSubmittingRenameId] = useState<string | null>(null);
-  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
+  const [confirmRevokeDevice, setConfirmRevokeDevice] = useState<Pick<ManagedDeviceRow, "deviceId" | "label"> | null>(null);
+  const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
   const [setupUrl, setSetupUrl] = useState<string | null>(null);
+  const [toolbarAction, setToolbarAction] = useState<"none" | "generate" | "refresh" | "copy">("none");
 
   useEffect(() => {
     const workspaceId = getActiveWorkspaceIdFromBrowser();
@@ -108,6 +113,7 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
   }
 
   async function refresh() {
+    setToolbarAction((current) => (current === "none" ? "refresh" : current));
     setIsLoading(true);
     try {
       const [codesResponse, devicesResponse] = await Promise.all([
@@ -130,31 +136,39 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
       setNotice(null);
     } finally {
       setIsLoading(false);
+      setToolbarAction((current) => (current === "refresh" ? "none" : current));
     }
   }
 
   async function generateCode() {
-    const response = await workspaceFetch("/api/admin/device/registration-codes", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({}),
-    });
+    setToolbarAction("generate");
+    try {
+      const response = await workspaceFetch("/api/admin/device/registration-codes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
 
-    if (!response.ok) {
-      const error = await parseApiErrorResponse(response, "Gagal membuat registration code.");
-      setNotice(`[${error.code}] ${error.message}`);
-      return;
+      if (!response.ok) {
+        const error = await parseApiErrorResponse(response, "Gagal membuat registration code.");
+        setNotice(`[${error.code}] ${error.message}`);
+        return;
+      }
+
+      const payload = (await response.json()) as GeneratedRegistrationCode;
+      setGeneratedCode(payload);
+      setNotice("Registration code baru berhasil dibuat. Salin code sebelum menutup halaman ini.");
+      await refresh();
+    } finally {
+      setToolbarAction("none");
     }
-
-    const payload = (await response.json()) as GeneratedRegistrationCode;
-    setGeneratedCode(payload);
-    setNotice("Registration code baru berhasil dibuat. Salin code sebelum menutup halaman ini.");
-    await refresh();
   }
 
   async function copyGeneratedCode() {
+    setToolbarAction("copy");
     const latestCode = buildGeneratedCodeNotice(generatedCode);
     if (!latestCode || typeof navigator === "undefined" || !navigator.clipboard) {
+      setToolbarAction("none");
       return;
     }
 
@@ -163,6 +177,8 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
       setNotice("Registration code berhasil disalin.");
     } catch {
       setNotice("Gagal menyalin registration code. Salin manual dari panel terbaru.");
+    } finally {
+      setToolbarAction("none");
     }
   }
 
@@ -170,46 +186,77 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
     const nextState = startRenameSubmission(deviceId);
     setSubmittingRenameId(nextState.submittingRenameId);
 
-    const response = await workspaceFetch(`/api/admin/device/devices/${deviceId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ label: renameDraft }),
-    });
+    try {
+      const response = await workspaceFetch(`/api/admin/device/devices/${deviceId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: renameDraft }),
+      });
 
-    if (!response.ok) {
-      const error = await parseApiErrorResponse(response, "Gagal mengubah nama device.");
-      setNotice(`[${error.code}] ${error.message}`);
+      if (!response.ok) {
+        const error = await parseApiErrorResponse(response, "Gagal mengubah nama device.");
+        setNotice(`[${error.code}] ${error.message}`);
+        return;
+      }
+
+      setRenameDeviceId(null);
+      setRenameDraft("");
+      setNotice("Nama device berhasil diperbarui.");
+      await refresh();
+    } finally {
       setSubmittingRenameId(null);
-      return;
     }
-
-    setRenameDeviceId(null);
-    setRenameDraft("");
-    setSubmittingRenameId(null);
-    setNotice("Nama device berhasil diperbarui.");
-    await refresh();
   }
 
   async function revokeDevice(deviceId: string) {
-    const response = await workspaceFetch(`/api/admin/device/devices/${deviceId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ revoke: true }),
-    });
+    const nextState = startRevokeSubmission(deviceId);
+    setRevokingDeviceId(nextState.revokingDeviceId);
+    try {
+      const response = await workspaceFetch(`/api/admin/device/devices/${deviceId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revoke: true }),
+      });
 
-    if (!response.ok) {
-      const error = await parseApiErrorResponse(response, "Gagal mencabut device.");
-      setNotice(`[${error.code}] ${error.message}`);
-      return;
+      if (!response.ok) {
+        const error = await parseApiErrorResponse(response, "Gagal mencabut device.");
+        setNotice(`[${error.code}] ${error.message}`);
+        return;
+      }
+
+      setNotice("Device berhasil direvoke.");
+      await refresh();
+    } finally {
+      setConfirmRevokeDevice(null);
+      setRevokingDeviceId(null);
     }
-
-    setConfirmRevokeId(null);
-    setNotice("Device berhasil direvoke.");
-    await refresh();
   }
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <ConfirmationDialog
+        open={Boolean(confirmRevokeDevice)}
+        title={confirmRevokeDevice ? buildDeviceRevokeConfirmation(confirmRevokeDevice.label).title : ""}
+        description={
+          confirmRevokeDevice ? buildDeviceRevokeConfirmation(confirmRevokeDevice.label).description : ""
+        }
+        confirmLabel="Ya, revoke"
+        cancelLabel="Batal"
+        tone="destructive"
+        isPending={confirmRevokeDevice ? isDeviceActionPending(confirmRevokeDevice.deviceId, revokingDeviceId) : false}
+        onConfirm={() => {
+          if (!confirmRevokeDevice) {
+            return;
+          }
+          void revokeDevice(confirmRevokeDevice.deviceId);
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmRevokeDevice(null);
+          }
+        }}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-6 py-5">
         <div>
           <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">
@@ -220,10 +267,19 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => void generateCode()} size="sm">
+          <Button
+            onClick={() => void generateCode()}
+            size="sm"
+            isLoading={toolbarAction === "generate"}
+          >
             Generate code
           </Button>
-          <Button onClick={() => void refresh()} size="sm" variant="outline">
+          <Button
+            onClick={() => void refresh()}
+            size="sm"
+            variant="outline"
+            isLoading={toolbarAction === "refresh"}
+          >
             Refresh
           </Button>
         </div>
@@ -238,7 +294,12 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
           {generatedCode ? (
             <div className="space-y-3">
               <LatestRegistrationCodeCard generatedCode={generatedCode} setupUrl={setupUrl} />
-              <Button onClick={() => void copyGeneratedCode()} size="sm" variant="outline">
+              <Button
+                onClick={() => void copyGeneratedCode()}
+                size="sm"
+                variant="outline"
+                isLoading={toolbarAction === "copy"}
+              >
                 Copy latest code
               </Button>
             </div>
@@ -315,9 +376,9 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
                           <Button
                             size="sm"
                             onClick={() => void submitRename(row.deviceId)}
-                            disabled={submittingRenameId === row.deviceId}
+                            isLoading={isDeviceActionPending(row.deviceId, submittingRenameId)}
                           >
-                            {submittingRenameId === row.deviceId ? "Menyimpan..." : "Simpan"}
+                            Simpan
                           </Button>
                         </div>
                       ) : (
@@ -341,32 +402,11 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
                         <Button
                           size="sm"
                           variant="destructive-outline"
-                          onClick={() =>
-                            setConfirmRevokeId((current) =>
-                              toggleRevokeConfirmation(current, row.deviceId),
-                            )
-                          }
+                          onClick={() => setConfirmRevokeDevice({ deviceId: row.deviceId, label: row.label })}
                         >
                           Revoke
                         </Button>
                       </div>
-                      {confirmRevokeId === row.deviceId ? (
-                        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                          <p>Cabut device ini sekarang?</p>
-                          <div className="mt-2 flex gap-2">
-                            <Button size="sm" onClick={() => void revokeDevice(row.deviceId)}>
-                              Ya, revoke
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setConfirmRevokeId(null)}
-                            >
-                              Batal
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))

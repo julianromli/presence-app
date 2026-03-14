@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 type AttendanceWorkspaceFiltersProps = {
   filters: AttendanceFilters;
   isLoading: boolean;
+  pendingAction?: 'submit' | 'refresh' | 'reset' | null;
   onSubmit: () => void;
   onRefresh: () => void;
   onReset: () => void;
@@ -29,6 +30,7 @@ type AttendanceWorkspaceFiltersProps = {
 export function AttendanceWorkspaceFilters({
   filters,
   isLoading,
+  pendingAction = null,
   onSubmit,
   onRefresh,
   onReset,
@@ -145,13 +147,25 @@ export function AttendanceWorkspaceFilters({
         </label>
 
         <div className="flex items-end gap-2">
-          <Button type="button" onClick={onSubmit} disabled={isLoading}>
-            {isLoading ? 'Memuat...' : 'Terapkan'}
+          <Button type="button" onClick={onSubmit} disabled={isLoading} isLoading={pendingAction === 'submit'}>
+            Terapkan
           </Button>
-          <Button type="button" variant="outline" onClick={onRefresh} disabled={isLoading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onRefresh}
+            disabled={isLoading}
+            isLoading={pendingAction === 'refresh'}
+          >
             Refresh
           </Button>
-          <Button type="button" variant="outline" onClick={onReset} disabled={isLoading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onReset}
+            disabled={isLoading}
+            isLoading={pendingAction === 'reset'}
+          >
             Reset
           </Button>
         </div>
