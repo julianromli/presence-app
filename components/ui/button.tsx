@@ -4,6 +4,7 @@ import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -49,22 +50,74 @@ const buttonVariants = cva(
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   VariantProps<typeof buttonVariants> & {
+    isLoading?: boolean;
+    loadingText?: React.ReactNode;
     render?: React.ReactElement;
   };
 
+function hasTextContent(node: React.ReactNode): boolean {
+  return React.Children.toArray(node).some((child) => {
+    if (typeof child === "string") {
+      return child.trim().length > 0;
+    }
+
+    if (typeof child === "number") {
+      return true;
+    }
+
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return false;
+    }
+
+    return hasTextContent(child.props.children);
+  });
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, render, size, type, variant, ...props }, ref) =>
-    useRender({
+  ({ children, className, disabled, isLoading = false, loadingText, render, size, type, variant, ...props }, ref) => {
+    const childNodes = React.Children.toArray(children).filter(
+      (child) => child !== null && child !== undefined,
+    );
+    const hasTextChild = hasTextContent(children);
+    const isIconOnly = !hasTextChild && childNodes.length <= 1;
+
+    let content = children;
+    if (isLoading) {
+      if (loadingText !== undefined) {
+        content = (
+          <>
+            <Spinner className="size-4" />
+            <span data-slot="button-content">{loadingText}</span>
+          </>
+        );
+      } else if (isIconOnly) {
+        content = <Spinner className="size-4" />;
+      } else {
+        content = (
+          <>
+            <Spinner className="size-4" />
+            <span data-slot="button-content">{children}</span>
+          </>
+        );
+      }
+    }
+
+    return useRender({
       defaultTagName: "button",
       props: {
+        "aria-busy": isLoading || undefined,
+        "data-loading": isLoading || undefined,
         "data-slot": "button",
         className: cn(buttonVariants({ className, size, variant })),
+        disabled: disabled || isLoading,
         type: type ?? "button",
         ...props,
+        children: content,
       },
       ref,
       render,
-    }),
+    });
+  },
 );
 
 Button.displayName = "Button";

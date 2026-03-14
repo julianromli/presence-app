@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildDeviceRevokeConfirmation,
   buildDeviceSetupUrl,
   buildDeviceManagementPanelState,
   buildGeneratedCodeNotice,
+  isDeviceActionPending,
   isDeviceManagementVisible,
   startRenameSubmission,
-  toggleRevokeConfirmation,
+  startRevokeSubmission,
 } from "../components/dashboard/device-management-panel-state";
 
 describe("device management panel", () => {
@@ -54,9 +56,22 @@ describe("device management panel", () => {
     });
   });
 
-  it("handles revoke confirmation flow", () => {
-    expect(toggleRevokeConfirmation(null, "device_123")).toBe("device_123");
-    expect(toggleRevokeConfirmation("device_123", "device_123")).toBeNull();
+  it("keeps device row pending state scoped to the active device action", () => {
+    expect(startRevokeSubmission("device_123")).toEqual({
+      revokingDeviceId: "device_123",
+    });
+    expect(isDeviceActionPending("device_123", "device_123")).toBe(true);
+    expect(isDeviceActionPending("device_999", "device_123")).toBe(false);
+  });
+
+  it("builds destructive confirmation copy for device revoke", () => {
+    expect(buildDeviceRevokeConfirmation("Front Desk Tablet")).toEqual({
+      cancelLabel: "Batal",
+      confirmLabel: "Ya, revoke",
+      description: 'Device "Front Desk Tablet" akan dicabut dari workspace ini dan perlu dipairing ulang.',
+      title: "Cabut device ini sekarang?",
+      tone: "destructive",
+    });
   });
 
   it("is visible only for superadmin", () => {
