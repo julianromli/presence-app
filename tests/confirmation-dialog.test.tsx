@@ -1,4 +1,5 @@
 import React from "react";
+import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 import { describe, expect, it } from "vitest";
 
 import { ConfirmationDialog } from "../components/ui/confirmation-dialog";
@@ -43,6 +44,28 @@ function findElement(
 }
 
 describe("confirmation dialog", () => {
+  it("uses the Base UI alert dialog primitive so focus moves inside the modal", () => {
+    const element = ConfirmationDialog({
+      open: true,
+      title: "Hapus workspace ini?",
+      description: 'Workspace "Presence Ops" akan dinonaktifkan dan akses Anda akan ditutup.',
+      confirmLabel: "Hapus Workspace",
+      cancelLabel: "Batal",
+      onConfirm: () => undefined,
+      onOpenChange: () => undefined,
+    });
+
+    const popup = findElement(
+      element,
+      (candidate) => candidate.type === AlertDialogPrimitive.Popup,
+    );
+
+    expect(React.isValidElement(element)).toBe(true);
+    expect((element as React.ReactElement).type).toBe(AlertDialogPrimitive.Root);
+    expect(popup).not.toBeNull();
+    expect(popup?.props.initialFocus).toBe(true);
+  });
+
   it("wires destructive confirmation copy and loading state", () => {
     const element = ConfirmationDialog({
       open: true,

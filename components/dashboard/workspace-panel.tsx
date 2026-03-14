@@ -79,7 +79,9 @@ export function WorkspacePanel() {
   const [inviteVisible, setInviteVisible] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
-  const [busyAction, setBusyAction] = useState<WorkspacePanelBusyAction>('none');
+  const [busyActions, setBusyActions] = useState<Set<WorkspacePanelBusyAction>>(
+    () => new Set(),
+  );
   const [copyingInviteCode, setCopyingInviteCode] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
@@ -107,9 +109,38 @@ export function WorkspacePanel() {
   const [isLastPage, setIsLastPage] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [membersAction, setMembersAction] = useState<'none' | 'apply' | 'reset' | 'load-more'>('none');
-  const [memberActionUserId, setMemberActionUserId] = useState<string | null>(null);
+  const [memberActionUserIds, setMemberActionUserIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
+
+  const updateBusyActionState = useCallback(
+    (action: WorkspacePanelBusyAction, pending: boolean) => {
+      setBusyActions((prev) => {
+        const next = new Set(prev);
+        if (pending) {
+          next.add(action);
+        } else {
+          next.delete(action);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const updateMemberActionState = useCallback((userId: string, pending: boolean) => {
+    setMemberActionUserIds((prev) => {
+      const next = new Set(prev);
+      if (pending) {
+        next.add(userId);
+      } else {
+        next.delete(userId);
+      }
+      return next;
+    });
+  }, []);
 
   const hasFilter = useMemo(
     () =>
@@ -213,7 +244,7 @@ export function WorkspacePanel() {
   }, [appliedFilters, headerQuery, loadMembers]);
 
   const handleRename = async () => {
-    setBusyAction('rename');
+    updateBusyActionState('rename', true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/workspace', {
@@ -232,12 +263,12 @@ export function WorkspacePanel() {
       await loadWorkspaceData();
       setNotice({ tone: 'success', text: 'Nama workspace berhasil diperbarui.' });
     } finally {
-      setBusyAction('none');
+      updateBusyActionState('rename', false);
     }
   };
 
   const handleRotateInviteCode = async () => {
-    setBusyAction('rotate');
+    updateBusyActionState('rotate', true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/workspace', {
@@ -257,7 +288,7 @@ export function WorkspacePanel() {
       setInviteVisible(true);
       setNotice({ tone: 'success', text: 'Invitation code baru berhasil dibuat.' });
     } finally {
-      setBusyAction('none');
+      updateBusyActionState('rotate', false);
     }
   };
 
@@ -282,7 +313,7 @@ export function WorkspacePanel() {
       return;
     }
 
-    setBusyAction('delete');
+    updateBusyActionState('delete', true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/workspace', {
@@ -303,7 +334,7 @@ export function WorkspacePanel() {
       recoverWorkspaceScopeViolation('WORKSPACE_ACCESS_LOST');
     } finally {
       setDeleteConfirmationOpen(false);
-      setBusyAction('none');
+      updateBusyActionState('delete', false);
     }
   };
 
@@ -323,7 +354,7 @@ export function WorkspacePanel() {
   };
 
   const updateMember = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
-    setMemberActionUserId(payload.userId);
+    updateMemberActionState(payload.userId, true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/users', {
@@ -345,7 +376,7 @@ export function WorkspacePanel() {
       ]);
       setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
     } finally {
-      setMemberActionUserId(null);
+      updateMemberActionState(payload.userId, false);
     }
   };
 
@@ -410,7 +441,7 @@ export function WorkspacePanel() {
     : '-';
   const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
   const deleteBlocked = activeMembersExcludingCurrentUser > 0;
-  const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyAction, savingSchedule });
+  const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyActions, savingSchedule });
   const deleteConfirmation = workspaceData
     ? buildWorkspaceDeleteConfirmation(workspaceData.workspace.name)
     : null;
@@ -788,7 +819,7 @@ export function WorkspacePanel() {
                               variant="outline"
                             />
                           }
-                          disabled={isWorkspaceMemberActionPending(row._id, memberActionUserId)}
+                          disabled={isWorkspaceMemberActionPending(row._id, memberActionUserIds)}
                         >
                           {row.role}
                           <CaretDown weight="regular" className="h-3.5 w-3.5 text-zinc-500" />
@@ -821,7 +852,7 @@ export function WorkspacePanel() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        isLoading={isWorkspaceMemberActionPending(row._id, memberActionUserId)}
+                        isLoading={isWorkspaceMemberActionPending(row._id, memberActionUserIds)}
                         onClick={() => void updateMember({ userId: row._id, isActive: !row.isActive })}
                       >
                         {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}

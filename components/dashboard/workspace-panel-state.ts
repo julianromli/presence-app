@@ -1,4 +1,4 @@
-export type WorkspacePanelBusyAction = "none" | "rename" | "rotate" | "delete";
+export type WorkspacePanelBusyAction = "rename" | "rotate" | "delete";
 
 export function buildWorkspaceDeleteConfirmation(workspaceName: string) {
   return {
@@ -11,20 +11,23 @@ export function buildWorkspaceDeleteConfirmation(workspaceName: string) {
 }
 
 export function resolveWorkspaceButtonLoadingState({
-  busyAction,
+  busyActions,
   savingSchedule,
 }: {
-  busyAction: WorkspacePanelBusyAction;
+  busyActions: ReadonlySet<WorkspacePanelBusyAction>;
   savingSchedule: boolean;
 }) {
   return {
-    deleteWorkspace: busyAction === "delete",
-    renameWorkspace: busyAction === "rename",
-    rotateInviteCode: busyAction === "rotate",
+    deleteWorkspace: busyActions.has("delete"),
+    renameWorkspace: busyActions.has("rename"),
+    rotateInviteCode: busyActions.has("rotate"),
     saveSchedule: savingSchedule,
   };
 }
 
-export function isWorkspaceMemberActionPending(userId: string, activeUserId: string | null) {
-  return userId === activeUserId;
+export function isWorkspaceMemberActionPending(
+  userId: string,
+  pendingUserIds: ReadonlySet<string>,
+) {
+  return pendingUserIds.has(userId);
 }

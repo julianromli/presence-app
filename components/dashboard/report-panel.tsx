@@ -10,6 +10,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { DeviceManagementPanel } from "@/components/dashboard/device-management-panel";
 import {
+  resolveReportToolbarLoadingState,
+  type ReportToolbarAction,
+} from "@/components/dashboard/report-panel-state";
+import {
   Table,
   TableBody,
   TableCell,
@@ -242,18 +246,9 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
   const [deviceRows, setDeviceRows] = useState<DeviceHeartbeatRow[]>([]);
   const [deviceStatus, setDeviceStatus] = useState<PanelStatus>("idle");
-  const [toolbarAction, setToolbarAction] = useState<
-    | "submit-attendance"
-    | "refresh-attendance"
-    | "trigger-weekly"
-    | "refresh-reports"
-    | "refresh-scan-events"
-    | "refresh-device"
-    | "load-more-attendance"
-    | "retry-attendance"
-    | "retry-reports"
-    | null
-  >(null);
+  const [pendingToolbarActions, setPendingToolbarActions] = useState<
+    Set<ReportToolbarAction>
+  >(() => new Set());
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
   const [sectionOpen, setSectionOpen] = useState<Record<SectionKey, boolean>>({
@@ -269,6 +264,21 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const toggleSection = (key: SectionKey, open: boolean) => {
     setSectionOpen((prev) => ({ ...prev, [key]: open }));
   };
+
+  const updateToolbarActionState = useCallback(
+    (action: ReportToolbarAction, pending: boolean) => {
+      setPendingToolbarActions((prev) => {
+        const next = new Set(prev);
+        if (pending) {
+          next.add(action);
+        } else {
+          next.delete(action);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const buildAttendanceParams = useCallback(
     (cursor: string | null, searchQueryOverride?: string) => {
@@ -360,11 +370,11 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     if (!nextCursor || isLastPage || isLoadingAttendance) {
       return;
     }
-    setToolbarAction("load-more-attendance");
+    updateToolbarActionState("load-more-attendance", true);
     try {
       await loadAttendance({ append: true, cursor: nextCursor });
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState("load-more-attendance", false);
     }
   };
 
@@ -430,7 +440,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   }, []);
 
   const triggerWeeklyReport = async () => {
-    setToolbarAction("trigger-weekly");
+    updateToolbarActionState("trigger-weekly", true);
     setNotice({ tone: "info", text: "Memproses report mingguan..." });
     try {
       const res = await workspaceFetch("/api/admin/reports", { method: "POST" });
@@ -460,7 +470,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
       }
       await loadReports();
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState("trigger-weekly", false);
     }
   };
 
@@ -610,47 +620,47 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
 
   const submitDate = async (e: FormEvent) => {
     e.preventDefault();
-    setToolbarAction("submit-attendance");
+    updateToolbarActionState("submit-attendance", true);
     try {
       await loadAttendance({ append: false, cursor: null });
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState("submit-attendance", false);
     }
   };
 
   const handleRefreshAttendance = async (action: "refresh-attendance" | "retry-attendance" = "refresh-attendance") => {
-    setToolbarAction(action);
+    updateToolbarActionState(action, true);
     try {
       await loadAttendance({ append: false, cursor: null });
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState(action, false);
     }
   };
 
   const handleRefreshReports = async (action: "refresh-reports" | "retry-reports" = "refresh-reports") => {
-    setToolbarAction(action);
+    updateToolbarActionState(action, true);
     try {
       await loadReports();
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState(action, false);
     }
   };
 
   const handleRefreshScanEvents = async () => {
-    setToolbarAction("refresh-scan-events");
+    updateToolbarActionState("refresh-scan-events", true);
     try {
       await loadScanEvents();
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState("refresh-scan-events", false);
     }
   };
 
   const handleRefreshDeviceHeartbeat = async () => {
-    setToolbarAction("refresh-device");
+    updateToolbarActionState("refresh-device", true);
     try {
       await loadDeviceHeartbeat();
     } finally {
-      setToolbarAction(null);
+      updateToolbarActionState("refresh-device", false);
     }
   };
 
@@ -699,6 +709,9 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
 
     return () => clearInterval(interval);
   }, [loadReports, reports]);
+
+  const toolbarLoadingState =
+    resolveReportToolbarLoadingState(pendingToolbarActions);
 
   return (
     <div className="space-y-6">
@@ -824,7 +837,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
           <Button
             type="submit"
             disabled={isLoadingAttendance}
-            isLoading={toolbarAction === "submit-attendance"}
+            isLoading={toolbarLoadingState.submitAttendance}
             loadingText="Memuat..."
           >
             Muat Data
@@ -834,7 +847,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             variant="outline"
             onClick={() => void handleRefreshAttendance()}
             disabled={isLoadingAttendance}
-            isLoading={toolbarAction === "refresh-attendance"}
+            isLoading={toolbarLoadingState.refreshAttendance}
           >
             Refresh
           </Button>
@@ -846,7 +859,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             size="sm"
             type="button"
             onClick={triggerWeeklyReport}
-            isLoading={toolbarAction === "trigger-weekly"}
+            isLoading={toolbarLoadingState.triggerWeekly}
           >
             Generate Report Mingguan
           </Button>
@@ -856,7 +869,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             type="button"
             onClick={() => void handleRefreshReports()}
             disabled={reportsStatus === "loading"}
-            isLoading={toolbarAction === "refresh-reports"}
+            isLoading={toolbarLoadingState.refreshReports}
           >
             Refresh Report
           </Button>
@@ -865,7 +878,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             size="sm"
             type="button"
             onClick={() => void handleRefreshScanEvents()}
-            isLoading={toolbarAction === "refresh-scan-events"}
+            isLoading={toolbarLoadingState.refreshScanEvents}
           >
             Refresh Scan Events
           </Button>
@@ -874,7 +887,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             size="sm"
             type="button"
             onClick={() => void handleRefreshDeviceHeartbeat()}
-            isLoading={toolbarAction === "refresh-device"}
+            isLoading={toolbarLoadingState.refreshDevice}
           >
             Refresh Device
           </Button>
@@ -931,7 +944,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                         size="sm"
                         variant="outline"
                         onClick={() => void handleRefreshAttendance("retry-attendance")}
-                        isLoading={toolbarAction === "retry-attendance"}
+                        isLoading={toolbarLoadingState.retryAttendance}
                       >
                         Coba lagi
                       </Button>
@@ -1054,7 +1067,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                 variant="outline"
                 onClick={loadMoreAttendance}
                 disabled={isLoadingAttendance}
-                isLoading={toolbarAction === "load-more-attendance"}
+                isLoading={toolbarLoadingState.loadMoreAttendance}
               >
                 Muat lagi
               </Button>
@@ -1248,7 +1261,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                         size="sm"
                         variant="outline"
                         onClick={() => void handleRefreshReports("retry-reports")}
-                        isLoading={toolbarAction === "retry-reports"}
+                        isLoading={toolbarLoadingState.retryReports}
                       >
                         Coba lagi
                       </Button>

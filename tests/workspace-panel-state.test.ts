@@ -7,14 +7,14 @@ import {
 } from "../components/dashboard/workspace-panel-state";
 
 describe("workspace panel state", () => {
-  it("marks only the active top-level action as loading", () => {
+  it("keeps multiple top-level actions loading when they overlap", () => {
     expect(
       resolveWorkspaceButtonLoadingState({
-        busyAction: "rotate",
+        busyActions: new Set(["rotate", "delete"]),
         savingSchedule: false,
       }),
     ).toEqual({
-      deleteWorkspace: false,
+      deleteWorkspace: true,
       renameWorkspace: false,
       rotateInviteCode: true,
       saveSchedule: false,
@@ -24,7 +24,7 @@ describe("workspace panel state", () => {
   it("marks schedule saving independently from other actions", () => {
     expect(
       resolveWorkspaceButtonLoadingState({
-        busyAction: "none",
+        busyActions: new Set(),
         savingSchedule: true,
       }),
     ).toEqual({
@@ -35,9 +35,12 @@ describe("workspace panel state", () => {
     });
   });
 
-  it("keeps member row loading scoped to the active user", () => {
-    expect(isWorkspaceMemberActionPending("user_123", "user_123")).toBe(true);
-    expect(isWorkspaceMemberActionPending("user_999", "user_123")).toBe(false);
+  it("keeps member row loading scoped to every user still pending", () => {
+    const pendingUserIds = new Set(["user_123", "user_999"]);
+
+    expect(isWorkspaceMemberActionPending("user_123", pendingUserIds)).toBe(true);
+    expect(isWorkspaceMemberActionPending("user_999", pendingUserIds)).toBe(true);
+    expect(isWorkspaceMemberActionPending("user_456", pendingUserIds)).toBe(false);
   });
 
   it("builds destructive confirmation copy for workspace deletion", () => {

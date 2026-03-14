@@ -34,6 +34,19 @@ describe("button loading", () => {
     expect(html).not.toContain("Save changes");
   });
 
+  it("keeps wrapped text labels visible while loading", async () => {
+    const { Button } = await import("../components/ui/button");
+    const html = renderToStaticMarkup(
+      <Button isLoading>
+        <span>Save changes</span>
+      </Button>,
+    );
+
+    expect(html).toContain('data-slot="spinner"');
+    expect(html).toContain("Save changes");
+    expect(html).toContain('data-slot="button-content"');
+  });
+
   it("replaces icon-only content with a spinner while preserving accessible labeling", async () => {
     const { Button } = await import("../components/ui/button");
     const html = renderToStaticMarkup(
