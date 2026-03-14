@@ -433,12 +433,14 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
               </div>
             ) : null}
 
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{
-                elements: { userButtonAvatarBox: "h-8 w-8 ring-1 ring-zinc-700 rounded-full" }
-              }}
-            />
+            <div className="hidden md:block">
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: { userButtonAvatarBox: "h-8 w-8 ring-1 ring-zinc-700 rounded-full" }
+                }}
+              />
+            </div>
           </div>
         </div>
 
