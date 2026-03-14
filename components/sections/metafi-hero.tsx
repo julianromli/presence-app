@@ -1,12 +1,16 @@
-import Image from 'next/image';
-import Link from 'next/link';
+import Image from "next/image";
+import Link from "next/link";
 
-import { DashboardHeroMockup } from '@/components/sections/dashboard-hero-mockup';
-import { Button } from '@/components/ui/button';
+import { DashboardHeroMockup } from "@/components/sections/dashboard-hero-mockup";
+import { Button } from "@/components/ui/button";
+import { GridBackground } from "../ui/grid-background";
 
-import { GridBackground } from '../ui/grid-background';
+import { auth } from "@clerk/nextjs/server";
 
-const MetafiHero = () => {
+export default async function MetafiHero() {
+  const session = await auth();
+  const isSignedIn = Boolean(session.userId);
+
   return (
     <section
       id="hero"
@@ -32,17 +36,17 @@ const MetafiHero = () => {
             Absensi QR yang cepat untuk tim yang terus bergerak
           </h1>
           <p className="text-muted-foreground md:text-md mx-auto max-w-2xl text-base sm:text-lg">
-            Absenin.id membantu kantor mencatat check-in dan check-out real-time,
-            menjaga keamanan akses berbasis role, dan menyiapkan laporan mingguan
-            tanpa proses manual.
+            Absenin.id membantu kantor mencatat check-in dan check-out
+            real-time, menjaga keamanan akses berbasis role, dan menyiapkan
+            laporan mingguan tanpa proses manual.
           </p>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
             <Button
-              render={<Link href="/sign-up" />}
+              render={<Link href={isSignedIn ? "/dashboard" : "/sign-up"} />}
               className="w-full sm:w-auto"
-              aria-label="Daftar sekarang"
+              aria-label={isSignedIn ? "Buka Dashboard" : "Daftar sekarang"}
             >
-              Daftar sekarang
+              {isSignedIn ? "Buka Dashboard" : "Daftar sekarang"}
             </Button>
             <Button
               render={<Link href="/#fitur" />}
@@ -60,6 +64,4 @@ const MetafiHero = () => {
       </div>
     </section>
   );
-};
-
-export default MetafiHero;
+}
