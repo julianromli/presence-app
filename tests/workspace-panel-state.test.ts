@@ -2,19 +2,27 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildWorkspaceDeleteConfirmation,
+  canStartWorkspaceMutation,
+  finishWorkspaceMemberAction,
+  beginWorkspacePanelRefresh,
   isWorkspaceMemberActionPending,
+  isWorkspaceMutationBusy,
+  isLatestWorkspacePanelRefresh,
+  type WorkspacePanelRefreshState,
   resolveWorkspaceButtonLoadingState,
-} from "../components/dashboard/workspace-panel-state";
+  startWorkspaceMemberAction,
+  type WorkspaceMemberPendingState,
+} from "@/components/dashboard/workspace-panel-state";
 
 describe("workspace panel state", () => {
-  it("keeps multiple top-level actions loading when they overlap", () => {
+  it("marks only the active top-level action as loading", () => {
     expect(
       resolveWorkspaceButtonLoadingState({
-        busyActions: new Set(["rotate", "delete"]),
+        busyAction: "rotate",
         savingSchedule: false,
       }),
     ).toEqual({
-      deleteWorkspace: true,
+      deleteWorkspace: false,
       renameWorkspace: false,
       rotateInviteCode: true,
       saveSchedule: false,
@@ -24,7 +32,7 @@ describe("workspace panel state", () => {
   it("marks schedule saving independently from other actions", () => {
     expect(
       resolveWorkspaceButtonLoadingState({
-        busyActions: new Set(),
+        busyAction: "none",
         savingSchedule: true,
       }),
     ).toEqual({
@@ -35,12 +43,50 @@ describe("workspace panel state", () => {
     });
   });
 
-  it("keeps member row loading scoped to every user still pending", () => {
-    const pendingUserIds = new Set(["user_123", "user_999"]);
+  it("treats any active workspace mutation as a global lock", () => {
+    expect(isWorkspaceMutationBusy("rename")).toBe(true);
+    expect(isWorkspaceMutationBusy("rotate")).toBe(true);
+    expect(isWorkspaceMutationBusy("delete")).toBe(true);
+    expect(isWorkspaceMutationBusy("none")).toBe(false);
+    expect(canStartWorkspaceMutation("none")).toBe(true);
+    expect(canStartWorkspaceMutation("rename")).toBe(false);
+  });
 
-    expect(isWorkspaceMemberActionPending("user_123", pendingUserIds)).toBe(true);
-    expect(isWorkspaceMemberActionPending("user_999", pendingUserIds)).toBe(true);
-    expect(isWorkspaceMemberActionPending("user_456", pendingUserIds)).toBe(false);
+  it("keeps member row loading scoped to the active user", () => {
+    let pendingState: WorkspaceMemberPendingState = {};
+    pendingState = startWorkspaceMemberAction(pendingState, "user_123");
+    pendingState = startWorkspaceMemberAction(pendingState, "user_999");
+
+    expect(isWorkspaceMemberActionPending("user_123", pendingState)).toBe(true);
+    expect(isWorkspaceMemberActionPending("user_999", pendingState)).toBe(true);
+
+    pendingState = finishWorkspaceMemberAction(pendingState, "user_123");
+
+    expect(isWorkspaceMemberActionPending("user_123", pendingState)).toBe(false);
+    expect(isWorkspaceMemberActionPending("user_999", pendingState)).toBe(true);
+  });
+
+  it("only treats the newest refresh request as writable", () => {
+    let refreshState: WorkspacePanelRefreshState = {
+      members: 0,
+      workspaceData: 0,
+    };
+
+    const firstMembersRefresh = beginWorkspacePanelRefresh(refreshState, "members");
+    refreshState = firstMembersRefresh.nextState;
+
+    const secondMembersRefresh = beginWorkspacePanelRefresh(refreshState, "members");
+    refreshState = secondMembersRefresh.nextState;
+
+    expect(
+      isLatestWorkspacePanelRefresh(refreshState, "members", firstMembersRefresh.requestId),
+    ).toBe(false);
+    expect(
+      isLatestWorkspacePanelRefresh(refreshState, "members", secondMembersRefresh.requestId),
+    ).toBe(true);
+    expect(
+      isLatestWorkspacePanelRefresh(refreshState, "workspaceData", 0),
+    ).toBe(true);
   });
 
   it("builds destructive confirmation copy for workspace deletion", () => {

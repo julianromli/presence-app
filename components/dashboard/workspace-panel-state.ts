@@ -1,4 +1,15 @@
-export type WorkspacePanelBusyAction = "rename" | "rotate" | "delete";
+export type WorkspacePanelBusyAction = "none" | "rename" | "rotate" | "delete";
+export type WorkspaceMemberPendingState = Partial<Record<string, number>>;
+export type WorkspacePanelRefreshKey = "members" | "workspaceData";
+export type WorkspacePanelRefreshState = Record<WorkspacePanelRefreshKey, number>;
+
+export function isWorkspaceMutationBusy(busyAction: WorkspacePanelBusyAction) {
+  return busyAction !== "none";
+}
+
+export function canStartWorkspaceMutation(busyAction: WorkspacePanelBusyAction) {
+  return !isWorkspaceMutationBusy(busyAction);
+}
 
 export function buildWorkspaceDeleteConfirmation(workspaceName: string) {
   return {
@@ -11,23 +22,72 @@ export function buildWorkspaceDeleteConfirmation(workspaceName: string) {
 }
 
 export function resolveWorkspaceButtonLoadingState({
-  busyActions,
+  busyAction,
   savingSchedule,
 }: {
-  busyActions: ReadonlySet<WorkspacePanelBusyAction>;
+  busyAction: WorkspacePanelBusyAction;
   savingSchedule: boolean;
 }) {
   return {
-    deleteWorkspace: busyActions.has("delete"),
-    renameWorkspace: busyActions.has("rename"),
-    rotateInviteCode: busyActions.has("rotate"),
+    deleteWorkspace: busyAction === "delete",
+    renameWorkspace: busyAction === "rename",
+    rotateInviteCode: busyAction === "rotate",
     saveSchedule: savingSchedule,
   };
 }
 
+export function beginWorkspacePanelRefresh(
+  refreshState: WorkspacePanelRefreshState,
+  key: WorkspacePanelRefreshKey,
+) {
+  const requestId = refreshState[key] + 1;
+  return {
+    requestId,
+    nextState: {
+      ...refreshState,
+      [key]: requestId,
+    },
+  };
+}
+
+export function isLatestWorkspacePanelRefresh(
+  refreshState: WorkspacePanelRefreshState,
+  key: WorkspacePanelRefreshKey,
+  requestId: number,
+) {
+  return refreshState[key] === requestId;
+}
+
+export function startWorkspaceMemberAction(
+  pendingState: WorkspaceMemberPendingState,
+  userId: string,
+) {
+  return {
+    ...pendingState,
+    [userId]: (pendingState[userId] ?? 0) + 1,
+  };
+}
+
+export function finishWorkspaceMemberAction(
+  pendingState: WorkspaceMemberPendingState,
+  userId: string,
+) {
+  const nextCount = (pendingState[userId] ?? 0) - 1;
+  if (nextCount > 0) {
+    return {
+      ...pendingState,
+      [userId]: nextCount,
+    };
+  }
+
+  const nextState = { ...pendingState };
+  delete nextState[userId];
+  return nextState;
+}
+
 export function isWorkspaceMemberActionPending(
   userId: string,
-  pendingUserIds: ReadonlySet<string>,
+  pendingState: WorkspaceMemberPendingState,
 ) {
-  return pendingUserIds.has(userId);
+  return (pendingState[userId] ?? 0) > 0;
 }

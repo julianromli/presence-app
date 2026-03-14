@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { ConfirmationDialog } from "../components/ui/confirmation-dialog";
 
+type TraversableElement = React.ReactElement<
+  { [key: string]: unknown; children?: React.ReactNode },
+  string | React.JSXElementConstructor<unknown>
+>;
+
 function collectText(node: React.ReactNode): string[] {
   if (typeof node === "string" || typeof node === "number") {
     return [String(node)];
@@ -17,13 +22,13 @@ function collectText(node: React.ReactNode): string[] {
     return [];
   }
 
-  return collectText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+  return collectText((node as TraversableElement).props.children);
 }
 
 function findElement(
   node: React.ReactNode,
-  predicate: (element: React.ReactElement<Record<string, unknown>>) => boolean,
-): React.ReactElement<Record<string, unknown>> | null {
+  predicate: (element: TraversableElement) => boolean,
+): TraversableElement | null {
   if (!React.isValidElement(node)) {
     if (Array.isArray(node)) {
       for (const child of node) {
@@ -37,10 +42,10 @@ function findElement(
   }
 
   if (predicate(node)) {
-    return node as React.ReactElement<Record<string, unknown>>;
+    return node as TraversableElement;
   }
 
-  return findElement((node as React.ReactElement<{ children?: React.ReactNode }>).props.children, predicate);
+  return findElement((node as TraversableElement).props.children, predicate);
 }
 
 describe("confirmation dialog", () => {

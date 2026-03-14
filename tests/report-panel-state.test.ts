@@ -1,46 +1,62 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  type ReportToolbarAction,
-  resolveReportToolbarLoadingState,
-} from "../components/dashboard/report-panel-state";
+  finishReportToolbarAction,
+  isReportToolbarActionPending,
+  startReportToolbarAction,
+  type ReportToolbarPendingState,
+} from "@/components/dashboard/report-panel-state";
 
 describe("report panel state", () => {
-  it("keeps independent toolbar actions loading when they overlap", () => {
-    const pendingActions = new Set<ReportToolbarAction>([
-      "trigger-weekly",
-      "refresh-device",
-    ]);
+  it("keeps overlapping toolbar actions pending independently", () => {
+    let pendingState: ReportToolbarPendingState = {};
 
-    expect(resolveReportToolbarLoadingState(pendingActions)).toEqual({
-      loadMoreAttendance: false,
-      refreshAttendance: false,
-      refreshDevice: true,
-      refreshReports: false,
-      refreshScanEvents: false,
-      retryAttendance: false,
-      retryReports: false,
-      submitAttendance: false,
-      triggerWeekly: true,
-    });
+    pendingState = startReportToolbarAction(pendingState, "trigger-weekly");
+    pendingState = startReportToolbarAction(pendingState, "refresh-device");
+
+    expect(isReportToolbarActionPending(pendingState, "trigger-weekly")).toBe(
+      true,
+    );
+    expect(isReportToolbarActionPending(pendingState, "refresh-device")).toBe(
+      true,
+    );
+
+    pendingState = finishReportToolbarAction(pendingState, "trigger-weekly");
+
+    expect(isReportToolbarActionPending(pendingState, "trigger-weekly")).toBe(
+      false,
+    );
+    expect(isReportToolbarActionPending(pendingState, "refresh-device")).toBe(
+      true,
+    );
   });
 
-  it("keeps retry actions scoped to their own request", () => {
-    const pendingActions = new Set<ReportToolbarAction>([
-      "retry-attendance",
-      "refresh-reports",
-    ]);
+  it("tracks repeated starts for the same toolbar action until every request finishes", () => {
+    let pendingState: ReportToolbarPendingState = {};
 
-    expect(resolveReportToolbarLoadingState(pendingActions)).toEqual({
-      loadMoreAttendance: false,
-      refreshAttendance: false,
-      refreshDevice: false,
-      refreshReports: true,
-      refreshScanEvents: false,
-      retryAttendance: true,
-      retryReports: false,
-      submitAttendance: false,
-      triggerWeekly: false,
-    });
+    pendingState = startReportToolbarAction(
+      pendingState,
+      "refresh-attendance",
+    );
+    pendingState = startReportToolbarAction(
+      pendingState,
+      "refresh-attendance",
+    );
+
+    pendingState = finishReportToolbarAction(
+      pendingState,
+      "refresh-attendance",
+    );
+    expect(
+      isReportToolbarActionPending(pendingState, "refresh-attendance"),
+    ).toBe(true);
+
+    pendingState = finishReportToolbarAction(
+      pendingState,
+      "refresh-attendance",
+    );
+    expect(
+      isReportToolbarActionPending(pendingState, "refresh-attendance"),
+    ).toBe(false);
   });
 });
