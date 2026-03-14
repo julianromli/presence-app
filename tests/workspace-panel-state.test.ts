@@ -4,8 +4,11 @@ import {
   buildWorkspaceDeleteConfirmation,
   canStartWorkspaceMutation,
   finishWorkspaceMemberAction,
+  beginWorkspacePanelRefresh,
   isWorkspaceMemberActionPending,
   isWorkspaceMutationBusy,
+  isLatestWorkspacePanelRefresh,
+  type WorkspacePanelRefreshState,
   resolveWorkspaceButtonLoadingState,
   startWorkspaceMemberAction,
   type WorkspaceMemberPendingState,
@@ -61,6 +64,29 @@ describe("workspace panel state", () => {
 
     expect(isWorkspaceMemberActionPending("user_123", pendingState)).toBe(false);
     expect(isWorkspaceMemberActionPending("user_999", pendingState)).toBe(true);
+  });
+
+  it("only treats the newest refresh request as writable", () => {
+    let refreshState: WorkspacePanelRefreshState = {
+      members: 0,
+      workspaceData: 0,
+    };
+
+    const firstMembersRefresh = beginWorkspacePanelRefresh(refreshState, "members");
+    refreshState = firstMembersRefresh.nextState;
+
+    const secondMembersRefresh = beginWorkspacePanelRefresh(refreshState, "members");
+    refreshState = secondMembersRefresh.nextState;
+
+    expect(
+      isLatestWorkspacePanelRefresh(refreshState, "members", firstMembersRefresh.requestId),
+    ).toBe(false);
+    expect(
+      isLatestWorkspacePanelRefresh(refreshState, "members", secondMembersRefresh.requestId),
+    ).toBe(true);
+    expect(
+      isLatestWorkspacePanelRefresh(refreshState, "workspaceData", 0),
+    ).toBe(true);
   });
 
   it("builds destructive confirmation copy for workspace deletion", () => {

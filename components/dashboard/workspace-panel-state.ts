@@ -1,5 +1,7 @@
 export type WorkspacePanelBusyAction = "none" | "rename" | "rotate" | "delete";
 export type WorkspaceMemberPendingState = Partial<Record<string, number>>;
+export type WorkspacePanelRefreshKey = "members" | "workspaceData";
+export type WorkspacePanelRefreshState = Record<WorkspacePanelRefreshKey, number>;
 
 export function isWorkspaceMutationBusy(busyAction: WorkspacePanelBusyAction) {
   return busyAction !== "none";
@@ -32,6 +34,28 @@ export function resolveWorkspaceButtonLoadingState({
     rotateInviteCode: busyAction === "rotate",
     saveSchedule: savingSchedule,
   };
+}
+
+export function beginWorkspacePanelRefresh(
+  refreshState: WorkspacePanelRefreshState,
+  key: WorkspacePanelRefreshKey,
+) {
+  const requestId = refreshState[key] + 1;
+  return {
+    requestId,
+    nextState: {
+      ...refreshState,
+      [key]: requestId,
+    },
+  };
+}
+
+export function isLatestWorkspacePanelRefresh(
+  refreshState: WorkspacePanelRefreshState,
+  key: WorkspacePanelRefreshKey,
+  requestId: number,
+) {
+  return refreshState[key] === requestId;
 }
 
 export function startWorkspaceMemberAction(

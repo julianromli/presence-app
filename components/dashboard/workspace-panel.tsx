@@ -45,15 +45,18 @@ import {
   type UsersPanelFilters,
 } from '@/lib/users-filters';
 import {
+  beginWorkspacePanelRefresh,
   buildWorkspaceDeleteConfirmation,
   canStartWorkspaceMutation,
   finishWorkspaceMemberAction,
   isWorkspaceMemberActionPending,
+  isLatestWorkspacePanelRefresh,
   isWorkspaceMutationBusy,
   resolveWorkspaceButtonLoadingState,
   startWorkspaceMemberAction,
   type WorkspaceMemberPendingState,
   type WorkspacePanelBusyAction,
+  type WorkspacePanelRefreshState,
 } from '@/components/dashboard/workspace-panel-state';
 
 type NoticeTone = 'info' | 'success' | 'warning' | 'error';
@@ -117,6 +120,10 @@ export function WorkspacePanel() {
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
   const workspaceMutationLockRef = useRef(false);
+  const latestRefreshStateRef = useRef<WorkspacePanelRefreshState>({
+    members: 0,
+    workspaceData: 0,
+  });
 
   const hasFilter = useMemo(
     () =>
@@ -127,6 +134,11 @@ export function WorkspacePanel() {
   );
 
   const loadWorkspaceData = useCallback(async () => {
+    const refresh = beginWorkspacePanelRefresh(
+      latestRefreshStateRef.current,
+      'workspaceData',
+    );
+    latestRefreshStateRef.current = refresh.nextState;
     setLoadingWorkspace(true);
     try {
       const res = await workspaceFetch('/api/admin/workspace', { cache: 'no-store' });
@@ -135,14 +147,40 @@ export function WorkspacePanel() {
         if (recoverWorkspaceScopeViolation(parsed.code)) {
           return;
         }
+        if (
+          !isLatestWorkspacePanelRefresh(
+            latestRefreshStateRef.current,
+            'workspaceData',
+            refresh.requestId,
+          )
+        ) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
       const payload = (await res.json()) as WorkspaceManagementPayload;
+      if (
+        !isLatestWorkspacePanelRefresh(
+          latestRefreshStateRef.current,
+          'workspaceData',
+          refresh.requestId,
+        )
+      ) {
+        return;
+      }
       setWorkspaceData(payload);
       setRenameValue(payload.workspace.name);
     } finally {
-      setLoadingWorkspace(false);
+      if (
+        isLatestWorkspacePanelRefresh(
+          latestRefreshStateRef.current,
+          'workspaceData',
+          refresh.requestId,
+        )
+      ) {
+        setLoadingWorkspace(false);
+      }
     }
   }, []);
 
@@ -173,6 +211,11 @@ export function WorkspacePanel() {
     },
   ) => {
     const activeFilters = resolveUsersFilters(appliedFilters, opts.activeFilters);
+    const refresh = beginWorkspacePanelRefresh(
+      latestRefreshStateRef.current,
+      'members',
+    );
+    latestRefreshStateRef.current = refresh.nextState;
     setLoadingMembers(true);
     try {
       const res = await workspaceFetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
@@ -183,16 +226,42 @@ export function WorkspacePanel() {
         if (recoverWorkspaceScopeViolation(parsed.code)) {
           return;
         }
+        if (
+          !isLatestWorkspacePanelRefresh(
+            latestRefreshStateRef.current,
+            'members',
+            refresh.requestId,
+          )
+        ) {
+          return;
+        }
         setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
         return;
       }
       const payload = (await res.json()) as AdminUsersPage;
+      if (
+        !isLatestWorkspacePanelRefresh(
+          latestRefreshStateRef.current,
+          'members',
+          refresh.requestId,
+        )
+      ) {
+        return;
+      }
       setRows((prev) => (opts.append ? [...prev, ...payload.rows] : payload.rows));
       setSummary(payload.summary);
       setNextCursor(payload.pageInfo.isDone ? null : payload.pageInfo.continueCursor);
       setIsLastPage(payload.pageInfo.isDone);
     } finally {
-      setLoadingMembers(false);
+      if (
+        isLatestWorkspacePanelRefresh(
+          latestRefreshStateRef.current,
+          'members',
+          refresh.requestId,
+        )
+      ) {
+        setLoadingMembers(false);
+      }
     }
   }, [appliedFilters]);
 
