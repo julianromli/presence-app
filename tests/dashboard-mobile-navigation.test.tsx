@@ -23,6 +23,13 @@ describe('dashboard mobile navigation', () => {
     vi.doMock('next/link', () => ({
       default: createLinkComponent(),
     }));
+    vi.doMock('@/components/dashboard/navigation-config', async () =>
+      import('../components/dashboard/navigation-config')
+    );
+    vi.doMock('@/lib/utils', () => ({
+      cn: (...values: Array<string | false | null | undefined>) =>
+        values.filter(Boolean).join(' '),
+    }));
     vi.doMock('next/navigation', () => ({
       usePathname: () => '/dashboard/report',
       useRouter: () => ({
