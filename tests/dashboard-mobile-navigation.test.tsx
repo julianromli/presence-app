@@ -139,7 +139,7 @@ describe('dashboard mobile navigation', () => {
     }));
   });
 
-  it('renders karyawan More content with akun and bantuan', async () => {
+  it('renders karyawan More content with Clerk account access and no duplicate logout', async () => {
     const { DashboardMobileMoreSheet } = await import(
       '../components/dashboard/mobile-bottom-nav'
     );
@@ -156,10 +156,11 @@ describe('dashboard mobile navigation', () => {
     );
 
     expect(html).toContain('Akun');
-    expect(html).toContain('Bantuan');
-    expect(html).toContain('/dashboard/help?q=faiz');
     expect(html).toContain('Kelola akun');
-    expect(html).toContain('Keluar');
+    expect(html).toContain('data-testid="user-button"');
+    expect(html).not.toContain('Bantuan');
+    expect(html).not.toContain('/dashboard/help?q=faiz');
+    expect(html).not.toContain('Keluar');
     expect(html).not.toContain('Geofence');
   }, 15000);
 

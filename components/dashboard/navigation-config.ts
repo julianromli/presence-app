@@ -4,8 +4,6 @@ import {
   ChartBar,
   ClockCounterClockwise,
   MapPinArea,
-  Question,
-  SignOut,
   SquaresFour,
   Trophy,
   UserCircle,
@@ -36,7 +34,7 @@ export type DashboardAccountSection = {
 
 export type DashboardActionItem = {
   icon: DashboardIcon;
-  key: 'manage-account' | 'sign-out';
+  key: 'manage-account';
   label: string;
 };
 
@@ -79,7 +77,15 @@ const leaderboardItem: DashboardRouteItem = {
   },
 };
 
-const reportItem: DashboardRouteItem = {
+const adminReportItem: DashboardRouteItem = {
+  href: '/dashboard/report',
+  icon: ChartBar,
+  labels: {
+    default: 'Laporan',
+  },
+};
+
+const superadminReportItem: DashboardRouteItem = {
   href: '/dashboard/report',
   icon: ChartBar,
   labels: {
@@ -112,15 +118,6 @@ const geofenceItem: DashboardRouteItem = {
   },
 };
 
-const helpItem: DashboardRouteItem = {
-  href: '/dashboard/help',
-  icon: Question,
-  labels: {
-    default: 'Bantuan',
-    desktop: 'Bantuan & Panduan',
-  },
-};
-
 const accountSection: DashboardAccountSection = {
   icon: UserCircle,
   label: 'Akun',
@@ -132,11 +129,6 @@ const accountActions: DashboardActionItem[] = [
     label: 'Kelola akun',
     icon: UserCircle,
   },
-  {
-    key: 'sign-out',
-    label: 'Keluar',
-    icon: SignOut,
-  },
 ];
 
 const navigationByRole: Record<DashboardRole, DashboardNavigationConfig> = {
@@ -147,9 +139,9 @@ const navigationByRole: Record<DashboardRole, DashboardNavigationConfig> = {
         items: [summaryItem, attendanceItem, leaderboardItem],
       },
     ],
-    desktopFooter: helpItem,
+    desktopFooter: null,
     mobilePrimary: [summaryItem, attendanceItem, leaderboardItem],
-    mobileSecondary: [helpItem],
+    mobileSecondary: [],
     mobileAccountSection: accountSection,
     mobileAccountActions: accountActions,
   },
@@ -157,12 +149,12 @@ const navigationByRole: Record<DashboardRole, DashboardNavigationConfig> = {
     desktopGroups: [
       {
         label: 'Operasional',
-        items: [summaryItem, reportItem, usersItem],
+        items: [summaryItem, adminReportItem, usersItem],
       },
     ],
-    desktopFooter: helpItem,
-    mobilePrimary: [summaryItem, reportItem, usersItem],
-    mobileSecondary: [helpItem],
+    desktopFooter: null,
+    mobilePrimary: [summaryItem, adminReportItem, usersItem],
+    mobileSecondary: [],
     mobileAccountSection: accountSection,
     mobileAccountActions: accountActions,
   },
@@ -170,16 +162,16 @@ const navigationByRole: Record<DashboardRole, DashboardNavigationConfig> = {
     desktopGroups: [
       {
         label: 'Operasional',
-        items: [summaryItem, reportItem, usersItem],
+        items: [summaryItem, superadminReportItem, usersItem],
       },
       {
         label: 'Pengaturan',
         items: [workspaceItem, geofenceItem],
       },
     ],
-    desktopFooter: helpItem,
-    mobilePrimary: [summaryItem, reportItem, usersItem],
-    mobileSecondary: [workspaceItem, geofenceItem, helpItem],
+    desktopFooter: null,
+    mobilePrimary: [summaryItem, superadminReportItem, usersItem],
+    mobileSecondary: [workspaceItem, geofenceItem],
     mobileAccountSection: accountSection,
     mobileAccountActions: accountActions,
   },
@@ -231,6 +223,14 @@ export function isDashboardMoreRouteActive(
   items: DashboardRouteItem[],
 ) {
   return items.some((item) => isDashboardRouteActive(pathname, item.href));
+}
+
+export function isDashboardPrimaryRouteHighlighted(
+  pathname: string,
+  href: string,
+  moreOpen: boolean,
+) {
+  return !moreOpen && isDashboardRouteActive(pathname, href);
 }
 
 export function resolveDashboardNavHref(href: string, activeQuery: string) {

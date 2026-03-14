@@ -1,6 +1,6 @@
 'use client';
 
-import { SignOutButton, UserButton } from '@clerk/nextjs';
+import { UserButton } from '@clerk/nextjs';
 import {
   DotsThreeCircle,
   CaretRight,
@@ -15,10 +15,10 @@ import {
   getDashboardNavigation,
   hasDashboardMoreContent,
   isDashboardMoreRouteActive,
+  isDashboardPrimaryRouteHighlighted,
   isDashboardRouteActive,
   resolveDashboardNavHref,
 } from '@/components/dashboard/navigation-config';
-import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetDescription,
@@ -57,9 +57,6 @@ export function DashboardMobileMoreSheet({
   const navigation = getDashboardNavigation(role);
   const manageAccountAction = navigation.mobileAccountActions.find(
     (item) => item.key === 'manage-account',
-  );
-  const signOutAction = navigation.mobileAccountActions.find(
-    (item) => item.key === 'sign-out',
   );
 
   return (
@@ -166,12 +163,6 @@ export function DashboardMobileMoreSheet({
                     />
                   </div>
                 </div>
-
-                <SignOutButton>
-                  <Button type="button" variant="outline" className="mt-4 w-full rounded-full">
-                    {signOutAction?.label ?? 'Keluar'}
-                  </Button>
-                </SignOutButton>
               </div>
             </section>
           ) : null}
@@ -269,7 +260,11 @@ export function MobileBottomNav({ role, name, email }: MobileBottomNavProps) {
             }
 
             const { item } = dockItem;
-            const active = isDashboardRouteActive(pathname, item.href);
+            const active = isDashboardPrimaryRouteHighlighted(
+              pathname,
+              item.href,
+              moreOpen,
+            );
             const Icon = item.icon;
 
             return (
