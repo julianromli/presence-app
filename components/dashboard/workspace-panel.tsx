@@ -14,6 +14,7 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Input } from '@/components/ui/input';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import {
@@ -81,6 +82,7 @@ export function WorkspacePanel() {
   const [busyAction, setBusyAction] = useState<WorkspacePanelBusyAction>('none');
   const [copyingInviteCode, setCopyingInviteCode] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [scheduleRows, setScheduleRows] = useState<AttendanceScheduleDraftRow[]>(() =>
     buildAttendanceScheduleDraft(),
@@ -259,7 +261,7 @@ export function WorkspacePanel() {
     }
   };
 
-  const handleDeleteWorkspace = async () => {
+  const requestDeleteWorkspace = () => {
     if (!workspaceData) {
       return;
     }
@@ -272,11 +274,11 @@ export function WorkspacePanel() {
       return;
     }
 
-    const deleteConfirmation = buildWorkspaceDeleteConfirmation(workspaceData.workspace.name);
-    const confirmed = window.confirm(
-      `${deleteConfirmation.title}\n\n${deleteConfirmation.description}`,
-    );
-    if (!confirmed) {
+    setDeleteConfirmationOpen(true);
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!workspaceData) {
       return;
     }
 
@@ -300,6 +302,7 @@ export function WorkspacePanel() {
       setNotice({ tone: 'info', text: 'Workspace berhasil dihapus. Mengalihkan akses...' });
       recoverWorkspaceScopeViolation('WORKSPACE_ACCESS_LOST');
     } finally {
+      setDeleteConfirmationOpen(false);
       setBusyAction('none');
     }
   };
@@ -408,9 +411,30 @@ export function WorkspacePanel() {
   const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
   const deleteBlocked = activeMembersExcludingCurrentUser > 0;
   const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyAction, savingSchedule });
+  const deleteConfirmation = workspaceData
+    ? buildWorkspaceDeleteConfirmation(workspaceData.workspace.name)
+    : null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <ConfirmationDialog
+        open={deleteConfirmationOpen && Boolean(deleteConfirmation)}
+        title={deleteConfirmation?.title ?? ''}
+        description={deleteConfirmation?.description ?? ''}
+        confirmLabel={deleteConfirmation?.confirmLabel ?? 'Hapus Workspace'}
+        cancelLabel={deleteConfirmation?.cancelLabel ?? 'Batal'}
+        tone="destructive"
+        isPending={actionLoadingState.deleteWorkspace}
+        onConfirm={() => {
+          void handleDeleteWorkspace();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteConfirmationOpen(false);
+          }
+        }}
+      />
+
       {notice ? (
         <div className={`rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
           {notice.text}
@@ -581,7 +605,7 @@ export function WorkspacePanel() {
             variant="outline"
             className="border-rose-300 text-rose-900 hover:bg-rose-100"
             disabled={deleteBlocked}
-            onClick={() => void handleDeleteWorkspace()}
+            onClick={requestDeleteWorkspace}
             isLoading={actionLoadingState.deleteWorkspace}
           >
             Hapus Workspace

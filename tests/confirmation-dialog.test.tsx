@@ -16,13 +16,13 @@ function collectText(node: React.ReactNode): string[] {
     return [];
   }
 
-  return collectText(node.props.children);
+  return collectText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
 }
 
 function findElement(
   node: React.ReactNode,
-  predicate: (element: React.ReactElement) => boolean,
-): React.ReactElement | null {
+  predicate: (element: React.ReactElement<Record<string, unknown>>) => boolean,
+): React.ReactElement<Record<string, unknown>> | null {
   if (!React.isValidElement(node)) {
     if (Array.isArray(node)) {
       for (const child of node) {
@@ -36,10 +36,10 @@ function findElement(
   }
 
   if (predicate(node)) {
-    return node;
+    return node as React.ReactElement<Record<string, unknown>>;
   }
 
-  return findElement(node.props.children, predicate);
+  return findElement((node as React.ReactElement<{ children?: React.ReactNode }>).props.children, predicate);
 }
 
 describe("confirmation dialog", () => {
@@ -57,7 +57,10 @@ describe("confirmation dialog", () => {
     });
 
     const text = collectText(element).join(" ");
-    const confirmButton = findElement(element, (candidate) => candidate.props?.isLoading === true);
+    const confirmButton = findElement(
+      element,
+      (candidate) => candidate.props.isLoading === true,
+    );
 
     expect(text).toContain("Hapus workspace ini?");
     expect(text).toContain("Presence Ops");
