@@ -18,7 +18,7 @@ export function DashboardLayout({ role = 'karyawan', name = 'Guest', email = 'gu
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <DashboardSidebar role={role} name={name} email={email} />
           <main className="min-h-0 flex-1 overflow-y-auto bg-white">
-            <div className="pb-24 md:pb-0 h-full">{children}</div>
+            <div className="h-full pb-28 md:pb-0">{children}</div>
           </main>
         </div>
         <MobileBottomNav role={role} name={name} email={email} />

@@ -55,7 +55,7 @@ The mobile dock always shows four visual slots:
 
 Primary items are role-specific. Secondary items move into `More`.
 
-This four-slot rule applies to the currently supported dashboard roles in this repository. If a future role has no secondary items, `More` may be omitted instead of rendering an empty fourth slot.
+This four-slot rule applies to the currently supported dashboard roles in this repository. If a future role has no secondary items and no account access content for `More`, `More` may be omitted instead of rendering an empty fourth slot.
 
 ### Role Mapping
 
@@ -69,7 +69,7 @@ Primary:
 
 Secondary in `More`:
 
-- `Bantuan` -> `/dashboard/help`
+- none
 
 Account section in `More`:
 
@@ -85,7 +85,7 @@ Primary:
 
 Secondary in `More`:
 
-- `Bantuan` -> `/dashboard/help`
+- none
 
 Account section in `More`:
 
@@ -103,7 +103,6 @@ Secondary in `More`:
 
 - `Workspace` -> `/settings/workspace`
 - `Geofence` -> `/settings/geofence`
-- `Bantuan` -> `/dashboard/help`
 
 Account section in `More`:
 
@@ -122,26 +121,25 @@ Account section in `More`:
 
 - `More` opens a mini sheet from the bottom.
 - The sheet should use the project-standard COSS UI sheet pattern rather than a custom overlay.
-- The sheet contains three content types:
-  - route links from the role's secondary navigation
-  - a non-route account section
-  - account actions
+- The sheet contains route links from the role's secondary navigation plus a non-route account section with Clerk-managed account controls.
 
 ### Active State Rules
 
 - A primary item is active when the current pathname matches its route using the same route-prefix logic already used in dashboard navigation.
 - `More` is active when the current pathname belongs to any secondary route for the current role.
 - `More` is also active while the `More` sheet is open, even if the current pathname still belongs to a primary route.
-- When the user is on `Workspace`, `Geofence`, or `Bantuan`, the dock should highlight `More` as the active destination.
+- When the user is on `Workspace` or `Geofence`, the dock should highlight `More` as the active destination.
 - When the `More` sheet is open and the user is viewing the embedded `Akun` section, the `More` trigger should remain visually active during that interaction.
+- While the `More` sheet is open, primary dock items should not remain visually selected.
 
 ### Account Access
 
 - The existing dedicated mobile `Akun` bottom-nav button is removed.
-- Account information and account actions move into the `More` sheet.
+- Account information and Clerk-managed account controls move into the `More` sheet.
 - The mobile header `UserButton` should be hidden on mobile and remain available on desktop only.
 - Mobile account access should exist in exactly one primary place: the `More` sheet.
-- Mobile account capabilities currently exposed through Clerk should be preserved by providing a Clerk-managed account action inside the `More` sheet in addition to logout.
+- Mobile account capabilities currently exposed through Clerk should be preserved by providing a Clerk-managed account control inside the `More` sheet.
+- If the chosen Clerk control already includes sign-out, the sheet should not render a separate duplicate logout action.
 - The preferred interaction is a Clerk-backed account management trigger inside the sheet, such as a `UserButton`-driven profile action or equivalent Clerk-supported control, rather than a custom account settings implementation.
 - Desktop account access remains unchanged.
 
@@ -163,11 +161,11 @@ Introduce a shared role-aware navigation configuration for dashboard navigation.
 The shared configuration must support enough structure for both surfaces, including:
 
 - desktop grouping
-- desktop footer placement for `Bantuan`
+- optional desktop footer placement
 - mobile `primary` items
 - mobile `secondary` items
 - mobile non-route sections such as `Akun`
-- mobile account actions
+- mobile account controls
 - optional surface-specific labels where desktop and mobile wording intentionally differ
 
 Each item should define at least:
@@ -185,7 +183,7 @@ One acceptable shape would separate:
 
 - route items: navigable destinations with `href`
 - sheet sections: non-route content blocks such as `Akun`
-- actions: non-route interactions such as opening Clerk account management or signing out
+- account controls: Clerk-managed interactions such as opening account management
 
 ### Mobile Components
 
@@ -227,7 +225,8 @@ For `More`:
 
 ## Edge Cases
 
-- If a role has no secondary items in the future, omit `More` rather than rendering an empty trigger.
+- If a role has no secondary items in the future, keep `More` as long as it still contains the sole mobile account entry point.
+- Only omit `More` when both secondary navigation and mobile account access content are absent.
 - If navigation configuration is missing or malformed for a role, fall back to a minimal safe default: render only `Ringkasan` for mobile, render no `More`, and avoid rendering any secondary links.
 - Deep-linking directly into secondary routes must still mark `More` as active on first render.
 - Navigating from a secondary route back to a primary route must clear the `More` active state correctly.
@@ -246,14 +245,14 @@ Add or update tests for the following:
   - `karyawan` shows `Ringkasan`, `Absensi`, `Leaderboard`, `More`
   - `admin` shows `Ringkasan`, `Laporan`, `Karyawan`, `More`
   - `superadmin` shows `Ringkasan`, `Laporan`, `Karyawan`, `More`
-- `karyawan` `More` contains `Akun`, `Bantuan`
-- `admin` `More` contains `Akun`, `Bantuan`
-- `superadmin` `More` contains `Workspace`, `Geofence`, `Akun`, `Bantuan`
+- `karyawan` `More` contains `Akun`
+- `admin` `More` contains `Akun`
+- `superadmin` `More` contains `Workspace`, `Geofence`, `Akun`
 - legacy dedicated mobile account button is no longer rendered
 - mobile header `UserButton` is hidden so `More` is the single account entry point on mobile
-- mobile `More` preserves Clerk-managed account access and logout
+- mobile `More` preserves Clerk-managed account access without duplicating sign-out
 - malformed role config falls back to `Ringkasan` only and renders no `More`
-- roles with no secondary items do not render an empty `More` trigger
+- roles with no secondary items still keep `More` when it remains the only mobile account entry point
 
 ## Implementation Notes
 

@@ -3,17 +3,13 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentType } from 'react';
-import {
-  Trophy,
-  Buildings,
-  ChartBar,
-  ClockCounterClockwise,
-  MapPinArea,
-  SquaresFour,
-  UsersThree,
-  Question,
-} from '@phosphor-icons/react/dist/ssr';
 import { useSidebar } from '@/components/providers/sidebar-provider';
+import {
+  getDashboardNavLabel,
+  getDashboardNavigation,
+  isDashboardRouteActive,
+  resolveDashboardNavHref,
+} from '@/components/dashboard/navigation-config';
 
 type SidebarProps = {
   role?: string;
@@ -21,76 +17,18 @@ type SidebarProps = {
   email?: string;
 };
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: ComponentType<{ className?: string; weight?: 'regular' | 'fill' | 'bold' }>;
-  badge?: string;
-  requiresRole?: string[];
-};
-
-type NavGroup = {
-  label?: string;
-  items: NavItem[];
-  requiresRole?: string[];
-};
-
-const navigationGroups: NavGroup[] = [
-  {
-    label: 'Operasional',
-    items: [
-      { href: '/dashboard', label: 'Ringkasan', icon: SquaresFour },
-      { href: '/dashboard/attendance', label: 'Absensi Saya', icon: ClockCounterClockwise, requiresRole: ['karyawan'] },
-      { href: '/dashboard/leaderboard', label: 'Leaderboard', icon: Trophy, requiresRole: ['karyawan'] },
-      { href: '/dashboard/report', label: 'Laporan', icon: ChartBar, requiresRole: ['admin', 'superadmin'] },
-      { href: '/dashboard/users', label: 'Karyawan', icon: UsersThree, requiresRole: ['admin', 'superadmin'] },
-    ]
-  },
-  {
-    label: 'Pengaturan',
-    requiresRole: ['superadmin'],
-    items: [
-      { href: '/settings/workspace', label: 'Workspace', icon: Buildings },
-      { href: '/settings/geofence', label: 'Geofence', icon: MapPinArea },
-    ]
-  }
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === '/dashboard') {
-    return pathname === '/dashboard';
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function canAccess(role: string, item: NavItem) {
-  if (!item.requiresRole) {
-    return true;
-  }
-  return item.requiresRole.includes(role);
-}
-
 export function DashboardSidebar({ role = 'karyawan' }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isCollapsed } = useSidebar();
   const activeQuery = (searchParams.get('q') ?? '').trim();
-
-  const resolveItemHref = (href: string) => {
-    if (!activeQuery) return href;
-    const params = new URLSearchParams();
-    params.set('q', activeQuery);
-    return `${href}?${params.toString()}`;
-  };
-
-  const visibleGroups = navigationGroups.filter(
-    (group) => !group.requiresRole || group.requiresRole.includes(role)
-  );
+  const navigation = getDashboardNavigation(role);
+  const footerItem = navigation.desktopFooter;
 
   return (
     <aside className={`hidden shrink-0 border-r border-zinc-200 bg-[#F9FAFB] md:flex md:flex-col transition-all duration-300 ${isCollapsed ? 'w-[68px]' : 'w-[240px]'}`}>
       <nav className={`flex flex-1 flex-col gap-6 overflow-y-auto pt-5 pb-24 ${isCollapsed ? 'px-2' : 'px-3'}`}>
-        {visibleGroups.map((group, index) => (
+        {navigation.desktopGroups.map((group, index) => (
           <section key={index} className="flex flex-col gap-1">
             {group.label && !isCollapsed ? (
               <p className="px-3 pb-1 text-[11px] font-medium text-zinc-400 capitalize">{group.label}</p>
@@ -99,36 +37,33 @@ export function DashboardSidebar({ role = 'karyawan' }: SidebarProps) {
               <div className="mx-auto my-2 h-[1px] w-8 bg-zinc-200" />
             )}
             {group.items.map((item) => (
-              canAccess(role, item) ? (
-                <SidebarItem
-                  key={item.href}
-                  item={{
-                    ...item,
-                    href: resolveItemHref(item.href),
-                    label:
-                      role === 'superadmin' && item.href === '/dashboard/report'
-                        ? 'Laporan & Device'
-                        : item.label,
-                  }}
-                  active={isActive(pathname, item.href)}
-                  isCollapsed={isCollapsed}
-                />
-              ) : null
+              <SidebarItem
+                key={item.href}
+                item={{
+                  href: resolveDashboardNavHref(item.href, activeQuery),
+                  label: getDashboardNavLabel(item, 'desktop'),
+                  icon: item.icon,
+                }}
+                active={isDashboardRouteActive(pathname, item.href)}
+                isCollapsed={isCollapsed}
+              />
             ))}
           </section>
         ))}
       </nav>
 
-      <div className={`border-t border-zinc-200 bg-[#F9FAFB] ${isCollapsed ? 'p-2' : 'p-3'}`}>
-        <Link
-          href="/dashboard/help"
-          title={isCollapsed ? "Bantuan & Panduan" : undefined}
-          className={`group flex items-center rounded-md text-[13px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 ${isCollapsed ? 'h-10 w-10 justify-center mx-auto' : 'gap-3 px-3 py-2'}`}
-        >
-          <Question weight="regular" className="h-[18px] w-[18px] text-zinc-500 group-hover:text-zinc-900 shrink-0" />
-          {!isCollapsed && <span>Bantuan & Panduan</span>}
-        </Link>
-      </div>
+      {footerItem ? (
+        <div className={`border-t border-zinc-200 bg-[#F9FAFB] ${isCollapsed ? 'p-2' : 'p-3'}`}>
+          <Link
+            href={resolveDashboardNavHref(footerItem.href, activeQuery)}
+            title={isCollapsed ? getDashboardNavLabel(footerItem, 'desktop') : undefined}
+            className={`group flex items-center rounded-md text-[13px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 ${isCollapsed ? 'h-10 w-10 justify-center mx-auto' : 'gap-3 px-3 py-2'}`}
+          >
+            <footerItem.icon weight="regular" className="h-[18px] w-[18px] text-zinc-500 group-hover:text-zinc-900 shrink-0" />
+            {!isCollapsed && <span>{getDashboardNavLabel(footerItem, 'desktop')}</span>}
+          </Link>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -138,7 +73,11 @@ function SidebarItem({
   active,
   isCollapsed,
 }: {
-  item: NavItem;
+  item: {
+    href: string;
+    label: string;
+    icon: ComponentType<{ className?: string; weight?: 'regular' | 'fill' | 'bold' }>;
+  };
   active?: boolean;
   isCollapsed?: boolean;
 }) {
@@ -156,11 +95,6 @@ function SidebarItem({
         <Icon weight={active ? 'bold' : 'regular'} className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-zinc-900' : 'text-zinc-500 group-hover:text-zinc-900'}`} />
         {!isCollapsed && <span className="truncate">{item.label}</span>}
       </span>
-      {!isCollapsed && item.badge && (
-        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
-          {item.badge}
-        </span>
-      )}
     </Link>
   );
 }
