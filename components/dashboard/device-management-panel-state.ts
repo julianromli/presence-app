@@ -37,6 +37,26 @@ export function startRenameSubmission(deviceId: string) {
   };
 }
 
+export function startRevokeSubmission(deviceId: string) {
+  return {
+    revokingDeviceId: deviceId,
+  };
+}
+
+export function buildDeviceRevokeConfirmation(deviceLabel: string) {
+  return {
+    title: "Cabut device ini sekarang?",
+    description: `Device "${deviceLabel}" akan dicabut dari workspace ini dan perlu dipairing ulang.`,
+    confirmLabel: "Ya, revoke",
+    cancelLabel: "Batal",
+    tone: "destructive" as const,
+  };
+}
+
+export function isDeviceActionPending(deviceId: string, activeDeviceId: string | null) {
+  return deviceId === activeDeviceId;
+}
+
 export function buildGeneratedCodeNotice(
   generatedCode: GeneratedRegistrationCode | null,
 ) {
@@ -62,11 +82,4 @@ export function buildDeviceSetupUrl(workspaceId: string | null, origin?: string 
   }
 
   return `${origin.replace(/\/$/, "")}${path}`;
-}
-
-export function toggleRevokeConfirmation(
-  currentDeviceId: string | null,
-  nextDeviceId: string,
-) {
-  return currentDeviceId === nextDeviceId ? null : nextDeviceId;
 }
