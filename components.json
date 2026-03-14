@@ -20,6 +20,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@coss": "https://coss.com/ui/r/{name}.json"
+    "@coss": "https://coss.com/ui/r/{name}.json",
+    "@fonttrio": "https://www.fonttrio.xyz/r/{name}.json"
   }
 }
