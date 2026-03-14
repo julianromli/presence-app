@@ -34,6 +34,7 @@ export function SettingsPanel() {
   });
   const [ipText, setIpText] = useState('');
   const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -60,19 +61,24 @@ export function SettingsPanel() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
 
-    const whitelistIps = ipText
-      .split(',')
-      .map((ip) => ip.trim())
-      .filter(Boolean);
+    try {
+      const whitelistIps = ipText
+        .split(',')
+        .map((ip) => ip.trim())
+        .filter(Boolean);
 
-    const res = await workspaceFetch('/api/admin/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, whitelistIps }),
-    });
+      const res = await workspaceFetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, whitelistIps }),
+      });
 
-    setMessage(res.ok ? 'Pengaturan berhasil disimpan.' : 'Gagal menyimpan pengaturan.');
+      setMessage(res.ok ? 'Pengaturan berhasil disimpan.' : 'Gagal menyimpan pengaturan.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -193,7 +199,9 @@ export function SettingsPanel() {
         <Input value={ipText} onChange={(e) => setIpText(e.target.value)} />
       </div>
 
-      <Button type="submit">Simpan Settings</Button>
+      <Button type="submit" isLoading={saving} loadingText="Menyimpan...">
+        Simpan Settings
+      </Button>
       {message ? <p className="text-sm">{message}</p> : null}
     </form>
   );

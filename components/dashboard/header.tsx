@@ -12,6 +12,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Button } from '@/components/ui/button';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { useSidebar } from '@/components/providers/sidebar-provider';
 import { parseApiErrorResponse } from '@/lib/client-error';
@@ -390,26 +391,36 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
               </form>
             </div>
 
-            <button
+            <Button
               type="button"
               onClick={() => void refreshDashboard()}
               disabled={busy !== 'none'}
               title="Refresh Dashboard Data"
-              className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition disabled:opacity-50"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Refresh Dashboard Data"
+              className="text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+              isLoading={busy === 'refresh'}
             >
-              <ArrowsClockwise weight="bold" className={`h-4 w-4 ${busy === 'refresh' ? 'animate-spin' : ''}`} />
-            </button>
+              {busy !== 'refresh' ? <ArrowsClockwise weight="bold" className="h-4 w-4" /> : null}
+            </Button>
             {canManageReports ? (
               <div className="relative" ref={menuRef}>
-                <button
+                <Button
                   type="button"
                   onClick={() => setMenuOpen((prev) => !prev)}
                   disabled={busy !== 'none'}
                   title="Reports Menu"
-                  className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition disabled:opacity-50"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Reports Menu"
+                  className="text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                  isLoading={busy === 'report' || busy === 'export'}
                 >
-                  <DownloadSimple weight="bold" className="h-4 w-4" />
-                </button>
+                  {busy !== 'report' && busy !== 'export' ? (
+                    <DownloadSimple weight="bold" className="h-4 w-4" />
+                  ) : null}
+                </Button>
                 {menuOpen ? (
                   <div className="absolute right-0 top-10 z-50 min-w-56 rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-2xl">
                     <button

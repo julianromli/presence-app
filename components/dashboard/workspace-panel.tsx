@@ -14,6 +14,7 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Input } from '@/components/ui/input';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import {
@@ -43,6 +44,12 @@ import {
   resolveUsersFilters,
   type UsersPanelFilters,
 } from '@/lib/users-filters';
+import {
+  buildWorkspaceDeleteConfirmation,
+  isWorkspaceMemberActionPending,
+  resolveWorkspaceButtonLoadingState,
+  type WorkspacePanelBusyAction,
+} from '@/components/dashboard/workspace-panel-state';
 
 type NoticeTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -72,8 +79,12 @@ export function WorkspacePanel() {
   const [inviteVisible, setInviteVisible] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
-  const [busyAction, setBusyAction] = useState<'none' | 'rename' | 'rotate' | 'members' | 'delete'>('none');
+  const [busyActions, setBusyActions] = useState<Set<WorkspacePanelBusyAction>>(
+    () => new Set(),
+  );
+  const [copyingInviteCode, setCopyingInviteCode] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [scheduleRows, setScheduleRows] = useState<AttendanceScheduleDraftRow[]>(() =>
     buildAttendanceScheduleDraft(),
@@ -97,8 +108,39 @@ export function WorkspacePanel() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLastPage, setIsLastPage] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [membersAction, setMembersAction] = useState<'none' | 'apply' | 'reset' | 'load-more'>('none');
+  const [memberActionUserIds, setMemberActionUserIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
+
+  const updateBusyActionState = useCallback(
+    (action: WorkspacePanelBusyAction, pending: boolean) => {
+      setBusyActions((prev) => {
+        const next = new Set(prev);
+        if (pending) {
+          next.add(action);
+        } else {
+          next.delete(action);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const updateMemberActionState = useCallback((userId: string, pending: boolean) => {
+    setMemberActionUserIds((prev) => {
+      const next = new Set(prev);
+      if (pending) {
+        next.add(userId);
+      } else {
+        next.delete(userId);
+      }
+      return next;
+    });
+  }, []);
 
   const hasFilter = useMemo(
     () =>
@@ -156,9 +198,6 @@ export function WorkspacePanel() {
   ) => {
     const activeFilters = resolveUsersFilters(appliedFilters, opts.activeFilters);
     setLoadingMembers(true);
-    if (!opts.append) {
-      setBusyAction('members');
-    }
     try {
       const res = await workspaceFetch(`/api/admin/users?${buildUsersQueryString(activeFilters, opts.cursor)}`, {
         cache: 'no-store',
@@ -178,9 +217,6 @@ export function WorkspacePanel() {
       setIsLastPage(payload.pageInfo.isDone);
     } finally {
       setLoadingMembers(false);
-      if (!opts.append) {
-        setBusyAction('none');
-      }
     }
   }, [appliedFilters]);
 
@@ -208,7 +244,7 @@ export function WorkspacePanel() {
   }, [appliedFilters, headerQuery, loadMembers]);
 
   const handleRename = async () => {
-    setBusyAction('rename');
+    updateBusyActionState('rename', true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/workspace', {
@@ -227,12 +263,12 @@ export function WorkspacePanel() {
       await loadWorkspaceData();
       setNotice({ tone: 'success', text: 'Nama workspace berhasil diperbarui.' });
     } finally {
-      setBusyAction('none');
+      updateBusyActionState('rename', false);
     }
   };
 
   const handleRotateInviteCode = async () => {
-    setBusyAction('rotate');
+    updateBusyActionState('rotate', true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/workspace', {
@@ -252,11 +288,11 @@ export function WorkspacePanel() {
       setInviteVisible(true);
       setNotice({ tone: 'success', text: 'Invitation code baru berhasil dibuat.' });
     } finally {
-      setBusyAction('none');
+      updateBusyActionState('rotate', false);
     }
   };
 
-  const handleDeleteWorkspace = async () => {
+  const requestDeleteWorkspace = () => {
     if (!workspaceData) {
       return;
     }
@@ -269,14 +305,15 @@ export function WorkspacePanel() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Hapus workspace "${workspaceData.workspace.name}"? Workspace akan dinonaktifkan dan akses Anda akan ditutup.`,
-    );
-    if (!confirmed) {
+    setDeleteConfirmationOpen(true);
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!workspaceData) {
       return;
     }
 
-    setBusyAction('delete');
+    updateBusyActionState('delete', true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/workspace', {
@@ -296,7 +333,8 @@ export function WorkspacePanel() {
       setNotice({ tone: 'info', text: 'Workspace berhasil dihapus. Mengalihkan akses...' });
       recoverWorkspaceScopeViolation('WORKSPACE_ACCESS_LOST');
     } finally {
-      setBusyAction('none');
+      setDeleteConfirmationOpen(false);
+      updateBusyActionState('delete', false);
     }
   };
 
@@ -304,16 +342,19 @@ export function WorkspacePanel() {
     if (!workspaceData?.activeInviteCode?.code) {
       return;
     }
+    setCopyingInviteCode(true);
     try {
       await navigator.clipboard.writeText(workspaceData.activeInviteCode.code);
       setNotice({ tone: 'success', text: 'Invitation code berhasil disalin.' });
     } catch {
       setNotice({ tone: 'warning', text: 'Clipboard tidak tersedia. Salin secara manual.' });
+    } finally {
+      setCopyingInviteCode(false);
     }
   };
 
   const updateMember = async (payload: { userId: string; role?: AdminUserRow['role']; isActive?: boolean }) => {
-    setBusyAction('members');
+    updateMemberActionState(payload.userId, true);
     setNotice(null);
     try {
       const res = await workspaceFetch('/api/admin/users', {
@@ -335,7 +376,7 @@ export function WorkspacePanel() {
       ]);
       setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
     } finally {
-      setBusyAction('none');
+      updateMemberActionState(payload.userId, false);
     }
   };
 
@@ -400,9 +441,31 @@ export function WorkspacePanel() {
     : '-';
   const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
   const deleteBlocked = activeMembersExcludingCurrentUser > 0;
+  const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyActions, savingSchedule });
+  const deleteConfirmation = workspaceData
+    ? buildWorkspaceDeleteConfirmation(workspaceData.workspace.name)
+    : null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <ConfirmationDialog
+        open={deleteConfirmationOpen && Boolean(deleteConfirmation)}
+        title={deleteConfirmation?.title ?? ''}
+        description={deleteConfirmation?.description ?? ''}
+        confirmLabel={deleteConfirmation?.confirmLabel ?? 'Hapus Workspace'}
+        cancelLabel={deleteConfirmation?.cancelLabel ?? 'Batal'}
+        tone="destructive"
+        isPending={actionLoadingState.deleteWorkspace}
+        onConfirm={() => {
+          void handleDeleteWorkspace();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteConfirmationOpen(false);
+          }
+        }}
+      />
+
       {notice ? (
         <div className={`rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
           {notice.text}
@@ -437,8 +500,14 @@ export function WorkspacePanel() {
             </p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyInviteCode()}>
-              <Copy weight="regular" className="mr-1 h-4 w-4" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copyInviteCode()}
+              isLoading={copyingInviteCode}
+            >
+              {!copyingInviteCode ? <Copy weight="regular" className="mr-1 h-4 w-4" /> : null}
               Copy
             </Button>
             <Button
@@ -446,12 +515,11 @@ export function WorkspacePanel() {
               variant="outline"
               size="sm"
               onClick={() => void handleRotateInviteCode()}
-              disabled={busyAction !== 'none'}
+              isLoading={actionLoadingState.rotateInviteCode}
             >
-              <ArrowsClockwise
-                weight="regular"
-                className={`mr-1 h-4 w-4 ${busyAction === 'rotate' ? 'animate-spin' : ''}`}
-              />
+              {!actionLoadingState.rotateInviteCode ? (
+                <ArrowsClockwise weight="regular" className="mr-1 h-4 w-4" />
+              ) : null}
               Rotate
             </Button>
           </div>
@@ -479,7 +547,8 @@ export function WorkspacePanel() {
             <Button
               type="button"
               onClick={() => void handleRename()}
-              disabled={busyAction !== 'none' || renameValue.trim().length < 3}
+              disabled={renameValue.trim().length < 3}
+              isLoading={actionLoadingState.renameWorkspace}
             >
               Simpan Nama Workspace
             </Button>
@@ -499,8 +568,10 @@ export function WorkspacePanel() {
             type="button"
             onClick={() => void handleSaveSchedule()}
             disabled={loadingSettings || savingSchedule}
+            isLoading={actionLoadingState.saveSchedule}
+            loadingText="Menyimpan..."
           >
-            {savingSchedule ? 'Menyimpan...' : 'Simpan Jadwal'}
+            Simpan Jadwal
           </Button>
         </div>
 
@@ -564,8 +635,9 @@ export function WorkspacePanel() {
             type="button"
             variant="outline"
             className="border-rose-300 text-rose-900 hover:bg-rose-100"
-            disabled={busyAction !== 'none' || deleteBlocked}
-            onClick={() => void handleDeleteWorkspace()}
+            disabled={deleteBlocked}
+            onClick={requestDeleteWorkspace}
+            isLoading={actionLoadingState.deleteWorkspace}
           >
             Hapus Workspace
           </Button>
@@ -606,7 +678,10 @@ export function WorkspacePanel() {
             event.preventDefault();
             const nextFilters = resolveUsersFilters(filters);
             setAppliedFilters(nextFilters);
-            void loadMembers({ append: false, cursor: null, activeFilters: nextFilters });
+            setMembersAction('apply');
+            void loadMembers({ append: false, cursor: null, activeFilters: nextFilters }).finally(() =>
+              setMembersAction('none'),
+            );
           }}
         >
           <label className="space-y-1">
@@ -684,16 +759,21 @@ export function WorkspacePanel() {
             </Menu>
           </label>
           <div className="flex items-end gap-2">
-            <Button type="submit" disabled={busyAction !== 'none'}>
+            <Button type="submit" disabled={loadingMembers} isLoading={membersAction === 'apply'}>
               Terapkan
             </Button>
             <Button
               type="button"
               variant="outline"
+              disabled={loadingMembers}
+              isLoading={membersAction === 'reset'}
               onClick={() => {
                 setFilters(DEFAULT_USERS_FILTERS);
                 setAppliedFilters(DEFAULT_USERS_FILTERS);
-                void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS });
+                setMembersAction('reset');
+                void loadMembers({ append: false, cursor: null, activeFilters: DEFAULT_USERS_FILTERS }).finally(() =>
+                  setMembersAction('none'),
+                );
               }}
             >
               Reset
@@ -739,7 +819,7 @@ export function WorkspacePanel() {
                               variant="outline"
                             />
                           }
-                          disabled={busyAction !== 'none'}
+                          disabled={isWorkspaceMemberActionPending(row._id, memberActionUserIds)}
                         >
                           {row.role}
                           <CaretDown weight="regular" className="h-3.5 w-3.5 text-zinc-500" />
@@ -772,7 +852,7 @@ export function WorkspacePanel() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={busyAction !== 'none'}
+                        isLoading={isWorkspaceMemberActionPending(row._id, memberActionUserIds)}
                         onClick={() => void updateMember({ userId: row._id, isActive: !row.isActive })}
                       >
                         {row.isActive ? 'Nonaktifkan' : 'Aktifkan'}
@@ -791,7 +871,13 @@ export function WorkspacePanel() {
               type="button"
               variant="outline"
               disabled={loadingMembers || !nextCursor}
-              onClick={() => void loadMembers({ append: true, cursor: nextCursor, activeFilters: appliedFilters })}
+              isLoading={membersAction === 'load-more'}
+              onClick={() => {
+                setMembersAction('load-more');
+                void loadMembers({ append: true, cursor: nextCursor, activeFilters: appliedFilters }).finally(() =>
+                  setMembersAction('none'),
+                );
+              }}
             >
               Muat Lagi
             </Button>

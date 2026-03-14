@@ -7,7 +7,12 @@ import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { DeviceManagementPanel } from "@/components/dashboard/device-management-panel";
+import {
+  resolveReportToolbarLoadingState,
+  type ReportToolbarAction,
+} from "@/components/dashboard/report-panel-state";
 import {
   Table,
   TableBody,
@@ -223,7 +228,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const [reportsError, setReportsError] = useState<ApiErrorInfo | null>(null);
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
-  const [confirmSaveRowId, setConfirmSaveRowId] = useState<string | null>(null);
+  const [confirmSaveRow, setConfirmSaveRow] = useState<AttendanceRow | null>(null);
   const [editDraft, setEditDraft] = useState<AttendanceEditDraft>({
     checkInTime: "",
     checkOutTime: "",
@@ -241,6 +246,9 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
   const [deviceRows, setDeviceRows] = useState<DeviceHeartbeatRow[]>([]);
   const [deviceStatus, setDeviceStatus] = useState<PanelStatus>("idle");
+  const [pendingToolbarActions, setPendingToolbarActions] = useState<
+    Set<ReportToolbarAction>
+  >(() => new Set());
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
   const [sectionOpen, setSectionOpen] = useState<Record<SectionKey, boolean>>({
@@ -256,6 +264,21 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const toggleSection = (key: SectionKey, open: boolean) => {
     setSectionOpen((prev) => ({ ...prev, [key]: open }));
   };
+
+  const updateToolbarActionState = useCallback(
+    (action: ReportToolbarAction, pending: boolean) => {
+      setPendingToolbarActions((prev) => {
+        const next = new Set(prev);
+        if (pending) {
+          next.add(action);
+        } else {
+          next.delete(action);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const buildAttendanceParams = useCallback(
     (cursor: string | null, searchQueryOverride?: string) => {
@@ -347,7 +370,12 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     if (!nextCursor || isLastPage || isLoadingAttendance) {
       return;
     }
-    await loadAttendance({ append: true, cursor: nextCursor });
+    updateToolbarActionState("load-more-attendance", true);
+    try {
+      await loadAttendance({ append: true, cursor: nextCursor });
+    } finally {
+      updateToolbarActionState("load-more-attendance", false);
+    }
   };
 
   const loadReports = useCallback(async (opts: LoadReportOptions = {}) => {
@@ -412,33 +440,38 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   }, []);
 
   const triggerWeeklyReport = async () => {
+    updateToolbarActionState("trigger-weekly", true);
     setNotice({ tone: "info", text: "Memproses report mingguan..." });
-    const res = await workspaceFetch("/api/admin/reports", { method: "POST" });
-    if (!res.ok) {
-      const error = await parseApiErrorResponse(
-        res,
-        "Gagal memproses trigger report mingguan.",
-      );
-      if (recoverWorkspaceScopeViolation(error.code)) {
+    try {
+      const res = await workspaceFetch("/api/admin/reports", { method: "POST" });
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(
+          res,
+          "Gagal memproses trigger report mingguan.",
+        );
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          return;
+        }
+        setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
         return;
       }
-      setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
-      return;
-    }
 
-    const data = (await res.json()) as WeeklyTriggerResponse;
-    if (data.skipped) {
-      setNotice({
-        tone: "warning",
-        text: `Report ${data.weekKey ?? "-"} dilewati karena status existing: ${data.status ?? "unknown"}.`,
-      });
-    } else {
-      setNotice({
-        tone: "success",
-        text: `Report ${data.weekKey ?? "-"} status: ${data.status ?? "unknown"}.`,
-      });
+      const data = (await res.json()) as WeeklyTriggerResponse;
+      if (data.skipped) {
+        setNotice({
+          tone: "warning",
+          text: `Report ${data.weekKey ?? "-"} dilewati karena status existing: ${data.status ?? "unknown"}.`,
+        });
+      } else {
+        setNotice({
+          tone: "success",
+          text: `Report ${data.weekKey ?? "-"} status: ${data.status ?? "unknown"}.`,
+        });
+      }
+      await loadReports();
+    } finally {
+      updateToolbarActionState("trigger-weekly", false);
     }
-    await loadReports();
   };
 
   const downloadReport = (reportId: string) => {
@@ -471,7 +504,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
 
   const startEditRow = (row: AttendanceRow) => {
     setEditingRowId(row._id);
-    setConfirmSaveRowId(null);
+    setConfirmSaveRow(null);
     setEditDraft({
       checkInTime: formatTimeInput(row.checkInAt),
       checkOutTime: formatTimeInput(row.checkOutAt),
@@ -481,7 +514,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
 
   const cancelEditRow = () => {
     setEditingRowId(null);
-    setConfirmSaveRowId(null);
+    setConfirmSaveRow(null);
     setEditDraft({
       checkInTime: "",
       checkOutTime: "",
@@ -489,13 +522,12 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     });
   };
 
-  const saveEditRow = async (row: AttendanceRow) => {
+  const resolveEditRowPayload = (row: AttendanceRow) => {
     if (!editDraft.reason.trim()) {
-      setNotice({
-        tone: "warning",
-        text: "[VALIDATION_ERROR] Alasan edit wajib diisi.",
-      });
-      return;
+      return {
+        ok: false as const,
+        message: "[VALIDATION_ERROR] Alasan edit wajib diisi.",
+      };
     }
 
     const checkInAt = buildTimestampFromDateKeyAndTime(
@@ -512,48 +544,124 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
       checkOutAt !== undefined &&
       checkOutAt < checkInAt
     ) {
-      setNotice({
-        tone: "warning",
-        text: "[VALIDATION_ERROR] Jam pulang tidak boleh lebih awal dari jam datang.",
-      });
-      return;
+      return {
+        ok: false as const,
+        message: "[VALIDATION_ERROR] Jam pulang tidak boleh lebih awal dari jam datang.",
+      };
     }
 
-    setRowActionLoading(true);
-    const res = await workspaceFetch("/api/admin/attendance/edit", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    return {
+      ok: true as const,
+      payload: {
         attendanceId: row._id,
         checkInAt,
         checkOutAt,
         reason: editDraft.reason,
-      }),
-    });
+      },
+    };
+  };
 
-    if (res.ok) {
+  const requestSaveEditRow = (row: AttendanceRow) => {
+    const result = resolveEditRowPayload(row);
+    if (!result.ok) {
       setNotice({
-        tone: "success",
-        text: "Edit attendance tersimpan dan masuk audit log.",
+        tone: "warning",
+        text: result.message,
       });
-      setConfirmSaveRowId(null);
-      cancelEditRow();
-      await loadAttendance({ append: false, cursor: null });
-      setRowActionLoading(false);
       return;
     }
 
-    const error = await parseApiErrorResponse(res, "Edit attendance gagal.");
-    if (recoverWorkspaceScopeViolation(error.code)) {
+    setConfirmSaveRow(row);
+  };
+
+  const saveEditRow = async () => {
+    if (!confirmSaveRow) {
       return;
     }
-    setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
-    setRowActionLoading(false);
+
+    const result = resolveEditRowPayload(confirmSaveRow);
+    if (!result.ok) {
+      setNotice({
+        tone: "warning",
+        text: result.message,
+      });
+      setConfirmSaveRow(null);
+      return;
+    }
+
+    setRowActionLoading(true);
+    try {
+      const res = await workspaceFetch("/api/admin/attendance/edit", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result.payload),
+      });
+
+      if (res.ok) {
+        setNotice({
+          tone: "success",
+          text: "Edit attendance tersimpan dan masuk audit log.",
+        });
+        cancelEditRow();
+        await loadAttendance({ append: false, cursor: null });
+        return;
+      }
+
+      const error = await parseApiErrorResponse(res, "Edit attendance gagal.");
+      if (recoverWorkspaceScopeViolation(error.code)) {
+        return;
+      }
+      setNotice({ tone: "error", text: `[${error.code}] ${error.message}` });
+    } finally {
+      setConfirmSaveRow(null);
+      setRowActionLoading(false);
+    }
   };
 
   const submitDate = async (e: FormEvent) => {
     e.preventDefault();
-    await loadAttendance({ append: false, cursor: null });
+    updateToolbarActionState("submit-attendance", true);
+    try {
+      await loadAttendance({ append: false, cursor: null });
+    } finally {
+      updateToolbarActionState("submit-attendance", false);
+    }
+  };
+
+  const handleRefreshAttendance = async (action: "refresh-attendance" | "retry-attendance" = "refresh-attendance") => {
+    updateToolbarActionState(action, true);
+    try {
+      await loadAttendance({ append: false, cursor: null });
+    } finally {
+      updateToolbarActionState(action, false);
+    }
+  };
+
+  const handleRefreshReports = async (action: "refresh-reports" | "retry-reports" = "refresh-reports") => {
+    updateToolbarActionState(action, true);
+    try {
+      await loadReports();
+    } finally {
+      updateToolbarActionState(action, false);
+    }
+  };
+
+  const handleRefreshScanEvents = async () => {
+    updateToolbarActionState("refresh-scan-events", true);
+    try {
+      await loadScanEvents();
+    } finally {
+      updateToolbarActionState("refresh-scan-events", false);
+    }
+  };
+
+  const handleRefreshDeviceHeartbeat = async () => {
+    updateToolbarActionState("refresh-device", true);
+    try {
+      await loadDeviceHeartbeat();
+    } finally {
+      updateToolbarActionState("refresh-device", false);
+    }
   };
 
   useEffect(() => {
@@ -602,8 +710,32 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     return () => clearInterval(interval);
   }, [loadReports, reports]);
 
+  const toolbarLoadingState =
+    resolveReportToolbarLoadingState(pendingToolbarActions);
+
   return (
     <div className="space-y-6">
+      <ConfirmationDialog
+        open={Boolean(confirmSaveRow)}
+        title="Simpan perubahan attendance ini?"
+        description={
+          confirmSaveRow
+            ? `Perubahan jam attendance untuk ${confirmSaveRow.employeeName} pada ${confirmSaveRow.dateKey} akan masuk ke audit log.`
+            : ""
+        }
+        confirmLabel="Ya, Simpan"
+        cancelLabel="Batal"
+        isPending={rowActionLoading}
+        onConfirm={() => {
+          void saveEditRow();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmSaveRow(null);
+          }
+        }}
+      />
+
       <section className="rounded-xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
         <p className="text-sm font-semibold tracking-tight text-zinc-900">Kontrol kehadiran & audit data</p>
         <p className="mt-1 text-sm text-zinc-600">
@@ -702,36 +834,61 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
               </MenuPopup>
             </Menu>
           </div>
-          <Button type="submit" disabled={isLoadingAttendance}>
-            {isLoadingAttendance ? "Memuat..." : "Muat Data"}
+          <Button
+            type="submit"
+            disabled={isLoadingAttendance}
+            isLoading={toolbarLoadingState.submitAttendance}
+            loadingText="Memuat..."
+          >
+            Muat Data
           </Button>
           <Button
             type="button"
             variant="outline"
-            onClick={() => loadAttendance({ append: false, cursor: null })}
+            onClick={() => void handleRefreshAttendance()}
             disabled={isLoadingAttendance}
+            isLoading={toolbarLoadingState.refreshAttendance}
           >
             Refresh
           </Button>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" type="button" onClick={triggerWeeklyReport}>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={triggerWeeklyReport}
+            isLoading={toolbarLoadingState.triggerWeekly}
+          >
             Generate Report Mingguan
           </Button>
           <Button
             variant="outline"
             size="sm"
             type="button"
-            onClick={() => loadReports()}
+            onClick={() => void handleRefreshReports()}
             disabled={reportsStatus === "loading"}
+            isLoading={toolbarLoadingState.refreshReports}
           >
             Refresh Report
           </Button>
-          <Button variant="outline" size="sm" type="button" onClick={() => loadScanEvents()}>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => void handleRefreshScanEvents()}
+            isLoading={toolbarLoadingState.refreshScanEvents}
+          >
             Refresh Scan Events
           </Button>
-          <Button variant="outline" size="sm" type="button" onClick={() => loadDeviceHeartbeat()}>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => void handleRefreshDeviceHeartbeat()}
+            isLoading={toolbarLoadingState.refreshDevice}
+          >
             Refresh Device
           </Button>
         </div>
@@ -786,9 +943,8 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() =>
-                          loadAttendance({ append: false, cursor: null })
-                        }
+                        onClick={() => void handleRefreshAttendance("retry-attendance")}
+                        isLoading={toolbarLoadingState.retryAttendance}
                       >
                         Coba lagi
                       </Button>
@@ -874,7 +1030,7 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                           />
                           <Button
                             size="sm"
-                            onClick={() => setConfirmSaveRowId(row._id)}
+                            onClick={() => requestSaveEditRow(row)}
                             disabled={rowActionLoading}
                           >
                             Simpan
@@ -887,28 +1043,6 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                           >
                             Batal
                           </Button>
-                          {confirmSaveRowId === row._id ? (
-                            <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                              <p>Yakin simpan perubahan jam attendance ini?</p>
-                              <div className="mt-2 flex gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => void saveEditRow(row)}
-                                  disabled={rowActionLoading}
-                                >
-                                  {rowActionLoading ? "Menyimpan..." : "Ya, Simpan"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setConfirmSaveRowId(null)}
-                                  disabled={rowActionLoading}
-                                >
-                                  Tidak
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
                         </div>
                       ) : (
                         <Button
@@ -933,8 +1067,9 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                 variant="outline"
                 onClick={loadMoreAttendance}
                 disabled={isLoadingAttendance}
+                isLoading={toolbarLoadingState.loadMoreAttendance}
               >
-                {isLoadingAttendance ? "Memuat..." : "Muat lagi"}
+                Muat lagi
               </Button>
             </div>
           ) : null}
@@ -1125,7 +1260,8 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => loadReports()}
+                        onClick={() => void handleRefreshReports("retry-reports")}
+                        isLoading={toolbarLoadingState.retryReports}
                       >
                         Coba lagi
                       </Button>
