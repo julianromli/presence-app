@@ -44,7 +44,11 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function isAllowed(item: NavItem, isSignedIn: boolean, role: AppRole | null) {
+export function isAllowedMarketingNavItem(
+  item: NavItem,
+  isSignedIn: boolean,
+  role: AppRole | null,
+) {
   if (!item.roles) {
     return true;
   }
@@ -56,12 +60,19 @@ function isAllowed(item: NavItem, isSignedIn: boolean, role: AppRole | null) {
   return item.roles.includes(role);
 }
 
+export function getVisibleMarketingNavItems(
+  isSignedIn: boolean,
+  role: AppRole | null,
+) {
+  return ITEMS.filter((item) => isAllowedMarketingNavItem(item, isSignedIn, role));
+}
+
 export function NavbarClient({ isSignedIn, role }: NavbarClientProps) {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const visibleItems = useMemo(
-    () => ITEMS.filter((item) => isAllowed(item, isSignedIn, role)),
+    () => getVisibleMarketingNavItems(isSignedIn, role),
     [isSignedIn, role],
   );
 
