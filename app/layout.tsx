@@ -1,11 +1,8 @@
 import './globals.css';
 
-import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
 import { DM_Sans, Fira_Code, Manrope } from 'next/font/google';
 import Script from 'next/script';
-import { ConvexClientProvider } from '@/components/providers/convex-client-provider';
-import { UserSyncBootstrap } from '@/components/providers/user-sync-bootstrap';
 import { ThemeProvider } from '@/components/theme-provider';
 import { shouldLoadReactGrabScripts } from '@/lib/runtime-flags';
 import {
@@ -33,12 +30,6 @@ const firaCode = Fira_Code({
   display: 'swap',
   variable: '--font-fira-code',
 });
-
-const CLERK_SIGN_IN_URL = '/sign-in';
-const CLERK_SIGN_UP_URL = '/sign-up';
-const CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = '/dashboard';
-const CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = '/onboarding/workspace';
-const CLERK_SIGN_UP_FORCE_REDIRECT_URL = '/onboarding/workspace';
 
 const REACT_GRAB_VERSION = '0.1.22';
 const shouldLoadDevInspectorScripts = shouldLoadReactGrabScripts();
@@ -87,48 +78,37 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ClerkProvider
-      signInUrl={CLERK_SIGN_IN_URL}
-      signUpUrl={CLERK_SIGN_UP_URL}
-      signInFallbackRedirectUrl={CLERK_SIGN_IN_FALLBACK_REDIRECT_URL}
-      signUpFallbackRedirectUrl={CLERK_SIGN_UP_FALLBACK_REDIRECT_URL}
-      signUpForceRedirectUrl={CLERK_SIGN_UP_FORCE_REDIRECT_URL}
+    <html
+      lang="id"
+      suppressHydrationWarning
+      className={`${manrope.variable} ${dmSans.variable} ${firaCode.variable}`}
     >
-      <html
-        lang="id"
-        suppressHydrationWarning
-        className={`${manrope.variable} ${dmSans.variable} ${firaCode.variable}`}
-      >
-        <head>
-          {shouldLoadDevInspectorScripts && (
-            <Script
-              src={`https://unpkg.com/react-grab@${REACT_GRAB_VERSION}/dist/index.global.js`}
-              crossOrigin="anonymous"
-              strategy="beforeInteractive"
-            />
-          )}
-          {shouldLoadDevInspectorScripts && (
-            <Script
-              src={`https://unpkg.com/@react-grab/mcp@${REACT_GRAB_VERSION}/dist/client.global.js`}
-              crossOrigin="anonymous"
-              strategy="lazyOnload"
-            />
-          )}
-        </head>
-        <body suppressHydrationWarning className="min-h-screen antialiased">
-          <ConvexClientProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="light"
-              enableSystem
-              disableTransitionOnChange
-            >
-              <UserSyncBootstrap />
-              <main>{children}</main>
-            </ThemeProvider>
-          </ConvexClientProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+      <head>
+        {shouldLoadDevInspectorScripts && (
+          <Script
+            src={`https://unpkg.com/react-grab@${REACT_GRAB_VERSION}/dist/index.global.js`}
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
+        {shouldLoadDevInspectorScripts && (
+          <Script
+            src={`https://unpkg.com/@react-grab/mcp@${REACT_GRAB_VERSION}/dist/client.global.js`}
+            crossOrigin="anonymous"
+            strategy="lazyOnload"
+          />
+        )}
+      </head>
+      <body suppressHydrationWarning className="min-h-screen antialiased">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <main>{children}</main>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }
