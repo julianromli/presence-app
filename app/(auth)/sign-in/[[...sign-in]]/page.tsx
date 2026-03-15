@@ -22,11 +22,7 @@ export default async function SignInPage() {
   }
 
   return (
-    <AuthPageShell
-      activeTab="sign-in"
-      title="Masuk ke Absenin.id"
-      description="Lanjutkan ke dashboard Absenin.id dengan akun Clerk Anda."
-    >
+    <AuthPageShell>
       <SignedOut>
         <div className="flex justify-center">
           <SignIn

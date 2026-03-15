@@ -23,11 +23,7 @@ export default async function SignUpPage() {
   }
 
   return (
-    <AuthPageShell
-      activeTab="sign-up"
-      title="Buat akun Absenin.id"
-      description="Daftarkan akun baru lalu lanjutkan ke proses onboarding workspace."
-    >
+    <AuthPageShell>
       <SignedOut>
         <div className="flex justify-center">
           <SignUp

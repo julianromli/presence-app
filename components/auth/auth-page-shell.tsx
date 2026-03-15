@@ -1,10 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 type AuthPageShellProps = {
-  activeTab: "sign-in" | "sign-up";
-  title: string;
-  description: string;
   children: ReactNode;
 };
 
@@ -16,32 +14,20 @@ const BRAND_COPY = {
 
 function BrandMark() {
   return (
-    <div className="flex items-center gap-2 text-2xl font-bold tracking-tighter">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-zinc-950">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-5 w-5"
-        >
-          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
-      </div>
-      Absenin.id
-    </div>
+    <Link href="/" className="flex items-center" aria-label="Absenin.id">
+      <Image
+        src="/absenin-id-logo-white.png"
+        alt="Absenin.id"
+        width={512}
+        height={512}
+        className="h-8 w-auto"
+        priority
+      />
+    </Link>
   );
 }
 
-export function AuthPageShell({
-  activeTab,
-  children,
-  description,
-  title,
-}: AuthPageShellProps) {
+export function AuthPageShell({ children }: AuthPageShellProps) {
   return (
     <main className="flex min-h-screen w-full flex-col lg:flex-row">
       <div className="relative hidden overflow-hidden bg-zinc-950 p-12 text-zinc-50 lg:flex lg:w-1/2 lg:flex-col lg:justify-between">
@@ -71,36 +57,6 @@ export function AuthPageShell({
         </div>
 
         <div className="w-full max-w-md space-y-8">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              {title}
-            </h1>
-            <p className="text-muted-foreground">{description}</p>
-          </div>
-
-          <div className="flex rounded-xl bg-muted/50 p-1">
-            <Link
-              href="/sign-in"
-              className={`flex-1 rounded-lg py-2.5 text-center text-sm font-medium transition-all ${
-                activeTab === "sign-in"
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Masuk
-            </Link>
-            <Link
-              href="/sign-up"
-              className={`flex-1 rounded-lg py-2.5 text-center text-sm font-medium transition-all ${
-                activeTab === "sign-up"
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Daftar
-            </Link>
-          </div>
-
           <div className="animate-in slide-in-from-bottom-2 fade-in duration-300">
             {children}
           </div>
