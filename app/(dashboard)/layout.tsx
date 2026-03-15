@@ -2,6 +2,7 @@ import { DashboardLayout as DashboardShellLayout } from '@/components/dashboard/
 import { requireWorkspaceOnboardingPage, requireWorkspaceRolePageFromDb } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
+// Retained as a compatibility shim because Next/Turbopack may still reference this layout.
 export default async function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
