@@ -173,7 +173,8 @@ describe("proxy public routes", () => {
 
     expect(response).toEqual({
       kind: "redirect",
-      destination: "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fdashboard",
+      destination:
+        "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fauth%2Fcontinue%3Fnext%3D%252Fdashboard",
     });
     expect(redirectMock).toHaveBeenCalledTimes(1);
   });
@@ -192,7 +193,7 @@ describe("proxy public routes", () => {
     expect(response).toEqual({
       kind: "redirect",
       destination:
-        "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fdashboard%2Freport%3Frange%3Dthis-week%26workspaceId%3Dworkspace_123456",
+        "https://app.example.com/sign-in?redirect_url=https%3A%2F%2Fapp.example.com%2Fauth%2Fcontinue%3Fnext%3D%252Fdashboard%252Freport%253Frange%253Dthis-week%2526workspaceId%253Dworkspace_123456",
     });
     expect(redirectMock).toHaveBeenCalledTimes(1);
   });

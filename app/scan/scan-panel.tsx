@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   Bell,
   CameraSlash,
@@ -437,6 +438,14 @@ export function ScanPanel() {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
             Halo, Karyawan
           </h1>
+          <Button
+            render={<Link href="/dashboard" />}
+            variant="outline"
+            size="sm"
+            className="mt-3"
+          >
+            Dashboard Saya
+          </Button>
         </div>
         <button
           onClick={() => setNotifOpen(true)}

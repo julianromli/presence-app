@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { buildPostAuthContinuePath } from "@/lib/post-auth";
 import {
   setActiveWorkspaceIdInBrowser,
   workspaceFetch,
@@ -52,7 +53,7 @@ export function OnboardingWorkspacePanel() {
         const data = (await response.json()) as OnboardingState;
         if (!cancelled && data.hasActiveMembership) {
           await bootstrapActiveWorkspaceForMember(workspaceFetch);
-          router.replace("/dashboard");
+          router.replace(buildPostAuthContinuePath());
         }
       } catch {
         if (!cancelled) {
@@ -101,7 +102,7 @@ export function OnboardingWorkspacePanel() {
       }
 
       setActiveWorkspaceIdInBrowser(payload.workspaceId);
-      router.replace("/dashboard");
+      router.replace(buildPostAuthContinuePath());
     } catch {
       setError("Gagal membuat workspace.");
     } finally {
@@ -138,7 +139,7 @@ export function OnboardingWorkspacePanel() {
       }
 
       setActiveWorkspaceIdInBrowser(payload.workspaceId);
-      router.replace("/dashboard");
+      router.replace(buildPostAuthContinuePath());
     } catch {
       setError("Gagal bergabung ke workspace.");
     } finally {

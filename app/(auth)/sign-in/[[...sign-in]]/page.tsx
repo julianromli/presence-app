@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 import { AuthPageShell } from "@/components/auth/auth-page-shell";
 import { Button } from "@/components/ui/button";
 import { getConvexTokenOrNull } from "@/lib/auth";
+import { buildPostAuthContinuePath } from "@/lib/post-auth";
 import { ensureCurrentUserInConvex } from "@/lib/user-sync";
 
-const SIGN_IN_FALLBACK_REDIRECT_URL = "/dashboard";
+const SIGN_IN_FALLBACK_REDIRECT_URL = "/auth/continue";
 const SIGN_UP_FALLBACK_REDIRECT_URL = "/onboarding/workspace";
 
 export default async function SignInPage() {
@@ -18,7 +19,7 @@ export default async function SignInPage() {
     if (token) {
       await ensureCurrentUserInConvex(token);
     }
-    redirect("/onboarding/workspace");
+    redirect(buildPostAuthContinuePath());
   }
 
   return (
@@ -43,13 +44,13 @@ export default async function SignInPage() {
                 Anda sudah masuk.
               </p>
               <p className="text-sm text-muted-foreground">
-                Lanjutkan ke workspace atau kembali ke halaman utama.
+                Lanjutkan ke halaman utama yang sesuai dengan role Anda.
               </p>
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Link href="/dashboard" className="flex-1">
-              <Button className="w-full">Buka Dashboard</Button>
+            <Link href="/auth/continue" className="flex-1">
+              <Button className="w-full">Lanjutkan</Button>
             </Link>
             <Link href="/" className="flex-1">
               <Button variant="outline" className="w-full">
