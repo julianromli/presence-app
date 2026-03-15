@@ -288,7 +288,7 @@ export async function requireUser() {
   return session;
 }
 
-export async function requireRolePageFromDb(roles: AppRole[]) {
+export async function requireRolePageFromDb(roles: readonly AppRole[]) {
   const session = await auth();
   if (!session.userId) {
     redirect("/sign-in");
@@ -312,7 +312,7 @@ async function getWorkspaceIdFromCookie() {
 }
 
 export async function requireWorkspaceRolePageFromDb(
-  roles: AppRole[],
+  roles: readonly AppRole[],
   workspaceId?: string,
 ) {
   const session = await auth();
@@ -397,7 +397,7 @@ export async function requireWorkspaceOnboardingPage() {
   }
 }
 
-export async function requireRoleApiFromDb(roles: AppRole[]) {
+export async function requireRoleApiFromDb(roles: readonly AppRole[]) {
   const clerkSession = await auth();
   if (!clerkSession.userId) {
     return { error: unauthorizedResponse() };
@@ -416,7 +416,7 @@ export async function requireRoleApiFromDb(roles: AppRole[]) {
 }
 
 export async function requireWorkspaceRoleApiFromDb(
-  roles: AppRole[],
+  roles: readonly AppRole[],
   workspaceId: string,
 ) {
   const clerkSession = await auth();
