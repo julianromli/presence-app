@@ -10,6 +10,7 @@ import {
   FileArrowDown,
   ClockCounterClockwise,
 } from '@phosphor-icons/react/dist/ssr';
+import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -304,11 +305,14 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
           {/* Brand */}
           <div className="flex min-w-0 items-center gap-2 md:gap-4">
             <div className="flex items-center gap-2">
-              <div className="grid h-7 w-7 place-items-center rounded bg-gradient-to-br from-indigo-500 to-purple-600 text-[10px] font-bold text-white shadow-sm">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 22V6C4 4.89543 4.89543 4 6 4H8C9.10457 4 10 4.89543 10 6V11L12 8L14 11V6C14 4.89543 14.89543 4 16 4H18C19.10457 4 20 4.89543 20 6V22" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
+              <Image
+                src="/favicon/favicon.ico"
+                alt="Absenin.id"
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded"
+                priority
+              />
               <span className="hidden text-sm font-semibold tracking-tight sm:inline">Absenin.id</span>
             </div>
 
