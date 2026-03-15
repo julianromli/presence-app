@@ -1,9 +1,4 @@
-'use client';
-
 import Image from 'next/image';
-import { useState } from 'react';
-
-import { Button } from '@/components/ui/button';
 
 type Testimonial = {
   quote: string;
@@ -127,9 +122,8 @@ function Card({ t }: { t: Testimonial }) {
 }
 
 export default function MetafiTestimonials() {
-  const [expanded, setExpanded] = useState(false);
-
-  const VISIBLE = expanded ? TESTIMONIALS.length : 6;
+  const featuredTestimonials = TESTIMONIALS.slice(0, 6);
+  const additionalTestimonials = TESTIMONIALS.slice(6);
 
   return (
     <section id="testimoni" className="bg-accent px-6 lg:px-0">
@@ -148,26 +142,29 @@ export default function MetafiTestimonials() {
         </p>
 
         <div className="relative mt-10 md:mt-14">
-          {!expanded && (
-            <div className="from-accent to-accent/0 pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-gradient-to-t" />
-          )}
-
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {TESTIMONIALS.slice(0, VISIBLE).map((t, i) => (
+            {featuredTestimonials.map((t, i) => (
               <Card key={i} t={t} />
             ))}
           </ul>
         </div>
 
-        <div
-          className={`relative z-20 flex justify-center transition-all duration-300 ${
-            expanded ? 'mt-8' : '-mt-6'
-          }`}
-        >
-          <Button onClick={() => setExpanded((s) => !s)}>
-            {expanded ? 'Tampilkan lebih sedikit' : 'Lihat semua cerita'}
-          </Button>
-        </div>
+        {additionalTestimonials.length > 0 ? (
+          <details className="group mt-8">
+            <summary className="border-input bg-popover text-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-disabled:not-active:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] hover:bg-accent/50 dark:bg-input/32 dark:hover:bg-input/64 relative mx-auto inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border px-[calc(--spacing(3)-1px)] text-sm font-medium outline-none transition-shadow [&::-webkit-details-marker]:hidden">
+              <span className="group-open:hidden">Lihat semua cerita</span>
+              <span className="hidden group-open:inline">Sembunyikan cerita tambahan</span>
+            </summary>
+
+            <div className="mt-6">
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {additionalTestimonials.map((t, i) => (
+                  <Card key={`extra-${i}`} t={t} />
+                ))}
+              </ul>
+            </div>
+          </details>
+        ) : null}
       </div>
     </section>
   );

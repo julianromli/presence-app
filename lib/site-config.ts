@@ -1,4 +1,10 @@
-export const SITE_URL = "https://absenin.id";
+const siteUrlFromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+export const SITE_URL = (
+  siteUrlFromEnv && siteUrlFromEnv.length > 0
+    ? siteUrlFromEnv
+    : "https://www.absenin.id"
+).replace(/\/$/, "");
 export const SITE_NAME = "Absenin.id";
 export const SITE_TITLE = "Absenin.id - Absensi Digital";
 export const SITE_DESCRIPTION =

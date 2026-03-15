@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import manifest from "../app/manifest";
 import robots from "../app/robots";
 import sitemap from "../app/sitemap";
+import { SITE_URL } from "../lib/site-config";
 
 describe("site metadata routes", () => {
   it("serves the production domain in robots.txt", () => {
@@ -11,8 +12,8 @@ describe("site metadata routes", () => {
         userAgent: "*",
         allow: "/",
       },
-      sitemap: "https://absenin.id/sitemap.xml",
-      host: "https://absenin.id",
+      sitemap: `${SITE_URL}/sitemap.xml`,
+      host: SITE_URL,
     });
   });
 
@@ -30,9 +31,9 @@ describe("site metadata routes", () => {
 
     expect(urls).toEqual(
       expect.arrayContaining([
-        "https://absenin.id/",
-        "https://absenin.id/privacy",
-        "https://absenin.id/terms",
+        `${SITE_URL}/`,
+        `${SITE_URL}/privacy`,
+        `${SITE_URL}/terms`,
       ]),
     );
   });
