@@ -1,6 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+import { shouldEnableSentry } from "./lib/runtime-flags";
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -14,7 +16,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryConfig = {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
@@ -50,4 +52,8 @@ export default withSentryConfig(nextConfig, {
       removeDebugLogging: true,
     },
   },
-});
+};
+
+export default shouldEnableSentry()
+  ? withSentryConfig(nextConfig, sentryConfig)
+  : nextConfig;

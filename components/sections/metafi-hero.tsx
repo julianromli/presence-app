@@ -1,15 +1,92 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { DashboardHeroMockup } from "@/components/sections/dashboard-hero-mockup";
 import { Button } from "@/components/ui/button";
 import { GridBackground } from "../ui/grid-background";
 
-import { auth } from "@clerk/nextjs/server";
+const isDevelopment = process.env.NODE_ENV === "development";
+
+function LightweightDashboardPreview() {
+  return (
+    <div className="grid gap-4 rounded-t-[16px] border border-white/60 bg-white/80 p-4 shadow-[0_20px_60px_-20px_rgba(24,24,27,0.16)] backdrop-blur-xl md:grid-cols-[220px_1fr] md:p-5">
+      <div className="rounded-[14px] border border-zinc-200 bg-zinc-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          Dev Preview
+        </p>
+        <div className="mt-4 space-y-2">
+          {["Ringkasan", "Karyawan", "Laporan"].map((label) => (
+            <div
+              key={label}
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            ["Check-in hari ini", "113"],
+            ["Device online", "12"],
+            ["Rasio hadir", "88.7%"],
+          ].map(([label, value]) => (
+            <article
+              key={label}
+              className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+            >
+              <p className="text-xs text-zinc-500">{label}</p>
+              <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">
+                {value}
+              </p>
+            </article>
+          ))}
+        </div>
+
+        <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold text-zinc-800">
+              Preview dev ringan
+            </p>
+            <span className="text-xs text-zinc-500">
+              Mockup interaktif aktif di production
+            </span>
+          </div>
+          <div className="grid h-40 grid-cols-7 items-end gap-2">
+            {[42, 58, 51, 75, 83, 79, 88].map((value, index) => (
+              <div
+                key={index}
+                className="flex flex-col items-center gap-2"
+              >
+                <div
+                  className="w-full rounded-full bg-zinc-900/85"
+                  style={{ height: `${value}%` }}
+                />
+                <span className="text-[10px] text-zinc-500">
+                  {index + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function MetafiHero() {
-  const session = await auth();
-  const isSignedIn = Boolean(session.userId);
+  let isSignedIn = false;
+
+  if (!isDevelopment) {
+    const { auth } = await import("@clerk/nextjs/server");
+    const session = await auth();
+    isSignedIn = Boolean(session.userId);
+  }
+
+  const HeroPreview = isDevelopment
+    ? LightweightDashboardPreview
+    : (await import("@/components/sections/dashboard-hero-mockup")).DashboardHeroMockup;
 
   return (
     <section
@@ -59,7 +136,7 @@ export default async function MetafiHero() {
           </div>
         </div>
         <div className="mx-auto w-full max-w-[994px] rounded-t-[16px] bg-white/10 shadow-[0_15px_80px_-1px_rgba(8,9,10,0.08)] backdrop-blur-[20px]">
-          <DashboardHeroMockup />
+          <HeroPreview />
         </div>
       </div>
     </section>

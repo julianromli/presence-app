@@ -2,12 +2,12 @@
 
 import "./globals.css";
 
-import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { DM_Sans, Fira_Code, Manrope } from "next/font/google";
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
+import { shouldEnableSentry } from "@/lib/runtime-flags";
 import { SITE_NAME } from "@/lib/site-config";
 
 const manrope = Manrope({
@@ -66,7 +66,13 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    if (!shouldEnableSentry()) {
+      return;
+    }
+
+    void import("@sentry/nextjs").then((Sentry) => {
+      Sentry.captureException(error);
+    });
   }, [error]);
 
   return (

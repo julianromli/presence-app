@@ -4,17 +4,23 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-Sentry.init({
-  dsn: "https://31921721115c23727928472fe4955625@o4511001414270976.ingest.us.sentry.io/4511001415057408",
+import { shouldEnableSentry } from "./lib/runtime-flags";
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
-  // Enable logs to be sent to Sentry
-  enableLogs: true,
+if (shouldEnableSentry()) {
+  Sentry.init({
+    dsn: "https://31921721115c23727928472fe4955625@o4511001414270976.ingest.us.sentry.io/4511001415057408",
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
-});
+    // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
+    tracesSampleRate: 1,
+    // Enable logs to be sent to Sentry
+    enableLogs: true,
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+    // Enable sending user PII (Personally Identifiable Information)
+    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
+    sendDefaultPii: true,
+  });
+}
+
+export const onRouterTransitionStart = shouldEnableSentry()
+  ? Sentry.captureRouterTransitionStart
+  : undefined;

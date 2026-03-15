@@ -7,6 +7,7 @@ import Script from 'next/script';
 import { ConvexClientProvider } from '@/components/providers/convex-client-provider';
 import { UserSyncBootstrap } from '@/components/providers/user-sync-bootstrap';
 import { ThemeProvider } from '@/components/theme-provider';
+import { shouldLoadReactGrabScripts } from '@/lib/runtime-flags';
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -40,6 +41,7 @@ const CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = '/onboarding/workspace';
 const CLERK_SIGN_UP_FORCE_REDIRECT_URL = '/onboarding/workspace';
 
 const REACT_GRAB_VERSION = '0.1.22';
+const shouldLoadDevInspectorScripts = shouldLoadReactGrabScripts();
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -98,14 +100,14 @@ export default function RootLayout({
         className={`${manrope.variable} ${dmSans.variable} ${firaCode.variable}`}
       >
         <head>
-          {process.env.NODE_ENV === 'development' && (
+          {shouldLoadDevInspectorScripts && (
             <Script
               src={`https://unpkg.com/react-grab@${REACT_GRAB_VERSION}/dist/index.global.js`}
               crossOrigin="anonymous"
               strategy="beforeInteractive"
             />
           )}
-          {process.env.NODE_ENV === 'development' && (
+          {shouldLoadDevInspectorScripts && (
             <Script
               src={`https://unpkg.com/@react-grab/mcp@${REACT_GRAB_VERSION}/dist/client.global.js`}
               crossOrigin="anonymous"

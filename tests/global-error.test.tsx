@@ -81,6 +81,9 @@ describe("global error page", () => {
     const error = new Error("Database DSN leaked");
 
     vi.doMock("../app/globals.css", () => ({}));
+    vi.doMock("@/lib/runtime-flags", () => ({
+      shouldEnableSentry: () => true,
+    }));
     vi.doMock("@sentry/nextjs", () => ({
       captureException,
     }));
@@ -157,6 +160,7 @@ describe("global error page", () => {
     (retryButton?.props.onClick as (() => void) | undefined)?.();
     expect(reset).toHaveBeenCalledTimes(1);
 
+    await vi.dynamicImportSettled();
     expect(captureException).toHaveBeenCalledWith(error);
   });
 });

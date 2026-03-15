@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:webpack": "next dev --webpack",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",

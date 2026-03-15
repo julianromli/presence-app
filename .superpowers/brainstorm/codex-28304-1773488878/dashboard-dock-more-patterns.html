@@ -1,0 +1,75 @@
+<h2>Pola Interaksi Tombol More</h2>
+<p class="subtitle">Keduanya tetap dipicu dari tombol <code>More</code> di dock. Bedanya ada di rasa interaksi dan kapasitas item.</p>
+
+<div class="cards">
+  <div class="card" data-choice="popover" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;justify-content:center;padding:12px 0;">
+        <div style="width:250px;border-radius:30px;background:#f6f7fb;border:1px solid #d9dce7;overflow:hidden;box-shadow:0 18px 44px rgba(15,23,42,.12);position:relative;">
+          <div style="padding:16px 16px 110px;">
+            <div class="label">Option A</div>
+            <h3 style="margin-top:6px;">Popover menempel di atas dock</h3>
+            <p style="font-size:13px;color:#5b6475;">Terasa paling dekat dengan istilah "dropdown". Ringan dan cepat.</p>
+          </div>
+
+          <div style="position:absolute;right:16px;bottom:88px;width:148px;border-radius:18px;border:1px solid rgba(148,163,184,.26);background:rgba(255,255,255,.96);backdrop-filter:blur(18px);box-shadow:0 20px 48px rgba(15,23,42,.18);padding:8px;">
+            <div style="padding:10px 12px;border-radius:12px;background:#f8fafc;font-size:12px;font-weight:600;">Workspace</div>
+            <div style="padding:10px 12px;border-radius:12px;font-size:12px;color:#334155;">Geofence</div>
+            <div style="padding:10px 12px;border-radius:12px;font-size:12px;color:#334155;">Akun</div>
+            <div style="padding:10px 12px;border-radius:12px;font-size:12px;color:#334155;">Bantuan</div>
+          </div>
+
+          <div style="position:relative;padding:0 12px 14px;">
+            <div style="margin:0 auto;max-width:220px;background:rgba(255,255,255,.86);backdrop-filter:blur(18px);border:1px solid rgba(148,163,184,.28);box-shadow:0 12px 28px rgba(15,23,42,.12);border-radius:999px;padding:6px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;color:#64748b;font-size:10px;">Ringkasan</div>
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;color:#64748b;font-size:10px;">Laporan</div>
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;color:#64748b;font-size:10px;">Karyawan</div>
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;background:#eef2ff;color:#312e81;font-size:10px;font-weight:700;">More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Popover compact</h3>
+      <p>Lebih ringan, cepat, dan visualnya paling dekat dengan dock. Cocok kalau isi menu pendek dan fokus.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sheet" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;justify-content:center;padding:12px 0;">
+        <div style="width:250px;border-radius:30px;background:#f6f7fb;border:1px solid #d9dce7;overflow:hidden;box-shadow:0 18px 44px rgba(15,23,42,.12);position:relative;">
+          <div style="padding:16px 16px 110px;">
+            <div class="label">Option B</div>
+            <h3 style="margin-top:6px;">Mini sheet dari bawah</h3>
+            <p style="font-size:13px;color:#5b6475;">Masih terasa mobile-native dan lebih lega untuk 4 sampai 5 item.</p>
+          </div>
+
+          <div style="position:absolute;left:0;right:0;bottom:72px;margin:0 10px;border-radius:24px 24px 18px 18px;border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.98);box-shadow:0 22px 56px rgba(15,23,42,.18);padding:10px 10px 12px;">
+            <div style="width:42px;height:4px;border-radius:999px;background:#cbd5e1;margin:4px auto 10px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="padding:12px;border-radius:14px;background:#f8fafc;font-size:12px;font-weight:600;">Workspace</div>
+              <div style="padding:12px;border-radius:14px;background:#f8fafc;font-size:12px;">Geofence</div>
+              <div style="padding:12px;border-radius:14px;background:#f8fafc;font-size:12px;">Akun</div>
+              <div style="padding:12px;border-radius:14px;background:#f8fafc;font-size:12px;">Bantuan</div>
+            </div>
+          </div>
+
+          <div style="position:relative;padding:0 12px 14px;">
+            <div style="margin:0 auto;max-width:220px;background:rgba(255,255,255,.86);backdrop-filter:blur(18px);border:1px solid rgba(148,163,184,.28);box-shadow:0 12px 28px rgba(15,23,42,.12);border-radius:999px;padding:6px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;color:#64748b;font-size:10px;">Ringkasan</div>
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;color:#64748b;font-size:10px;">Laporan</div>
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;color:#64748b;font-size:10px;">Karyawan</div>
+              <div style="text-align:center;padding:10px 2px;border-radius:999px;background:#eef2ff;color:#312e81;font-size:10px;font-weight:700;">More</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Sheet lebih lega</h3>
+      <p>Lebih mudah untuk touch target dan scalable kalau isi More bertambah sedikit.</p>
+    </div>
+  </div>
+</div>
