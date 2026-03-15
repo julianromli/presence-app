@@ -5,7 +5,7 @@ import { UserSyncBootstrap } from './user-sync-bootstrap';
 
 const CLERK_SIGN_IN_URL = '/sign-in';
 const CLERK_SIGN_UP_URL = '/sign-up';
-const CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = '/dashboard';
+const CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = '/auth/continue';
 const CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = '/onboarding/workspace';
 const CLERK_SIGN_UP_FORCE_REDIRECT_URL = '/onboarding/workspace';
 

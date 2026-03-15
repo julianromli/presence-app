@@ -66,19 +66,19 @@ describe("auth pages redirect", () => {
     const { signInPage, mocks } = await setupPageTest();
 
     await expect(Promise.resolve().then(() => signInPage.default())).rejects.toThrow(
-      "REDIRECT:/onboarding/workspace",
+      "REDIRECT:/auth/continue",
     );
     expect(mocks.ensureCurrentUserInConvex).toHaveBeenCalledWith("convex-token");
-    expect(mocks.redirect).toHaveBeenCalledWith("/onboarding/workspace");
+    expect(mocks.redirect).toHaveBeenCalledWith("/auth/continue");
   });
 
-  it("redirects signed-in visitors from sign-up to onboarding after ensuring Convex user", async () => {
+  it("redirects signed-in visitors from sign-up to auth continue after ensuring Convex user", async () => {
     const { signUpPage, mocks } = await setupPageTest();
 
     await expect(Promise.resolve().then(() => signUpPage.default())).rejects.toThrow(
-      "REDIRECT:/onboarding/workspace",
+      "REDIRECT:/auth/continue",
     );
     expect(mocks.ensureCurrentUserInConvex).toHaveBeenCalledWith("convex-token");
-    expect(mocks.redirect).toHaveBeenCalledWith("/onboarding/workspace");
+    expect(mocks.redirect).toHaveBeenCalledWith("/auth/continue");
   });
 });
