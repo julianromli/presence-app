@@ -8,20 +8,24 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 export default async function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const navbar = isDevelopment
-    ? await import('@/components/layout/navbar-client')
-    : await import('@/components/layout/navbar');
-
   return (
     <>
       {SHOW_ANNOUNCEMENT_BANNER ? <Banner /> : null}
-      {isDevelopment ? (
-        <navbar.NavbarClient isSignedIn={false} role={null} />
-      ) : (
-        <navbar.default />
-      )}
+      {isDevelopment ? <DevNavbar /> : <ProdNavbar />}
       {children}
       <Footer />
     </>
   );
+}
+
+async function DevNavbar() {
+  const { NavbarClient } = await import('@/components/layout/navbar-client');
+
+  return <NavbarClient isSignedIn={false} role={null} />;
+}
+
+async function ProdNavbar() {
+  const { default: Navbar } = await import('@/components/layout/navbar');
+
+  return <Navbar />;
 }

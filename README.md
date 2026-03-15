@@ -41,6 +41,11 @@ QR_TOKEN_SECRET=
 
 # Optional UploadThing
 UPLOADTHING_TOKEN=
+
+# Optional local-dev toggles
+NEXT_PUBLIC_ENABLE_SENTRY=false
+NEXT_PUBLIC_ENABLE_REACT_GRAB_DEVTOOLS=false
+NEXT_PUBLIC_ENABLE_FULL_MARKETING_HOME_DEV=false
 ```
 
 ## Local Setup
@@ -56,6 +61,13 @@ Untuk production, isi `CLERK_AUTHORIZED_PARTIES` dengan origin yang diizinkan ol
 ```env
 CLERK_AUTHORIZED_PARTIES=https://app.example.com,https://admin.example.com
 ```
+
+### Dev performance toggles
+- `NEXT_PUBLIC_ENABLE_SENTRY=true` untuk mengaktifkan kembali Sentry di local dev saat perlu debugging integrasi observability.
+- `NEXT_PUBLIC_ENABLE_REACT_GRAB_DEVTOOLS=true` untuk memuat script inspector `react-grab` di local dev.
+- `NEXT_PUBLIC_ENABLE_FULL_MARKETING_HOME_DEV=true` untuk mengaktifkan kembali homepage marketing penuh di local dev.
+
+Default lokal disetel ringan agar `bun run dev` tidak ikut menarik observability, script inspector, dan graph homepage marketing penuh setiap cold start.
 
 ## Scripts
 - `bun run dev` - start dev server

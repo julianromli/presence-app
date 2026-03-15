@@ -17,6 +17,7 @@ This repository is a Next.js 16 + React 19 app with Clerk auth and Convex backen
 Use `bun` (lockfile is `bun.lock`).
 
 - `bun run dev`: Start local Next.js dev server with Turbopack (`http://localhost:3000`).
+- `bun run dev:webpack`: Start local Next.js dev server with webpack when Turbopack-specific debugging is needed.
 - `bun run build`: Create production build with Turbopack.
 - `bun run start`: Run production server from build output.
 - `bun run lint`: Run ESLint for the repository.
@@ -34,8 +35,8 @@ Use `bun` (lockfile is `bun.lock`).
 - Lint before PR; `prettier` is installed, but there is no dedicated format script, so preserve existing style unless the task explicitly includes formatting.
 
 ## Testing Guidelines
-- Framework: Vitest (`tests/*.test.ts`).
-- Focus tests on pure logic in `lib/` and data/validation behavior.
+- Framework: Vitest (`tests/*.test.ts` and `tests/*.test.tsx`).
+- Focus tests on pure logic in `lib/`, route/data validation behavior, and targeted component state/rendering coverage where the repo already tests UI.
 - Keep test names behavior-driven (e.g., `"maps forbidden text errors to 403"`).
 - Run `bun run test` before opening a PR; use `bun run test:watch` while iterating.
 - No explicit coverage threshold is enforced currently; add tests for every bug fix.
@@ -52,9 +53,11 @@ Use `bun` (lockfile is `bun.lock`).
 
 ## Agent-Specific Notes
 - Check `.next-docs/` first for version-matched Next.js documentation before framework changes. If it is missing, generate/update the local docs index with `npx @next/codemod agents-md --output AGENTS.md`.
-- For UI component work in this project, use COSS UI as the default component system instead of shadcn/ui or Radix-based patterns.
-- Before creating, editing, or recommending UI components, read the COSS UI docs from `https://coss.com/ui/llms.txt` and follow those docs first.
-- Do not suggest shadcn/ui or Radix primitives for UI components unless the user explicitly asks for them or the existing code already depends on them and changing away would be unsafe.
+- The UI layer is currently mixed: `components/ui/` mostly wraps Base UI primitives, some Radix primitives are still present, and `components.json` is shadcn-compatible while also registering `@coss`.
+- Before creating, editing, or recommending UI components, read the COSS UI docs from `https://coss.com/ui/llms.txt` first, but preserve the primitive stack already used in the area you touch instead of forcing a cross-repo migration.
+- Do not propose unrelated shadcn/Base UI/Radix/COSS rewrites. Extend the local pattern in the touched feature unless the task is explicitly a UI-system migration.
+- Tailwind CSS is configured through `app/globals.css` with Tailwind v4-style imports/plugins; avoid introducing legacy Tailwind config assumptions.
+- Vercel deployment is pinned in `vercel.json` and currently builds through `npx convex deploy --cmd='bun run build'`; do not overwrite that flow casually when making deployment-related changes.
 - Do not commit secrets; keep runtime config in `.env.local` (already gitignored).
 - SELALU PAKAI skills berikut ketika melakukan implementasi plan dari /docs/PLAN.md : `vercel-react-best-practices`, `next-best-practices`, `convex-best-practices`
 
