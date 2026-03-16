@@ -12,9 +12,10 @@ const weeklyStatusValidator = v.union(
   v.literal("failed"),
 );
 
-const weeklyReportValidator = v.object({
+export const weeklyReportValidator = v.object({
   _id: v.id("weekly_reports"),
   _creationTime: v.number(),
+  workspaceId: v.optional(v.id("workspaces")),
   weekKey: v.string(),
   startDate: v.string(),
   endDate: v.string(),
