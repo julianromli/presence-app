@@ -24,27 +24,35 @@ describe('dashboard navigation config', () => {
     expect(hasDashboardMoreContent(navigation)).toBe(true);
   });
 
-  it('preserves desktop-specific superadmin labels while keeping mobile labels compact', () => {
+  it('adds Device QR as a dedicated superadmin route without renaming laporan', () => {
     const navigation = getDashboardNavigation('superadmin');
     const reportItem = navigation.desktopGroups
       .flatMap((group) => group.items)
       .find(
         (item) => item.href === '/dashboard/report',
       );
+    const deviceQrItem = navigation.desktopGroups
+      .flatMap((group) => group.items)
+      .find((item) => item.href === '/dashboard/device-qr');
     const adminReportItem = getDashboardNavigation('admin').desktopGroups
       .flatMap((group) => group.items)
       .find((item) => item.href === '/dashboard/report');
 
     expect(reportItem).toBeDefined();
+    expect(deviceQrItem).toBeDefined();
     expect(adminReportItem).toBeDefined();
-    expect(getDashboardNavLabel(reportItem!, 'desktop')).toBe('Laporan & Device');
+    expect(getDashboardNavLabel(reportItem!, 'desktop')).toBe('Laporan');
     expect(getDashboardNavLabel(reportItem!, 'mobile')).toBe('Laporan');
+    expect(getDashboardNavLabel(deviceQrItem!, 'desktop')).toBe('Device QR');
     expect(getDashboardNavLabel(adminReportItem!, 'desktop')).toBe('Laporan');
   });
 
   it('treats secondary routes as active for the More tab', () => {
     const navigation = getDashboardNavigation('superadmin');
 
+    expect(
+      isDashboardMoreRouteActive('/dashboard/device-qr', navigation.mobileSecondary),
+    ).toBe(true);
     expect(
       isDashboardMoreRouteActive('/settings/workspace', navigation.mobileSecondary),
     ).toBe(true);

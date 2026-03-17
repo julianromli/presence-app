@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDeviceRevokeConfirmation,
-  buildDeviceSetupUrl,
   buildDeviceManagementPanelState,
+  buildDeviceSetupUrl,
   buildGeneratedCodeNotice,
+  getLatestRegistrationCode,
   isDeviceActionPending,
   isDeviceManagementVisible,
   startRenameSubmission,
@@ -97,5 +98,75 @@ describe("device management panel", () => {
     expect(buildDeviceSetupUrl("workspace_123456", "https://app.example.com")).toBe(
       "https://app.example.com/device-qr?workspaceId=workspace_123456",
     );
+  });
+
+  it("selects the newest registration code by createdAt", () => {
+    expect(
+      getLatestRegistrationCode([
+        {
+          codeId: "code_old",
+          createdAt: 1,
+          expiresAt: 2,
+          status: "expired",
+        },
+        {
+          codeId: "code_new",
+          createdAt: 5,
+          expiresAt: 6,
+          status: "pending",
+        },
+      ]),
+    )?.toMatchObject({
+      codeId: "code_new",
+      status: "pending",
+    });
+  });
+
+  it("prefers the newest pending registration code over newer unusable history", () => {
+    expect(
+      getLatestRegistrationCode([
+        {
+          codeId: "code_pending",
+          createdAt: 5,
+          expiresAt: 50,
+          status: "pending",
+        },
+        {
+          codeId: "code_claimed",
+          createdAt: 10,
+          expiresAt: 20,
+          status: "claimed",
+          claimedAt: 12,
+        },
+      ]),
+    )?.toMatchObject({
+      codeId: "code_pending",
+      status: "pending",
+    });
+  });
+
+  it("builds a workspace change reset that clears stale device panel state", async () => {
+    const panelStateModule = await import("../components/dashboard/device-management-panel-state");
+    const buildWorkspaceChangeReset = (panelStateModule as Record<string, unknown>)
+      .buildDeviceManagementWorkspaceChangeReset as
+      | ((workspaceId: string, origin: string) => Record<string, unknown>)
+      | undefined;
+
+    expect(buildWorkspaceChangeReset).toBeTypeOf("function");
+
+    expect(buildWorkspaceChangeReset?.("workspace_next", "https://app.example.com")).toMatchObject({
+      setupUrl: "https://app.example.com/device-qr?workspaceId=workspace_next",
+      generatedCode: null,
+      notice: null,
+      registrationCodesStatus: "loading",
+      devicesStatus: "loading",
+      registrationCodesError: null,
+      devicesError: null,
+      renameDeviceId: null,
+      renameDraft: "",
+      submittingRenameId: null,
+      confirmRevokeDevice: null,
+      revokingDeviceId: null,
+    });
   });
 });

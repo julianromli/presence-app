@@ -8,7 +8,6 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { DeviceManagementPanel } from "@/components/dashboard/device-management-panel";
 import {
   finishReportToolbarAction,
   isReportToolbarActionPending,
@@ -125,14 +124,6 @@ type ScanEventsResponse = {
   summary: ScanEventSummary;
 };
 
-type DeviceHeartbeatRow = {
-  deviceId: string;
-  label: string;
-  status: "active" | "revoked";
-  lastSeenAt?: number;
-  online: boolean;
-};
-
 type PanelStatus = "idle" | "loading" | "success" | "empty" | "error";
 type NoticeTone = "info" | "success" | "warning" | "error";
 
@@ -147,7 +138,7 @@ type AttendanceEditDraft = {
   reason: string;
 };
 
-type SectionKey = "attendance" | "scanEvents" | "device" | "weekly";
+type SectionKey = "attendance" | "scanEvents" | "weekly";
 
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
@@ -205,7 +196,7 @@ function sectionTitle(title: string, description: string, countLabel?: string) {
   );
 }
 
-export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
+export function ReportPanel() {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get("q") ?? "").trim();
   const [dateKey, setDateKey] = useState(() => getLocalDateKey());
@@ -247,8 +238,6 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     byReason: [],
   });
   const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
-  const [deviceRows, setDeviceRows] = useState<DeviceHeartbeatRow[]>([]);
-  const [deviceStatus, setDeviceStatus] = useState<PanelStatus>("idle");
   const [toolbarPendingState, setToolbarPendingState] =
     useState<ReportToolbarPendingState>({});
   const hasLoadedInitial = useRef(false);
@@ -256,7 +245,6 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
   const [sectionOpen, setSectionOpen] = useState<Record<SectionKey, boolean>>({
     attendance: true,
     scanEvents: true,
-    device: false,
     weekly: false,
   });
 
@@ -421,21 +409,6 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     setScanEventSummary(data.summary);
     setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
   }, [dateKey]);
-
-  const loadDeviceHeartbeat = useCallback(async () => {
-    setDeviceStatus("loading");
-    const res = await workspaceFetch("/api/admin/device/heartbeat", {
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      setDeviceStatus("error");
-      return;
-    }
-
-    const data = (await res.json()) as DeviceHeartbeatRow[];
-    setDeviceRows(data);
-    setDeviceStatus(data.length === 0 ? "empty" : "success");
-  }, []);
 
   const triggerWeeklyReport = async () => {
     await runToolbarAction("trigger-weekly", async () => {
@@ -638,20 +611,13 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
     });
   };
 
-  const handleRefreshDeviceHeartbeat = async () => {
-    await runToolbarAction("refresh-device", async () => {
-      await loadDeviceHeartbeat();
-    });
-  };
-
   useEffect(() => {
     if (hasLoadedInitial.current) return;
     hasLoadedInitial.current = true;
     void loadAttendance({ append: false, cursor: null });
     void loadReports();
     void loadScanEvents();
-    void loadDeviceHeartbeat();
-  }, [loadAttendance, loadReports, loadScanEvents, loadDeviceHeartbeat]);
+  }, [loadAttendance, loadReports, loadScanEvents]);
 
   useEffect(() => {
     if (prevHeaderQueryRef.current === headerQuery) return;
@@ -669,14 +635,13 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
       void loadAttendance({ append: false, cursor: null });
       void loadReports({ silent: true });
       void loadScanEvents();
-      void loadDeviceHeartbeat();
     };
 
     window.addEventListener("dashboard:refresh", handleRefresh as EventListener);
     return () => {
       window.removeEventListener("dashboard:refresh", handleRefresh as EventListener);
     };
-  }, [loadAttendance, loadDeviceHeartbeat, loadReports, loadScanEvents]);
+  }, [loadAttendance, loadReports, loadScanEvents]);
 
   useEffect(() => {
     if (!reports.some((report) => report.status === "pending")) {
@@ -873,18 +838,6 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
             )}
           >
             Refresh Scan Events
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => void handleRefreshDeviceHeartbeat()}
-            isLoading={isReportToolbarActionPending(
-              toolbarPendingState,
-              "refresh-device",
-            )}
-          >
-            Refresh Device
           </Button>
         </div>
       </section>
@@ -1159,62 +1112,6 @@ export function ReportPanel({ role }: { role: "admin" | "superadmin" }) {
           </Table>
         </CollapsiblePanel>
       </Collapsible>
-
-      <Collapsible
-        open={sectionOpen.device}
-        onOpenChange={(open) => toggleSection("device", open)}
-        className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
-      >
-        <CollapsibleTrigger className="w-full text-left">
-          {sectionTitle(
-            "Status device QR",
-            "Monitoring perangkat QR permanen.",
-            `${deviceRows.length} device`,
-          )}
-        </CollapsibleTrigger>
-        <CollapsiblePanel>
-          <Table className="min-w-[700px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Online</TableHead>
-                <TableHead>Last Seen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deviceStatus === "loading" ? (
-                <TableRow>
-                  <TableCell className="text-zinc-500" colSpan={4}>
-                    Memuat status device...
-                  </TableCell>
-                </TableRow>
-              ) : deviceRows.length === 0 ? (
-                <TableRow>
-                  <TableCell className="text-zinc-500" colSpan={4}>
-                    Belum ada device QR terdaftar.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                deviceRows.map((row) => (
-                  <TableRow key={row.deviceId}>
-                    <TableCell>{row.label}</TableCell>
-                    <TableCell>{row.status}</TableCell>
-                    <TableCell>{row.online ? "Online" : "Offline"}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {row.lastSeenAt
-                        ? new Date(row.lastSeenAt).toLocaleString("id-ID")
-                        : "-"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CollapsiblePanel>
-      </Collapsible>
-
-      <DeviceManagementPanel role={role} />
 
       <Collapsible
         open={sectionOpen.weekly}

@@ -39,4 +39,49 @@ describe("dashboard routing", () => {
     expect(html).toContain('data-viewer-role="admin"');
     expect(html).toContain('data-read-only="false"');
   });
+
+  it("locks the device qr route to superadmin and renders the standalone panel", async () => {
+    const requireWorkspaceRolePageFromDb = vi.fn(async () => ({ role: "superadmin" }));
+
+    vi.doMock("@/lib/auth", () => ({
+      requireWorkspaceRolePageFromDb,
+    }));
+    vi.doMock("@/components/dashboard/page-header", () => ({
+      DashboardPageHeader: ({
+        title,
+        description,
+      }: {
+        title: string;
+        description?: string;
+      }) =>
+        React.createElement(
+          "div",
+          {
+            "data-testid": "header",
+            "data-description": description,
+          },
+          title,
+        ),
+    }));
+    vi.doMock("@/components/dashboard/device-management-panel", () => ({
+      DeviceManagementPanel: ({ role }: { role: string }) =>
+        React.createElement(
+          "div",
+          {
+            "data-testid": "device-management-panel",
+            "data-role": role,
+          },
+          "device-management-panel",
+        ),
+    }));
+
+    const pageModule = await import("../app/dashboard/device-qr/page");
+    const element = await pageModule.default();
+    const html = renderToStaticMarkup(element);
+
+    expect(requireWorkspaceRolePageFromDb).toHaveBeenCalledWith(["superadmin"]);
+    expect(html).toContain("Device QR");
+    expect(html).toContain('data-role="superadmin"');
+    expect(html).toContain("device-management-panel");
+  });
 });

@@ -11,6 +11,23 @@ export type GeneratedRegistrationCode = {
   expiresAt: number;
 };
 
+export type DeviceManagementWorkspaceChangeReset = {
+  setupUrl: string | null;
+  generatedCode: null;
+  notice: null;
+  registrationCodes: DeviceRegistrationCodeRow[];
+  devices: ManagedDeviceRow[];
+  registrationCodesStatus: "loading";
+  devicesStatus: "loading";
+  registrationCodesError: null;
+  devicesError: null;
+  renameDeviceId: null;
+  renameDraft: "";
+  submittingRenameId: null;
+  confirmRevokeDevice: null;
+  revokingDeviceId: null;
+};
+
 export function isDeviceManagementVisible(role: DeviceManagementRole) {
   return role === "superadmin";
 }
@@ -82,4 +99,45 @@ export function buildDeviceSetupUrl(workspaceId: string | null, origin?: string 
   }
 
   return `${origin.replace(/\/$/, "")}${path}`;
+}
+
+export function getLatestRegistrationCode(
+  registrationCodes: DeviceRegistrationCodeRow[],
+) {
+  let latestPendingCode: DeviceRegistrationCodeRow | null = null;
+  let latestCode: DeviceRegistrationCodeRow | null = null;
+
+  for (const row of registrationCodes) {
+    if (row.status === "pending" && (!latestPendingCode || row.createdAt > latestPendingCode.createdAt)) {
+      latestPendingCode = row;
+    }
+
+    if (!latestCode || row.createdAt > latestCode.createdAt) {
+      latestCode = row;
+    }
+  }
+
+  return latestPendingCode ?? latestCode;
+}
+
+export function buildDeviceManagementWorkspaceChangeReset(
+  workspaceId: string | null,
+  origin?: string | null,
+): DeviceManagementWorkspaceChangeReset {
+  return {
+    setupUrl: buildDeviceSetupUrl(workspaceId, origin),
+    generatedCode: null,
+    notice: null,
+    registrationCodes: [],
+    devices: [],
+    registrationCodesStatus: "loading",
+    devicesStatus: "loading",
+    registrationCodesError: null,
+    devicesError: null,
+    renameDeviceId: null,
+    renameDraft: "",
+    submittingRenameId: null,
+    confirmRevokeDevice: null,
+    revokingDeviceId: null,
+  };
 }

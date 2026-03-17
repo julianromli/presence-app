@@ -4,6 +4,7 @@ import {
   ChartBar,
   ClockCounterClockwise,
   MapPinArea,
+  QrCode,
   SquaresFour,
   Trophy,
   UserCircle,
@@ -90,7 +91,14 @@ const superadminReportItem: DashboardRouteItem = {
   icon: ChartBar,
   labels: {
     default: 'Laporan',
-    desktop: 'Laporan & Device',
+  },
+};
+
+const deviceQrItem: DashboardRouteItem = {
+  href: '/dashboard/device-qr',
+  icon: QrCode,
+  labels: {
+    default: 'Device QR',
   },
 };
 
@@ -162,7 +170,7 @@ const navigationByRole: Record<DashboardRole, DashboardNavigationConfig> = {
     desktopGroups: [
       {
         label: 'Operasional',
-        items: [summaryItem, superadminReportItem, usersItem],
+        items: [summaryItem, superadminReportItem, deviceQrItem, usersItem],
       },
       {
         label: 'Pengaturan',
@@ -171,7 +179,7 @@ const navigationByRole: Record<DashboardRole, DashboardNavigationConfig> = {
     ],
     desktopFooter: null,
     mobilePrimary: [summaryItem, superadminReportItem, usersItem],
-    mobileSecondary: [workspaceItem, geofenceItem],
+    mobileSecondary: [deviceQrItem, workspaceItem, geofenceItem],
     mobileAccountSection: accountSection,
     mobileAccountActions: accountActions,
   },

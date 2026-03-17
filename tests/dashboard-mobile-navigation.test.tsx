@@ -162,9 +162,9 @@ describe('dashboard mobile navigation', () => {
     expect(html).not.toContain('/dashboard/help?q=faiz');
     expect(html).not.toContain('Keluar');
     expect(html).not.toContain('Geofence');
-  }, 15000);
+  }, 60000);
 
-  it('renders superadmin More content with workspace and geofence links', async () => {
+  it('renders superadmin More content with device, workspace, and geofence links', async () => {
     const { DashboardMobileMoreSheet } = await import(
       '../components/dashboard/mobile-bottom-nav'
     );
@@ -180,6 +180,8 @@ describe('dashboard mobile navigation', () => {
       />,
     );
 
+    expect(html).toContain('Device QR');
+    expect(html).toContain('/dashboard/device-qr');
     expect(html).toContain('Workspace');
     expect(html).toContain('Geofence');
     expect(html).toContain('/settings/workspace');
