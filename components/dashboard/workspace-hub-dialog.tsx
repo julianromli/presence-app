@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -49,12 +49,6 @@ export function WorkspaceHubDialog({
   onSubmit,
 }: WorkspaceHubDialogProps) {
   const [value, setValue] = useState('');
-
-  useEffect(() => {
-    if (!open) {
-      setValue('');
-    }
-  }, [open, mode]);
 
   if (!mode) {
     return null;
