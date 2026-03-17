@@ -236,7 +236,7 @@ describe("device bootstrap routes", () => {
       }),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       code: "PLAN_LIMIT_REACHED",
       message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",

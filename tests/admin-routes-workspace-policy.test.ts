@@ -214,7 +214,7 @@ describe("admin route workspace policy", () => {
       }),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       code: "PLAN_LIMIT_REACHED",
       message: "Jumlah member aktif sudah mencapai batas paket workspace Anda.",
