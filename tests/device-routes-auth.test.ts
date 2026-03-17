@@ -188,7 +188,7 @@ describe("device runtime routes auth", () => {
     });
   });
 
-  it("forwards ipAddress and userAgent to ping mutation", async () => {
+  it("forwards trusted ipAddress and userAgent to ping mutation", async () => {
     const { POST, mocks } = await setupPingRoute();
 
     const response = await POST(
@@ -197,7 +197,7 @@ describe("device runtime routes auth", () => {
         headers: {
           "x-workspace-id": "workspace_123456",
           "x-device-key": "device_123.secret_456",
-          "x-forwarded-for": "203.0.113.1, 10.0.0.2",
+          "x-real-ip": "203.0.113.1",
           "user-agent": "Vitest Browser",
         },
       }),
@@ -210,5 +210,27 @@ describe("device runtime routes auth", () => {
       ipAddress: "203.0.113.1",
       userAgent: "Vitest Browser",
     });
+  });
+
+  it("clears the device auth cookie when the device secret is rejected", async () => {
+    const denied = Response.json(
+      { code: "DEVICE_UNAUTHORIZED", message: "Unauthorized device" },
+      { status: 401 },
+    );
+    const { GET } = await setupQrTokenRoute({
+      deviceApiResult: { error: denied },
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/device/qr-token", {
+        method: "GET",
+        headers: {
+          "x-workspace-id": "workspace_123456",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 });

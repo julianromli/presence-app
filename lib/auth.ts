@@ -4,6 +4,7 @@ import { forbidden, redirect } from "next/navigation";
 
 import {
   DEVICE_KEY_HEADER,
+  parseDeviceAuthCookieFromHeader,
   parseDeviceKey,
   type ParsedDeviceKey,
 } from "./device-auth";
@@ -205,7 +206,13 @@ export function requireWorkspaceApiContext(
 }
 
 export function getDeviceKeyFromRequest(request: Request): ParsedDeviceKey | null {
-  return parseDeviceKey(request.headers.get(DEVICE_KEY_HEADER));
+  const headerValue = request.headers.get(DEVICE_KEY_HEADER);
+  const parsedHeader = parseDeviceKey(headerValue);
+  if (parsedHeader) {
+    return parsedHeader;
+  }
+
+  return parseDeviceAuthCookieFromHeader(request.headers.get("cookie"));
 }
 
 async function getCurrentDbUserFromConvex(): Promise<DbUserSession | null> {

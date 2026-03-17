@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDeviceRequestHeaders,
+  createDeviceAuthCookieHeader,
+  createExpiredDeviceAuthCookieHeader,
+  DEVICE_AUTH_COOKIE,
   DEVICE_KEY_HEADER,
-  DEVICE_SESSION_STORAGE_KEY,
+  parseDeviceAuthCookieFromHeader,
   parseDeviceKey,
-  parseStoredDeviceSession,
-  serializeStoredDeviceSession,
+  parseDeviceSession,
+  serializeDeviceSession,
 } from "../lib/device-auth";
 
 describe("device auth helpers", () => {
@@ -25,39 +28,52 @@ describe("device auth helpers", () => {
     expect(parseDeviceKey("device.secret.extra")).toBeNull();
   });
 
-  it("serializes and parses stored device session payloads safely", () => {
-    const serialized = serializeStoredDeviceSession({
+  it("serializes and parses device session payloads safely", () => {
+    const serialized = serializeDeviceSession({
       deviceId: "device_123",
       label: "Front Desk Tablet",
-      secret: "secret_456",
       claimedAt: 1_234_567_890,
     });
 
     expect(typeof serialized).toBe("string");
-    expect(parseStoredDeviceSession(serialized)).toEqual({
+    expect(parseDeviceSession(serialized)).toEqual({
       deviceId: "device_123",
       label: "Front Desk Tablet",
-      secret: "secret_456",
       claimedAt: 1_234_567_890,
     });
   });
 
-  it("returns null for invalid stored device session payloads", () => {
-    expect(parseStoredDeviceSession("not-json")).toBeNull();
+  it("returns null for invalid device session payloads", () => {
+    expect(parseDeviceSession("not-json")).toBeNull();
     expect(
-      parseStoredDeviceSession(
+      parseDeviceSession(
         JSON.stringify({
           deviceId: "device_123",
           label: "Front Desk Tablet",
-          secret: "secret_456",
         }),
       ),
     ).toBeNull();
   });
 
-  it("exports stable header and local storage keys", () => {
+  it("reads device auth cookies and exports stable auth keys", () => {
     expect(DEVICE_KEY_HEADER).toBe("x-device-key");
-    expect(DEVICE_SESSION_STORAGE_KEY).toBe("absenin.id.deviceSession");
+    expect(DEVICE_AUTH_COOKIE).toBe("absenin.id.deviceAuth");
+    expect(
+      parseDeviceAuthCookieFromHeader(
+        "theme=light; absenin.id.deviceAuth=device_123.secret_456; other=value",
+      ),
+    ).toEqual({
+      deviceId: "device_123",
+      secret: "secret_456",
+    });
+  });
+
+  it("creates secure cookie headers for device auth lifecycle", () => {
+    expect(createDeviceAuthCookieHeader("device_123.secret_456")).toContain(
+      "absenin.id.deviceAuth=device_123.secret_456",
+    );
+    expect(createDeviceAuthCookieHeader("device_123.secret_456")).toContain("HttpOnly");
+    expect(createExpiredDeviceAuthCookieHeader()).toContain("Max-Age=0");
   });
 
   it("builds explicit workspace-scoped headers for fresh device bootstrap", () => {

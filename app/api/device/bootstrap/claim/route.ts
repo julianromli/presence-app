@@ -1,6 +1,11 @@
+import {
+  buildDeviceKey,
+  createDeviceAuthCookieHeader,
+} from "@/lib/device-auth";
 import { requireWorkspaceApiContext } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getPublicConvexHttpClient } from "@/lib/convex-http";
+import { getRequestRateLimitKey, getTrustedClientIp } from "@/lib/request-ip";
 
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
@@ -35,7 +40,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ipAddress = getTrustedClientIp(req) ?? undefined;
   const userAgent = req.headers.get("user-agent") ?? undefined;
 
   try {
@@ -45,9 +50,24 @@ export async function POST(req: Request) {
       label,
       ipAddress,
       userAgent,
+      rateLimitKey: getRequestRateLimitKey(req) ?? undefined,
     });
 
-    return Response.json(response);
+    const result = Response.json({
+      deviceId: response.deviceId,
+      label: response.label,
+      claimedAt: response.claimedAt,
+    });
+    result.headers.append(
+      "Set-Cookie",
+      createDeviceAuthCookieHeader(
+        buildDeviceKey({
+          deviceId: response.deviceId,
+          secret: response.secret,
+        }),
+      ),
+    );
+    return result;
   } catch (error) {
     return convexErrorResponse(error, "Gagal mengklaim device.");
   }

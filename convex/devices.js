@@ -85,6 +85,19 @@ const deviceListItemValidator = v.object({
   claimedFromCodeId: v.id("device_registration_codes"),
 });
 
+const BOOTSTRAP_RATE_LIMIT_CONFIG = {
+  validate_code: {
+    maxAttempts: 6,
+    windowMs: 10 * 60_000,
+    blockMs: 15 * 60_000,
+  },
+  claim_code: {
+    maxAttempts: 4,
+    windowMs: 10 * 60_000,
+    blockMs: 30 * 60_000,
+  },
+};
+
 function normalizeRegistrationCode(input) {
   return input.trim().toUpperCase().replace(/\s+/g, "").replace(/-+/g, "-");
 }
@@ -162,6 +175,105 @@ async function getRegistrationCodeByHash(ctx, workspaceId, normalizedCode) {
       q.eq("workspaceId", workspaceId).eq("codeHash", codeHash),
     )
     .unique();
+}
+
+async function getBootstrapAttemptByKeyHash(ctx, workspaceId, scope, keyHash) {
+  return await ctx.db
+    .query("device_bootstrap_attempts")
+    .withIndex("by_workspace_scope_key_hash", (q) =>
+      q.eq("workspaceId", workspaceId).eq("scope", scope).eq("keyHash", keyHash),
+    )
+    .unique();
+}
+
+function getRateLimitMessage(scope, blockedUntil, now = Date.now()) {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((blockedUntil - now) / 1000),
+  );
+  const actionLabel =
+    scope === "claim_code" ? "aktivasi device" : "validasi kode registrasi";
+  return `Terlalu banyak percobaan ${actionLabel}. Coba lagi dalam ${retryAfterSeconds} detik.`;
+}
+
+async function resolveBootstrapAttemptContext(
+  ctx,
+  { workspaceId, scope, rateLimitKey, now = Date.now() },
+) {
+  if (!rateLimitKey) {
+    return null;
+  }
+
+  const keyHash = await hashDeviceCredential(rateLimitKey);
+  const row = await getBootstrapAttemptByKeyHash(ctx, workspaceId, scope, keyHash);
+  if (row?.blockedUntil && row.blockedUntil > now) {
+    throw new ConvexError({
+      code: "SPAM_DETECTED",
+      message: getRateLimitMessage(scope, row.blockedUntil, now),
+    });
+  }
+
+  return { keyHash, row };
+}
+
+async function clearBootstrapAttemptContext(ctx, attemptContext) {
+  if (!attemptContext?.row) {
+    return;
+  }
+
+  await ctx.db.delete(attemptContext.row._id);
+}
+
+async function recordBootstrapAttemptFailure(
+  ctx,
+  { workspaceId, scope, attemptContext, now = Date.now() },
+) {
+  if (!attemptContext?.keyHash) {
+    return;
+  }
+
+  const config = BOOTSTRAP_RATE_LIMIT_CONFIG[scope];
+  const currentRow =
+    attemptContext.row ??
+    (await getBootstrapAttemptByKeyHash(
+      ctx,
+      workspaceId,
+      scope,
+      attemptContext.keyHash,
+    ));
+  const shouldResetWindow =
+    !currentRow ||
+    (currentRow.blockedUntil !== undefined && currentRow.blockedUntil <= now) ||
+    now - currentRow.firstAttemptAt >= config.windowMs;
+  const nextAttemptCount = shouldResetWindow ? 1 : currentRow.attemptCount + 1;
+  const blockedUntil =
+    nextAttemptCount >= config.maxAttempts ? now + config.blockMs : undefined;
+  const patch = {
+    firstAttemptAt: shouldResetWindow ? now : currentRow.firstAttemptAt,
+    lastAttemptAt: now,
+    attemptCount: nextAttemptCount,
+    blockedUntil,
+  };
+
+  if (currentRow) {
+    await ctx.db.patch(currentRow._id, patch);
+    return;
+  }
+
+  await ctx.db.insert("device_bootstrap_attempts", {
+    workspaceId,
+    scope,
+    keyHash: attemptContext.keyHash,
+    ...patch,
+  });
+}
+
+function shouldCountBootstrapFailure(error) {
+  if (!(error instanceof ConvexError) || !error.data?.code) {
+    return false;
+  }
+
+  return error.data.code !== "SPAM_DETECTED";
 }
 
 async function insertAuditLog(ctx, entry) {
@@ -247,27 +359,50 @@ export const listRegistrationCodes = query({
   },
 });
 
-export const validateRegistrationCodePreview = query({
+export const validateRegistrationCodePreview = mutation({
   args: {
     workspaceId: v.id("workspaces"),
     code: v.string(),
+    rateLimitKey: v.optional(v.string()),
   },
   returns: registrationCodePreviewValidator,
   handler: async (ctx, args) => {
+    const attemptContext = await resolveBootstrapAttemptContext(ctx, {
+      workspaceId: args.workspaceId,
+      scope: "validate_code",
+      rateLimitKey: args.rateLimitKey,
+    });
     const normalizedCode = normalizeRegistrationCode(args.code);
     if (!normalizedCode) {
+      await recordBootstrapAttemptFailure(ctx, {
+        workspaceId: args.workspaceId,
+        scope: "validate_code",
+        attemptContext,
+      });
       return { ok: false };
     }
 
     const row = await getRegistrationCodeByHash(ctx, args.workspaceId, normalizedCode);
     if (!row) {
+      await recordBootstrapAttemptFailure(ctx, {
+        workspaceId: args.workspaceId,
+        scope: "validate_code",
+        attemptContext,
+      });
       return { ok: false };
     }
 
     const status = deriveRegistrationCodeStatus(row, Date.now());
     if (status !== "pending") {
+      await recordBootstrapAttemptFailure(ctx, {
+        workspaceId: args.workspaceId,
+        scope: "validate_code",
+        attemptContext,
+      });
       return { ok: false, status };
     }
+
+    await clearBootstrapAttemptContext(ctx, attemptContext);
 
     return {
       ok: true,
@@ -352,79 +487,99 @@ export const claimRegistrationCode = mutation({
     label: v.string(),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
+    rateLimitKey: v.optional(v.string()),
   },
   returns: claimResultValidator,
   handler: async (ctx, args) => {
-    const normalizedCode = normalizeRegistrationCode(args.code);
-    if (!normalizedCode) {
-      throw new ConvexError({
-        code: "VALIDATION_ERROR",
-        message: "Kode registrasi wajib diisi.",
-      });
-    }
-
-    const label = normalizeDeviceLabel(args.label);
-    if (label.length < 3) {
-      throw new ConvexError({
-        code: "VALIDATION_ERROR",
-        message: "Nama device minimal 3 karakter.",
-      });
-    }
-
-    const codeRow = await getRegistrationCodeByHash(ctx, args.workspaceId, normalizedCode);
-    if (!codeRow) {
-      throw new ConvexError({
-        code: "REGISTRATION_CODE_INVALID",
-        message: "Kode registrasi tidak valid.",
-      });
-    }
-
-    const claimedAt = Date.now();
-    assertRegistrationCodeClaimable(codeRow, claimedAt);
-
-    const secret = generateDeviceSecret();
-    const deviceSecretHash = await hashDeviceCredential(secret);
-    const deviceId = await ctx.db.insert("devices", {
+    const attemptContext = await resolveBootstrapAttemptContext(ctx, {
       workspaceId: args.workspaceId,
-      label,
-      deviceSecretHash,
-      status: "active",
-      claimedFromCodeId: codeRow._id,
-      claimedAt,
-      createdAt: claimedAt,
-      updatedAt: claimedAt,
-      lastSeenAt: undefined,
-      revokedAt: undefined,
-      revokedByUserId: undefined,
-      initialIpAddress: args.ipAddress,
-      initialUserAgent: args.userAgent,
+      scope: "claim_code",
+      rateLimitKey: args.rateLimitKey,
     });
 
-    await ctx.db.patch(codeRow._id, {
-      claimedAt,
-      claimedByDeviceId: deviceId,
-    });
+    try {
+      const normalizedCode = normalizeRegistrationCode(args.code);
+      if (!normalizedCode) {
+        throw new ConvexError({
+          code: "VALIDATION_ERROR",
+          message: "Kode registrasi wajib diisi.",
+        });
+      }
 
-    await insertAuditLog(ctx, {
-      workspaceId: args.workspaceId,
-      action: "device_registration_code.claimed",
-      targetType: "device_registration_codes",
-      targetId: String(codeRow._id),
-      payload: {
+      const label = normalizeDeviceLabel(args.label);
+      if (label.length < 3) {
+        throw new ConvexError({
+          code: "VALIDATION_ERROR",
+          message: "Nama device minimal 3 karakter.",
+        });
+      }
+
+      const codeRow = await getRegistrationCodeByHash(ctx, args.workspaceId, normalizedCode);
+      if (!codeRow) {
+        throw new ConvexError({
+          code: "REGISTRATION_CODE_INVALID",
+          message: "Kode registrasi tidak valid.",
+        });
+      }
+
+      const claimedAt = Date.now();
+      assertRegistrationCodeClaimable(codeRow, claimedAt);
+
+      const secret = generateDeviceSecret();
+      const deviceSecretHash = await hashDeviceCredential(secret);
+      const deviceId = await ctx.db.insert("devices", {
+        workspaceId: args.workspaceId,
+        label,
+        deviceSecretHash,
+        status: "active",
+        claimedFromCodeId: codeRow._id,
+        claimedAt,
+        createdAt: claimedAt,
+        updatedAt: claimedAt,
+        lastSeenAt: undefined,
+        revokedAt: undefined,
+        revokedByUserId: undefined,
+        initialIpAddress: args.ipAddress,
+        initialUserAgent: args.userAgent,
+      });
+
+      await ctx.db.patch(codeRow._id, {
+        claimedAt,
+        claimedByDeviceId: deviceId,
+      });
+
+      await insertAuditLog(ctx, {
+        workspaceId: args.workspaceId,
+        action: "device_registration_code.claimed",
+        targetType: "device_registration_codes",
+        targetId: String(codeRow._id),
+        payload: {
+          deviceId,
+          label,
+          actorType: "device-bootstrap",
+          registrationCodeCreatorUserId: codeRow.createdByUserId,
+        },
+        createdAt: claimedAt,
+      });
+
+      await clearBootstrapAttemptContext(ctx, attemptContext);
+
+      return {
         deviceId,
         label,
-        actorType: "device-bootstrap",
-        registrationCodeCreatorUserId: codeRow.createdByUserId,
-      },
-      createdAt: claimedAt,
-    });
-
-    return {
-      deviceId,
-      label,
-      secret,
-      claimedAt,
-    };
+        secret,
+        claimedAt,
+      };
+    } catch (error) {
+      if (shouldCountBootstrapFailure(error)) {
+        await recordBootstrapAttemptFailure(ctx, {
+          workspaceId: args.workspaceId,
+          scope: "claim_code",
+          attemptContext,
+        });
+      }
+      throw error;
+    }
   },
 });
 
