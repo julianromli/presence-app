@@ -421,6 +421,8 @@ export function ReportPanel() {
         "Gagal memuat scan events.",
       );
       if (recoverWorkspaceScopeViolation(error.code)) {
+        setScanEventsStatus("idle");
+        setScanEventsError(null);
         return;
       }
       setScanEvents([]);
@@ -667,23 +669,15 @@ export function ReportPanel() {
   }, [headerQuery, loadAttendance]);
 
   useEffect(() => {
-    const handleWorkspaceChanged = () => {
+    const refreshReportPanel = () => {
       void loadAttendance({ append: false, cursor: null });
       void loadReports({ silent: true });
       void loadScanEvents();
     };
 
-    const handleRefresh = () => {
-      void loadAttendance({ append: false, cursor: null });
-      void loadReports({ silent: true });
-      void loadScanEvents();
-    };
-
-    window.addEventListener("workspace:changed", handleWorkspaceChanged as EventListener);
-    window.addEventListener("dashboard:refresh", handleRefresh as EventListener);
+    window.addEventListener("dashboard:refresh", refreshReportPanel as EventListener);
     return () => {
-      window.removeEventListener("workspace:changed", handleWorkspaceChanged as EventListener);
-      window.removeEventListener("dashboard:refresh", handleRefresh as EventListener);
+      window.removeEventListener("dashboard:refresh", refreshReportPanel as EventListener);
     };
   }, [loadAttendance, loadReports, loadScanEvents]);
 

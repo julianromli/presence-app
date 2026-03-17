@@ -227,8 +227,37 @@ async function resolveCreateWorkspaceEntitlements(ctx, userId) {
     .query("workspaces")
     .withIndex("by_created_by_user", (q) => q.eq("createdByUserId", userId))
     .collect();
+  const memberships = await ctx.db
+    .query("workspace_members")
+    .withIndex("by_user_and_workspace", (q) => q.eq("userId", userId))
+    .collect();
 
-  const activeOwnedWorkspaces = ownedRows.filter((workspace) => workspace.isActive);
+  const activeOwnedWorkspacesById = new Map();
+  for (const workspace of ownedRows) {
+    if (!workspace.isActive) {
+      continue;
+    }
+
+    activeOwnedWorkspacesById.set(String(workspace._id), workspace);
+  }
+
+  const legacyOwnerMemberships = memberships.filter(
+    (membership) => membership.isActive && membership.role === "superadmin",
+  );
+  for (const membership of legacyOwnerMemberships) {
+    if (activeOwnedWorkspacesById.has(String(membership.workspaceId))) {
+      continue;
+    }
+
+    const workspace = await ctx.db.get(membership.workspaceId);
+    if (!workspace || !workspace.isActive || workspace.createdByUserId !== undefined) {
+      continue;
+    }
+
+    activeOwnedWorkspacesById.set(String(workspace._id), workspace);
+  }
+
+  const activeOwnedWorkspaces = [...activeOwnedWorkspacesById.values()];
   const plan = activeOwnedWorkspaces.reduce((bestPlan, workspace) => {
     const workspacePlan = resolveWorkspacePlan(workspace);
     return compareWorkspacePlans(workspacePlan, bestPlan) > 0 ? workspacePlan : bestPlan;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import {
   normalizeClientError,
@@ -68,10 +68,15 @@ function setWorkspaceSubscriptionSnapshot(
 }
 
 function subscribeWorkspaceSubscription(listener: WorkspaceSubscriptionListener) {
+  ensureWorkspaceSubscriptionInitialized();
   workspaceSubscriptionListeners.add(listener);
   return () => {
     workspaceSubscriptionListeners.delete(listener);
   };
+}
+
+function getWorkspaceSubscriptionSnapshot() {
+  return workspaceSubscriptionSnapshot;
 }
 
 function handleWorkspaceSubscriptionRefreshEvent() {
@@ -263,15 +268,9 @@ export async function refreshWorkspaceSubscription() {
 }
 
 export function useWorkspaceSubscriptionClient() {
-  const [state, setState] = useState<WorkspaceSubscriptionClientState>(
-    workspaceSubscriptionSnapshot,
+  return useSyncExternalStore(
+    subscribeWorkspaceSubscription,
+    getWorkspaceSubscriptionSnapshot,
+    getWorkspaceSubscriptionSnapshot,
   );
-
-  useEffect(() => {
-    const unsubscribe = subscribeWorkspaceSubscription(setState);
-    ensureWorkspaceSubscriptionInitialized();
-    return unsubscribe;
-  }, []);
-
-  return state;
 }

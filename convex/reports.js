@@ -37,20 +37,44 @@ export const weeklyReportValidator = v.object({
   attempts: v.optional(v.number()),
 });
 
+const weeklyReportListItemValidator = v.object({
+  _id: v.id("weekly_reports"),
+  _creationTime: v.number(),
+  workspaceId: v.optional(v.id("workspaces")),
+  weekKey: v.string(),
+  startDate: v.string(),
+  endDate: v.string(),
+  fileName: v.optional(v.string()),
+  mimeType: v.optional(v.string()),
+  byteLength: v.optional(v.number()),
+  status: weeklyStatusValidator,
+  generatedAt: v.optional(v.number()),
+  errorMessage: v.optional(v.string()),
+  startedAt: v.optional(v.number()),
+  finishedAt: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
+  triggerSource: v.optional(triggerSourceValidator),
+  triggeredBy: v.optional(v.id("users")),
+  lastTriggeredAt: v.optional(v.number()),
+  attempts: v.optional(v.number()),
+});
+
 export const listWeekly = query({
   args: {
     workspaceId: v.id("workspaces"),
   },
-  returns: v.array(weeklyReportValidator),
+  returns: v.array(weeklyReportListItemValidator),
   handler: async (ctx, args) => {
     await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
-    return await ctx.db
+    const rows = await ctx.db
       .query("weekly_reports")
       .withIndex("by_workspace_week_key", (q) =>
         q.eq("workspaceId", args.workspaceId),
       )
       .order("desc")
       .take(20);
+
+    return rows.map(({ fileUrl: _fileUrl, storageId: _storageId, ...row }) => row);
   },
 });
 

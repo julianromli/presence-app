@@ -192,6 +192,7 @@ Features disabled:
 Plan `pro` adalah paket utama untuk operasi harian bisnis kecil hingga menengah.
 
 Limits:
+- `maxOwnedWorkspaces: 5`
 - `maxMembersPerWorkspace: 50`
 - `maxDevicesPerWorkspace: 3`
 
@@ -206,18 +207,20 @@ Features enabled:
 
 ## 8.3 Enterprise
 
-Plan `enterprise` ditujukan untuk kebutuhan sales-assisted dan limit khusus.
+Plan `enterprise` ditujukan untuk kebutuhan sales-assisted dengan limit global tertinggi pada catalog.
 
 Limits:
-- `maxMembersPerWorkspace: custom`
-- `maxDevicesPerWorkspace: custom`
+- `maxOwnedWorkspaces: null`
+- `maxMembersPerWorkspace: null`
+- `maxDevicesPerWorkspace: null`
 
 Features enabled:
 - semua fitur `pro`
 
 Catatan:
 - v1 tidak perlu menambah banyak feature gate baru khusus enterprise
-- fokus utama enterprise v1 adalah custom limits dan jalur upgrade manual
+- fokus utama enterprise v1 adalah jalur upgrade manual ke tier dengan entitlement global tak terbatas
+- kontrak enterprise khusus di luar model ini butuh source of truth tambahan, jadi bukan bagian dari `workspace.plan` v1
 
 ## 9. Entitlement Model
 

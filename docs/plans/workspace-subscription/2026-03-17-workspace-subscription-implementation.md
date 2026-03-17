@@ -405,6 +405,10 @@ const creationPlan = activeOwned.reduce(
 );
 ```
 
+Legacy note:
+- `createdByUserId` is optional on older rows, so production enforcement must either backfill that field first or add a fallback ownership derivation.
+- Current implementation fallback: treat an active `superadmin` membership as ownership only for active workspaces whose `createdByUserId` is still missing, then dedupe by workspace id before counting.
+
 - [ ] **Step 4: Re-run the create-limit tests**
 
 Run:

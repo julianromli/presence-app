@@ -99,6 +99,19 @@ describe('convexErrorResponse', () => {
     });
   });
 
+  it('maps device unauthorized errors to 401', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData('DEVICE_UNAUTHORIZED', 'Unauthorized device'),
+      'fallback',
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'DEVICE_UNAUTHORIZED',
+      message: 'Unauthorized device',
+    });
+  });
+
   it('maps geofence configuration errors to 503', async () => {
     const response = convexErrorResponse(
       makeConvexErrorData(
@@ -112,6 +125,38 @@ describe('convexErrorResponse', () => {
     await expect(response.json()).resolves.toMatchObject({
       code: 'GEOFENCE_NOT_CONFIGURED',
       message: 'Geofence kantor belum dikonfigurasi dengan benar. Hubungi admin.',
+    });
+  });
+
+  it('maps workspace delete blocked errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'WORKSPACE_DELETE_BLOCKED',
+        'Kick atau nonaktifkan semua member lain sebelum menghapus workspace.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'WORKSPACE_DELETE_BLOCKED',
+      message: 'Kick atau nonaktifkan semua member lain sebelum menghapus workspace.',
+    });
+  });
+
+  it('maps claimed registration code errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'REGISTRATION_CODE_CLAIMED',
+        'Kode registrasi sudah dipakai.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'REGISTRATION_CODE_CLAIMED',
+      message: 'Kode registrasi sudah dipakai.',
     });
   });
 

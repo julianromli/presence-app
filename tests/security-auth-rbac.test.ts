@@ -61,12 +61,23 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
     getAuthedConvexHttpClient,
     getPublicConvexHttpClient: getAuthedConvexHttpClient,
   }));
-  const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
-    "../lib/api-error",
-  );
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: actualApiError.convexErrorResponse,
-  }));
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json(
+          { code: "INTERNAL_ERROR", message: fallbackMessage },
+          { status: 500 },
+        ),
+      ),
+    }));
+  }
 
   const routeModule = await import("../app/api/device/qr-token/route");
   return {
@@ -115,12 +126,23 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
   }));
-  const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
-    "../lib/api-error",
-  );
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: actualApiError.convexErrorResponse,
-  }));
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json(
+          { code: "INTERNAL_ERROR", message: fallbackMessage },
+          { status: 500 },
+        ),
+      ),
+    }));
+  }
 
   const routeModule = await import("../app/api/admin/settings/route");
   return {
@@ -315,6 +337,7 @@ describe("security auth and rbac routes", () => {
     const mutation = vi.fn(async () => null);
     const { PATCH } = await setupAdminSettingsRoute({
       convexClient: { mutation, query: vi.fn() },
+      useActualApiError: true,
     });
 
     const response = await PATCH(
@@ -372,6 +395,7 @@ describe("security auth and rbac routes", () => {
     });
     const { PATCH } = await setupAdminSettingsRoute({
       convexClient: { mutation, query: vi.fn() },
+      useActualApiError: true,
     });
 
     const response = await PATCH(

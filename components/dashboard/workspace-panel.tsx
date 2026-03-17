@@ -338,24 +338,18 @@ export function WorkspacePanel() {
   }, [appliedFilters, headerQuery, loadMembers]);
 
   useEffect(() => {
-    const handleWorkspaceChanged = () => {
+    const refreshWorkspacePanel = () => {
       void loadWorkspaceData();
       void loadSettingsData();
       void loadMembers({ append: false, cursor: null, activeFilters: appliedFilters });
     };
 
-    const handleDashboardRefresh = () => {
-      void loadWorkspaceData();
-      void loadSettingsData();
-      void loadMembers({ append: false, cursor: null, activeFilters: appliedFilters });
-    };
-
-    window.addEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
-    window.addEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+    window.addEventListener('workspace:changed', refreshWorkspacePanel as EventListener);
+    window.addEventListener('dashboard:refresh', refreshWorkspacePanel as EventListener);
 
     return () => {
-      window.removeEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
-      window.removeEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+      window.removeEventListener('workspace:changed', refreshWorkspacePanel as EventListener);
+      window.removeEventListener('dashboard:refresh', refreshWorkspacePanel as EventListener);
     };
   }, [appliedFilters, loadMembers, loadSettingsData, loadWorkspaceData]);
 

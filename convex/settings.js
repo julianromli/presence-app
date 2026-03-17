@@ -117,30 +117,6 @@ export const update = mutation({
       });
     }
 
-    if (args.geofenceEnabled === true) {
-      assertWorkspaceFeatureEnabled({
-        plan: workspace,
-        featureKey: "geofence",
-        message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
-      });
-    }
-
-    if (args.whitelistEnabled === true) {
-      assertWorkspaceFeatureEnabled({
-        plan: workspace,
-        featureKey: "ipWhitelist",
-        message: "IP whitelist hanya tersedia untuk paket Pro atau Enterprise.",
-      });
-    }
-
-    if (args.attendanceSchedule !== undefined) {
-      assertWorkspaceFeatureEnabled({
-        plan: workspace,
-        featureKey: "attendanceSchedule",
-        message: "Attendance schedule hanya tersedia untuk paket Pro atau Enterprise.",
-      });
-    }
-
     const current = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
     const attendanceSchedule =
       args.attendanceSchedule !== undefined
@@ -163,6 +139,39 @@ export const update = mutation({
       whitelistIps: args.whitelistIps ?? current.whitelistIps,
       attendanceSchedule,
     };
+
+    const touchesGeofenceSettings =
+      args.geofenceEnabled !== undefined ||
+      args.geofenceRadiusMeters !== undefined ||
+      args.minLocationAccuracyMeters !== undefined ||
+      args.geofenceLat !== undefined ||
+      args.geofenceLng !== undefined;
+    const touchesWhitelistSettings =
+      args.whitelistEnabled !== undefined || args.whitelistIps !== undefined;
+
+    if (touchesGeofenceSettings && nextSettings.geofenceEnabled) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "geofence",
+        message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    if (touchesWhitelistSettings && nextSettings.whitelistEnabled) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "ipWhitelist",
+        message: "IP whitelist hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    if (args.attendanceSchedule !== undefined) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "attendanceSchedule",
+        message: "Attendance schedule hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
 
     assertValidGeofenceSettings(nextSettings);
 

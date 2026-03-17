@@ -393,6 +393,7 @@ export const validateRegistrationCodePreview = mutation({
       scope: "validate_code",
       rateLimitKey: args.rateLimitKey,
     });
+    await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
     const normalizedCode = normalizeRegistrationCode(args.code);
     if (!normalizedCode) {
       await recordBootstrapAttemptFailure(ctx, {
@@ -535,6 +536,7 @@ export const claimRegistrationCode = mutation({
         });
       }
 
+      const workspace = await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
       const codeRow = await getRegistrationCodeByHash(ctx, args.workspaceId, normalizedCode);
       if (!codeRow) {
         throw new ConvexError({
@@ -545,7 +547,6 @@ export const claimRegistrationCode = mutation({
 
       const claimedAt = Date.now();
       assertRegistrationCodeClaimable(codeRow, claimedAt);
-      const workspace = await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
       await assertWorkspaceActiveDeviceLimitNotReached(ctx, workspace);
 
       const secret = generateDeviceSecret();

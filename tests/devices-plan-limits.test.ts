@@ -79,14 +79,14 @@ function createStatusIndexQuery(
           },
         };
         apply(q);
+        const matchingDevices = devices.filter(
+          (device) =>
+            device.workspaceId === (requestedWorkspaceId ?? workspaceId) &&
+            device.status === requestedStatus,
+        );
         return {
-          collect: vi.fn(async () =>
-            devices.filter(
-              (device) =>
-                device.workspaceId === (requestedWorkspaceId ?? workspaceId) &&
-                device.status === requestedStatus,
-            ),
-          ),
+          collect: vi.fn(async () => matchingDevices),
+          take: vi.fn(async (limit: number) => matchingDevices.slice(0, limit)),
         };
       }
 
@@ -388,6 +388,46 @@ describe("devices plan limits", () => {
       expect.objectContaining({
         attemptCount: expect.any(Number),
       }),
+    );
+  });
+
+  it("rejects inactive workspaces before checking the registration code during claim", async () => {
+    const { claimRegistrationCode } = await import("../convex/devices.js");
+    const { bootstrapAttempt, ctx, mocks, workspace } = makeClaimRegistrationCodeCtx({
+      workspace: makeWorkspace({ isActive: false }),
+      bootstrapAttempt: {
+        _id: "attempt_1",
+        workspaceId: "workspace_free",
+        scope: "claim_code",
+        keyHash: "hash:ip:203.0.113.1|ua:Vitest",
+        firstAttemptAt: Date.now() - 1_000,
+        lastAttemptAt: Date.now() - 500,
+        attemptCount: 1,
+      },
+    });
+
+    await expect(
+      claimRegistrationCode._handler(ctx as never, {
+        workspaceId: workspace._id as never,
+        code: "GOOD-CODE",
+        label: "Front Desk Tablet",
+        rateLimitKey: "ip:203.0.113.1|ua:Vitest",
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: "WORKSPACE_INVALID",
+      },
+    });
+
+    expect(mocks.patch).not.toHaveBeenCalledWith(
+      bootstrapAttempt?._id,
+      expect.objectContaining({
+        attemptCount: expect.any(Number),
+      }),
+    );
+    expect(mocks.insert).not.toHaveBeenCalledWith(
+      "device_bootstrap_attempts",
+      expect.anything(),
     );
   });
 });

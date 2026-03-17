@@ -169,8 +169,12 @@ export function GeofencePanel() {
   const geofencePremiumBanner = getGeofencePremiumBannerCopy(
     workspaceSubscriptionState.subscription,
   );
-  const geofenceUnavailable = !workspaceSubscriptionState.ready || geofencePremiumBanner !== null;
-  const hasBlockingValidationErrors = geofenceValidationErrors.length > 0;
+  const geofencePremiumUnavailable =
+    workspaceSubscriptionState.ready && geofencePremiumBanner !== null;
+  const premiumControlsDisabled =
+    loading || !workspaceSubscriptionState.ready || geofencePremiumUnavailable;
+  const hasBlockingValidationErrors =
+    !geofencePremiumUnavailable && geofenceValidationErrors.length > 0;
   const showsBlockingGeofenceWarning =
     data.geofenceEnabled && geofenceValidationErrors.length > 0;
 
@@ -189,15 +193,20 @@ export function GeofencePanel() {
     setNotice({ tone: 'info', text: 'Menyimpan pengaturan geofence...' });
 
     try {
-      const whitelistIps = ipText
-        .split(',')
-        .map((ip) => ip.trim())
-        .filter(Boolean);
+      const body = geofencePremiumUnavailable
+        ? { timezone: data.timezone }
+        : {
+            ...data,
+            whitelistIps: ipText
+              .split(',')
+              .map((ip) => ip.trim())
+              .filter(Boolean),
+          };
 
       const res = await workspaceFetch('/api/admin/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, whitelistIps }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -257,7 +266,7 @@ export function GeofencePanel() {
               <span className="text-sm font-medium text-zinc-700">Timezone</span>
               <Input
                 value={data.timezone}
-                disabled={geofenceUnavailable}
+                disabled={loading}
                 onChange={(event) => setData((prev) => ({ ...prev, timezone: event.target.value }))}
               />
             </label>
@@ -266,7 +275,7 @@ export function GeofencePanel() {
               <Input
                 type="number"
                 value={data.geofenceLat ?? ''}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -280,7 +289,7 @@ export function GeofencePanel() {
               <Input
                 type="number"
                 value={data.geofenceLng ?? ''}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -295,7 +304,7 @@ export function GeofencePanel() {
                 type="number"
                 min={10}
                 value={data.geofenceRadiusMeters}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -312,7 +321,7 @@ export function GeofencePanel() {
                 type="number"
                 min={1}
                 value={data.minLocationAccuracyMeters}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -345,7 +354,7 @@ export function GeofencePanel() {
               <input
                 type="checkbox"
                 checked={data.geofenceEnabled}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({ ...prev, geofenceEnabled: event.target.checked }))
                 }
@@ -360,7 +369,7 @@ export function GeofencePanel() {
               <input
                 type="checkbox"
                 checked={data.whitelistEnabled}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({ ...prev, whitelistEnabled: event.target.checked }))
                 }
@@ -371,7 +380,7 @@ export function GeofencePanel() {
               <span className="text-sm font-medium text-zinc-700">Whitelist IP (pisahkan koma)</span>
               <Input
                 value={ipText}
-                disabled={geofenceUnavailable}
+                disabled={premiumControlsDisabled}
                 onChange={(event) => setIpText(event.target.value)}
               />
             </label>
@@ -382,7 +391,7 @@ export function GeofencePanel() {
       <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
         <Button
           type="submit"
-          disabled={loading || hasBlockingValidationErrors || geofenceUnavailable}
+          disabled={loading || !workspaceSubscriptionState.ready || hasBlockingValidationErrors}
           className="min-w-40"
           isLoading={loading}
           loadingText="Menyimpan..."

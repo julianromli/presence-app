@@ -21,39 +21,55 @@ export const workspaceSubscriptionSummaryValidator = v.object({
   usage: workspaceSubscriptionUsageValidator,
 });
 
-async function listActiveWorkspaceMemberships(ctx, workspaceId) {
-  return await ctx.db
+function listActiveWorkspaceMemberships(ctx, workspaceId) {
+  return ctx.db
     .query("workspace_members")
     .withIndex("by_workspace_active", (q) =>
       q.eq("workspaceId", workspaceId).eq("isActive", true),
-    )
-    .collect();
+    );
 }
 
-export async function countActiveWorkspaceMembers(ctx, workspaceId) {
-  const activeMemberships = await listActiveWorkspaceMemberships(ctx, workspaceId);
-  return activeMemberships.length;
+async function countPaginatedQuery(queryBuilder, pageSize = 256) {
+  let total = 0;
+  let cursor = null;
+
+  while (true) {
+    const page = await queryBuilder().paginate({
+      cursor,
+      numItems: pageSize,
+      maximumRowsRead: pageSize,
+    });
+    total += page.page.length;
+
+    if (page.isDone) {
+      return total;
+    }
+
+    cursor = page.continueCursor;
+  }
 }
 
-async function listActiveWorkspaceDevices(ctx, workspaceId) {
-  return await ctx.db
+function countActiveWorkspaceMemberships(ctx, workspaceId) {
+  return countPaginatedQuery(() => listActiveWorkspaceMemberships(ctx, workspaceId));
+}
+
+function listActiveWorkspaceDevices(ctx, workspaceId) {
+  return ctx.db
     .query("devices")
     .withIndex("by_workspace_status", (q) =>
       q.eq("workspaceId", workspaceId).eq("status", "active"),
-    )
-    .collect();
+    );
 }
 
-export async function countActiveWorkspaceDevices(ctx, workspaceId) {
-  const activeDevices = await listActiveWorkspaceDevices(ctx, workspaceId);
-  return activeDevices.length;
+function countActiveWorkspaceDevices(ctx, workspaceId) {
+  return countPaginatedQuery(() => listActiveWorkspaceDevices(ctx, workspaceId));
 }
 
 export async function getWorkspaceSubscriptionSummary(ctx, workspace) {
   const plan = resolveWorkspacePlan(workspace);
   const { limits, features } = resolveWorkspaceEntitlements(plan);
   const [activeMemberCount, activeDeviceCount] = await Promise.all([
-    countActiveWorkspaceMembers(ctx, workspace._id),
+    countActiveWorkspaceMemberships(ctx, workspace._id),
     countActiveWorkspaceDevices(ctx, workspace._id),
   ]);
 
@@ -69,12 +85,19 @@ export async function getWorkspaceSubscriptionSummary(ctx, workspace) {
 }
 
 export async function assertWorkspaceActiveMemberLimitNotReached(ctx, workspace) {
-  const activeMemberCount = await countActiveWorkspaceMembers(ctx, workspace._id);
+  const plan = resolveWorkspacePlan(workspace);
+  const { limits } = resolveWorkspaceEntitlements(plan);
+  const activeMemberships =
+    limits.maxMembersPerWorkspace === null
+      ? []
+      : await listActiveWorkspaceMemberships(ctx, workspace._id).take(
+          limits.maxMembersPerWorkspace,
+        );
 
   return assertPlanLimitNotReached({
-    plan: resolveWorkspacePlan(workspace),
+    plan,
     limitKey: "maxMembersPerWorkspace",
-    currentCount: activeMemberCount,
+    currentCount: activeMemberships.length,
     code: "PLAN_LIMIT_REACHED",
     message: "Jumlah member aktif sudah mencapai batas paket workspace Anda.",
     data: {
@@ -84,12 +107,19 @@ export async function assertWorkspaceActiveMemberLimitNotReached(ctx, workspace)
 }
 
 export async function assertWorkspaceActiveDeviceLimitNotReached(ctx, workspace) {
-  const activeDeviceCount = await countActiveWorkspaceDevices(ctx, workspace._id);
+  const plan = resolveWorkspacePlan(workspace);
+  const { limits } = resolveWorkspaceEntitlements(plan);
+  const activeDevices =
+    limits.maxDevicesPerWorkspace === null
+      ? []
+      : await listActiveWorkspaceDevices(ctx, workspace._id).take(
+          limits.maxDevicesPerWorkspace,
+        );
 
   return assertPlanLimitNotReached({
-    plan: resolveWorkspacePlan(workspace),
+    plan,
     limitKey: "maxDevicesPerWorkspace",
-    currentCount: activeDeviceCount,
+    currentCount: activeDevices.length,
     code: "PLAN_LIMIT_REACHED",
     message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",
     data: {

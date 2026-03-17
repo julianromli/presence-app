@@ -80,6 +80,52 @@ describe("convex reports queries and mutations", () => {
     expect(ctx.storage.getUrl).not.toHaveBeenCalled();
   });
 
+  it("does not expose raw file urls in the weekly report list", async () => {
+    const { listWeekly } = await import("../convex/reports");
+    const take = vi.fn(async () => [
+      {
+        _id: "report_123",
+        _creationTime: 1,
+        workspaceId: "workspace_123456",
+        weekKey: "2026-03-02_2026-03-08",
+        startDate: "2026-03-02",
+        endDate: "2026-03-08",
+        fileUrl: "https://files.example.com/report.xlsx",
+        storageId: "storage_123",
+        fileName: "report.xlsx",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        byteLength: 512,
+        status: "success",
+      },
+    ]);
+    const ctx = {
+      db: {
+        query: vi.fn(() => ({
+          withIndex: vi.fn(() => ({
+            order: vi.fn(() => ({
+              take,
+            })),
+          })),
+        })),
+      },
+    };
+
+    const result = await listWeekly.handler(ctx as never, {
+      workspaceId: "workspace_123456" as never,
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        _id: "report_123",
+        fileName: "report.xlsx",
+        status: "success",
+      }),
+    ]);
+    expect(result[0]).not.toHaveProperty("fileUrl");
+    expect(result[0]).not.toHaveProperty("storageId");
+  });
+
   it("regenerates storage urls for workspace-owned reports", async () => {
     const { getDownloadUrl } = await import("../convex/reports");
     const ctx = {

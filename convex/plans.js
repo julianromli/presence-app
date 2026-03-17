@@ -6,8 +6,6 @@ export const workspacePlanValidator = v.union(
   v.literal("enterprise"),
 );
 
-const PLAN_ORDER = ["free", "pro", "enterprise"];
-
 export const PLAN_CATALOG = {
   free: {
     limits: {
@@ -18,7 +16,7 @@ export const PLAN_CATALOG = {
     features: {
       geofence: false,
       ipWhitelist: false,
-      attendanceSchedule: false,
+      attendanceSchedule: true,
       reportExport: false,
       inviteRotation: true,
       inviteExpiry: false,
@@ -56,12 +54,16 @@ export const PLAN_CATALOG = {
   },
 };
 
+const PLAN_ORDER = Object.freeze(Object.keys(PLAN_CATALOG));
+
 function listPlanNames() {
   return Object.keys(PLAN_CATALOG);
 }
 
 function inferCatalogValueValidator(values, section, key) {
-  const valueKinds = [...new Set(values.map((value) => (value === null ? "null" : typeof value)))];
+  const valueKinds = [
+    ...new Set(values.map((value) => (value === null ? "null" : typeof value))),
+  ];
 
   if (valueKinds.length === 1 && valueKinds[0] === "boolean") {
     return v.boolean();
@@ -91,7 +93,9 @@ function buildCatalogSectionValidator(section) {
     for (const planName of otherPlans) {
       const planSection = PLAN_CATALOG[planName][section];
       if (!Object.hasOwn(planSection, key)) {
-        throw new Error(`[plans] Missing ${section}.${key} in plan "${planName}".`);
+        throw new Error(
+          `[plans] Missing ${section}.${key} in plan "${planName}".`,
+        );
       }
       values.push(planSection[key]);
     }
@@ -103,7 +107,9 @@ function buildCatalogSectionValidator(section) {
     const planKeys = Object.keys(PLAN_CATALOG[planName][section]);
     for (const key of planKeys) {
       if (!Object.hasOwn(baseSection, key)) {
-        throw new Error(`[plans] Unexpected ${section}.${key} in plan "${planName}".`);
+        throw new Error(
+          `[plans] Unexpected ${section}.${key} in plan "${planName}".`,
+        );
       }
     }
   }
@@ -111,8 +117,10 @@ function buildCatalogSectionValidator(section) {
   return v.object(shape);
 }
 
-export const workspacePlanLimitsValidator = buildCatalogSectionValidator("limits");
-export const workspacePlanFeaturesValidator = buildCatalogSectionValidator("features");
+export const workspacePlanLimitsValidator =
+  buildCatalogSectionValidator("limits");
+export const workspacePlanFeaturesValidator =
+  buildCatalogSectionValidator("features");
 
 function isKnownWorkspacePlan(value) {
   return typeof value === "string" && Object.hasOwn(PLAN_CATALOG, value);
@@ -123,7 +131,11 @@ function extractPlanValue(workspaceLike) {
     return workspaceLike;
   }
 
-  if (workspaceLike && typeof workspaceLike === "object" && "plan" in workspaceLike) {
+  if (
+    workspaceLike &&
+    typeof workspaceLike === "object" &&
+    "plan" in workspaceLike
+  ) {
     return workspaceLike.plan;
   }
 
