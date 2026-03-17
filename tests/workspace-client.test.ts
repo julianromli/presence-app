@@ -149,4 +149,162 @@ describe("workspace-client", () => {
 
     expect(locationAssign).not.toHaveBeenCalled();
   });
+
+  it("activates a workspace and persists it in browser storage", async () => {
+    const { windowMock } = createWindowMock("workspace_old");
+    vi.stubGlobal("window", windowMock);
+    vi.stubGlobal("document", { cookie: "active_workspace_id=workspace_old" });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, workspaceId: "workspace_new" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { activateWorkspaceInBrowser } = await import("../lib/workspace-client");
+    const result = await activateWorkspaceInBrowser("workspace_new");
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/workspaces/active",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+        body: JSON.stringify({ workspaceId: "workspace_new" }),
+      }),
+    );
+    expect(windowMock.localStorage.setItem).toHaveBeenCalledWith(
+      "active_workspace_id",
+      "workspace_new",
+    );
+  });
+
+  it("creates a workspace then activates it before returning success", async () => {
+    const { windowMock } = createWindowMock("workspace_old");
+    vi.stubGlobal("window", windowMock);
+    vi.stubGlobal("document", { cookie: "active_workspace_id=workspace_old" });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ workspaceId: "workspace_created" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, workspaceId: "workspace_created" }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createWorkspaceAndActivate } = await import("../lib/workspace-client");
+    const result = await createWorkspaceAndActivate("Presence Ops");
+
+    expect(result).toEqual({
+      ok: true,
+      workspaceId: "workspace_created",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/workspaces/create",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+        body: JSON.stringify({ name: "Presence Ops" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/workspaces/active",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+        body: JSON.stringify({ workspaceId: "workspace_created" }),
+      }),
+    );
+    expect(windowMock.localStorage.setItem).toHaveBeenCalledWith(
+      "active_workspace_id",
+      "workspace_created",
+    );
+  });
+
+  it("joins a workspace then activates it before returning success", async () => {
+    const { windowMock } = createWindowMock("workspace_old");
+    vi.stubGlobal("window", windowMock);
+    vi.stubGlobal("document", { cookie: "active_workspace_id=workspace_old" });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ workspaceId: "workspace_joined" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, workspaceId: "workspace_joined" }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { joinWorkspaceAndActivate } = await import("../lib/workspace-client");
+    const result = await joinWorkspaceAndActivate("TEAM-7K4M-ABSENIN");
+
+    expect(result).toEqual({
+      ok: true,
+      workspaceId: "workspace_joined",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/workspaces/join",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+        body: JSON.stringify({ code: "TEAM-7K4M-ABSENIN" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/workspaces/active",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+        body: JSON.stringify({ workspaceId: "workspace_joined" }),
+      }),
+    );
+    expect(windowMock.localStorage.setItem).toHaveBeenCalledWith(
+      "active_workspace_id",
+      "workspace_joined",
+    );
+  });
+
+  it("returns a structured failure when workspace activation throws before receiving a response", async () => {
+    const { windowMock } = createWindowMock("workspace_old");
+    vi.stubGlobal("window", windowMock);
+    vi.stubGlobal("document", { cookie: "active_workspace_id=workspace_old" });
+
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { activateWorkspaceInBrowser } = await import("../lib/workspace-client");
+    const result = await activateWorkspaceInBrowser("workspace_new");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.stage).toBe("switch");
+      expect(result.response.status).toBe(500);
+    }
+  });
+
+  it("returns a structured failure when create response JSON is invalid", async () => {
+    const { windowMock } = createWindowMock("workspace_old");
+    vi.stubGlobal("window", windowMock);
+    vi.stubGlobal("document", { cookie: "active_workspace_id=workspace_old" });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response("not-json", { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createWorkspaceAndActivate } = await import("../lib/workspace-client");
+    const result = await createWorkspaceAndActivate("Presence Ops");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.stage).toBe("create");
+      expect(result.response.status).toBe(500);
+    }
+  });
 });
