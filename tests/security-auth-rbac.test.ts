@@ -14,36 +14,8 @@ type CommonSetupOptions = {
     mutation?: ReturnType<typeof vi.fn>;
   } | null;
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+  useActualApiError?: boolean;
 };
-
-function mockConvexErrorResponse(error: unknown, fallbackMessage: string) {
-  const data =
-    typeof error === "object" &&
-    error !== null &&
-    "data" in error &&
-    typeof (error as { data?: unknown }).data === "object" &&
-    (error as { data?: unknown }).data !== null
-      ? ((error as { data: { code?: string; message?: string } }).data ?? null)
-      : null;
-
-  if (data?.code) {
-    return Response.json(
-      {
-        code: data.code,
-        message: data.message ?? fallbackMessage,
-      },
-      { status: data.code === "VALIDATION_ERROR" ? 400 : 500 },
-    );
-  }
-
-  return Response.json(
-    {
-      code: "INTERNAL_ERROR",
-      message: fallbackMessage,
-    },
-    { status: 500 },
-  );
-}
 
 function buildWorkspaceContextMock(options: CommonSetupOptions) {
   return vi.fn(() => {
@@ -89,8 +61,11 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
     getAuthedConvexHttpClient,
     getPublicConvexHttpClient: getAuthedConvexHttpClient,
   }));
+  const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+    "../lib/api-error",
+  );
   vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn(mockConvexErrorResponse),
+    convexErrorResponse: actualApiError.convexErrorResponse,
   }));
 
   const routeModule = await import("../app/api/device/qr-token/route");
@@ -140,8 +115,11 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
   }));
+  const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+    "../lib/api-error",
+  );
   vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn(mockConvexErrorResponse),
+    convexErrorResponse: actualApiError.convexErrorResponse,
   }));
 
   const routeModule = await import("../app/api/admin/settings/route");
@@ -412,6 +390,42 @@ describe("security auth and rbac routes", () => {
     await expect(response.json()).resolves.toEqual({
       code: "VALIDATION_ERROR",
       message: "Latitude dan longitude geofence wajib diisi saat geofence aktif.",
+    });
+    expect(mutation).toHaveBeenCalledOnce();
+  });
+
+  it("preserves FEATURE_NOT_AVAILABLE from settings mutation over HTTP", async () => {
+    const mutation = vi.fn(async () => {
+      throw {
+        data: {
+          code: "FEATURE_NOT_AVAILABLE",
+          message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
+        },
+      };
+    });
+    const { PATCH } = await setupAdminSettingsRoute({
+      convexClient: { mutation, query: vi.fn() },
+      useActualApiError: true,
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          geofenceEnabled: true,
+          geofenceRadiusMeters: 150,
+          minLocationAccuracyMeters: 30,
+          geofenceLat: -6.2,
+          geofenceLng: 106.8,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      code: "FEATURE_NOT_AVAILABLE",
+      message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
     });
     expect(mutation).toHaveBeenCalledOnce();
   });

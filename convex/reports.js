@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, query } from "./_generated/server";
 import { requireWorkspaceRole } from "./helpers";
+import { assertWorkspaceFeatureEnabled } from "./plans";
 import { decideWeeklyReportStart } from "./reportIdempotency";
 
 const triggerSourceValidator = v.union(v.literal("manual"), v.literal("cron"));
@@ -64,6 +65,20 @@ export const getDownloadUrl = query({
   }),
   handler: async (ctx, args) => {
     await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    assertWorkspaceFeatureEnabled({
+      plan: workspace,
+      featureKey: "reportExport",
+      message: "Ekspor report hanya tersedia untuk paket Pro atau Enterprise.",
+    });
 
     const report = await ctx.db.get(args.reportId);
     if (!report) {

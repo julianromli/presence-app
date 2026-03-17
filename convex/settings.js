@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import {
@@ -9,6 +9,7 @@ import {
   normalizeAttendanceSchedule,
   requireWorkspaceRole,
 } from "./helpers";
+import { assertWorkspaceFeatureEnabled } from "./plans";
 
 const attendanceScheduleDayValidator = v.union(
   v.literal("monday"),
@@ -108,6 +109,38 @@ export const update = mutation({
     const { user: actor } = await requireWorkspaceRole(ctx, args.workspaceId, [
       "superadmin",
     ]);
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    if (args.geofenceEnabled === true) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "geofence",
+        message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    if (args.whitelistEnabled === true) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "ipWhitelist",
+        message: "IP whitelist hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    if (args.attendanceSchedule !== undefined) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "attendanceSchedule",
+        message: "Attendance schedule hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
     const current = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
     const attendanceSchedule =
       args.attendanceSchedule !== undefined

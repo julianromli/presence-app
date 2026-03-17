@@ -10,6 +10,7 @@ type SetupOptions = {
   convexToken?: string | null;
   queryImpl?: ReturnType<typeof vi.fn>;
   workspaceContext?: WorkspaceContextResult;
+  useActualApiError?: boolean;
 };
 
 async function setupRoute(options: SetupOptions = {}) {
@@ -40,10 +41,11 @@ async function setupRoute(options: SetupOptions = {}) {
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
   }));
+  const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+    "../lib/api-error",
+  );
   vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
+    convexErrorResponse: actualApiError.convexErrorResponse,
   }));
 
   const routeModule = await import("../app/api/admin/reports/download/route");
@@ -134,6 +136,36 @@ describe("admin reports download route", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://files.example.com/report.xlsx");
+    expect(mocks.query).toHaveBeenCalledWith("reports:getDownloadUrl", {
+      reportId: "report_123",
+      workspaceId: "workspace_123456",
+    });
+  });
+
+  it("preserves FEATURE_NOT_AVAILABLE from report download query", async () => {
+    const { GET, mocks } = await setupRoute({
+      queryImpl: vi.fn(async () => {
+        throw {
+          data: {
+            code: "FEATURE_NOT_AVAILABLE",
+            message: "Ekspor report hanya tersedia untuk paket Pro atau Enterprise.",
+          },
+        };
+      }),
+      useActualApiError: true,
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/admin/reports/download?reportId=report_123", {
+        headers: { "x-workspace-id": "workspace_123456" },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      code: "FEATURE_NOT_AVAILABLE",
+      message: "Ekspor report hanya tersedia untuk paket Pro atau Enterprise.",
+    });
     expect(mocks.query).toHaveBeenCalledWith("reports:getDownloadUrl", {
       reportId: "report_123",
       workspaceId: "workspace_123456",
