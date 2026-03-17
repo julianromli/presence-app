@@ -104,4 +104,15 @@ describe("workspace plan entitlements", () => {
       }),
     ).toThrow(/WORKSPACE_PLAN_FEATURE_KEY_INVALID/);
   });
+
+  it("keeps limit and feature keys aligned across every plan", () => {
+    const [basePlan, ...otherPlans] = Object.keys(PLAN_CATALOG);
+    const baseLimitKeys = Object.keys(PLAN_CATALOG[basePlan].limits).sort();
+    const baseFeatureKeys = Object.keys(PLAN_CATALOG[basePlan].features).sort();
+
+    for (const planName of otherPlans) {
+      expect(Object.keys(PLAN_CATALOG[planName].limits).sort()).toEqual(baseLimitKeys);
+      expect(Object.keys(PLAN_CATALOG[planName].features).sort()).toEqual(baseFeatureKeys);
+    }
+  });
 });

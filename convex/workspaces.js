@@ -9,10 +9,14 @@ import {
 import {
   assertPlanLimitNotReached,
   compareWorkspacePlans,
-  resolveWorkspaceEntitlements,
   resolveWorkspacePlan,
   workspacePlanValidator,
 } from "./plans";
+import {
+  assertWorkspaceActiveMemberLimitNotReached,
+  getWorkspaceSubscriptionSummary,
+  workspaceSubscriptionSummaryValidator,
+} from "./workspaceSubscription";
 import { toInviteCodeView } from "./workspaceInviteView";
 import { listActiveInviteCodeIds } from "./workspaceInvitePolicy";
 
@@ -33,33 +37,6 @@ const workspaceValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   createdByUserId: v.optional(v.id("users")),
-});
-
-const workspaceSubscriptionLimitsValidator = v.object({
-  maxOwnedWorkspaces: v.union(v.number(), v.null()),
-  maxMembersPerWorkspace: v.union(v.number(), v.null()),
-  maxDevicesPerWorkspace: v.union(v.number(), v.null()),
-});
-
-const workspaceSubscriptionFeaturesValidator = v.object({
-  geofence: v.boolean(),
-  ipWhitelist: v.boolean(),
-  attendanceSchedule: v.boolean(),
-  reportExport: v.boolean(),
-  inviteRotation: v.boolean(),
-  inviteExpiry: v.boolean(),
-});
-
-const workspaceSubscriptionUsageValidator = v.object({
-  activeMembers: v.number(),
-  activeDevices: v.number(),
-});
-
-const workspaceSubscriptionSummaryValidator = v.object({
-  plan: workspacePlanValidator,
-  limits: workspaceSubscriptionLimitsValidator,
-  features: workspaceSubscriptionFeaturesValidator,
-  usage: workspaceSubscriptionUsageValidator,
 });
 
 const membershipWithWorkspaceValidator = v.object({
@@ -217,44 +194,6 @@ function summarizeWorkspaceMembers(memberships, currentUserId) {
     activeCountExcludingCurrentUser: activeMemberships.filter(
       (membership) => membership.userId !== currentUserId,
     ).length,
-  };
-}
-
-async function listActiveWorkspaceMemberships(ctx, workspaceId) {
-  return await ctx.db
-    .query("workspace_members")
-    .withIndex("by_workspace_active", (q) =>
-      q.eq("workspaceId", workspaceId).eq("isActive", true),
-    )
-    .collect();
-}
-
-async function listActiveWorkspaceDevices(ctx, workspaceId) {
-  return await ctx.db
-    .query("devices")
-    .withIndex("by_workspace_status", (q) =>
-      q.eq("workspaceId", workspaceId).eq("status", "active"),
-    )
-    .collect();
-}
-
-async function getWorkspaceSubscriptionSummary(ctx, workspace) {
-  const workspaceView = toWorkspaceView(workspace);
-  const plan = workspaceView.plan;
-  const { limits, features } = resolveWorkspaceEntitlements(plan);
-  const [activeMemberships, activeDevices] = await Promise.all([
-    listActiveWorkspaceMemberships(ctx, workspaceView._id),
-    listActiveWorkspaceDevices(ctx, workspaceView._id),
-  ]);
-
-  return {
-    plan,
-    limits,
-    features,
-    usage: {
-      activeMembers: activeMemberships.length,
-      activeDevices: activeDevices.length,
-    },
   };
 }
 
@@ -562,6 +501,8 @@ export const joinWorkspaceByCode = mutation({
         };
       }
 
+      await assertWorkspaceActiveMemberLimitNotReached(ctx, workspace);
+
       await ctx.db.patch(existingMembership._id, {
         role: "karyawan",
         isActive: true,
@@ -574,6 +515,8 @@ export const joinWorkspaceByCode = mutation({
         alreadyMember: false,
       };
     }
+
+    await assertWorkspaceActiveMemberLimitNotReached(ctx, workspace);
 
     await ctx.db.insert("workspace_members", {
       workspaceId: workspace._id,

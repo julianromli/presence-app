@@ -56,6 +56,64 @@ export const PLAN_CATALOG = {
   },
 };
 
+function listPlanNames() {
+  return Object.keys(PLAN_CATALOG);
+}
+
+function inferCatalogValueValidator(values, section, key) {
+  const valueKinds = [...new Set(values.map((value) => (value === null ? "null" : typeof value)))];
+
+  if (valueKinds.length === 1 && valueKinds[0] === "boolean") {
+    return v.boolean();
+  }
+
+  if (
+    valueKinds.every((kind) => kind === "number" || kind === "null") &&
+    valueKinds.some((kind) => kind === "number")
+  ) {
+    return v.union(v.number(), v.null());
+  }
+
+  throw new Error(
+    `[plans] Unsupported validator shape for ${section}.${key}: ${valueKinds.join(", ")}`,
+  );
+}
+
+function buildCatalogSectionValidator(section) {
+  const [basePlan, ...otherPlans] = listPlanNames();
+  const baseSection = PLAN_CATALOG[basePlan][section];
+  const sectionKeys = Object.keys(baseSection);
+  const shape = {};
+
+  for (const key of sectionKeys) {
+    const values = [baseSection[key]];
+
+    for (const planName of otherPlans) {
+      const planSection = PLAN_CATALOG[planName][section];
+      if (!Object.hasOwn(planSection, key)) {
+        throw new Error(`[plans] Missing ${section}.${key} in plan "${planName}".`);
+      }
+      values.push(planSection[key]);
+    }
+
+    shape[key] = inferCatalogValueValidator(values, section, key);
+  }
+
+  for (const planName of otherPlans) {
+    const planKeys = Object.keys(PLAN_CATALOG[planName][section]);
+    for (const key of planKeys) {
+      if (!Object.hasOwn(baseSection, key)) {
+        throw new Error(`[plans] Unexpected ${section}.${key} in plan "${planName}".`);
+      }
+    }
+  }
+
+  return v.object(shape);
+}
+
+export const workspacePlanLimitsValidator = buildCatalogSectionValidator("limits");
+export const workspacePlanFeaturesValidator = buildCatalogSectionValidator("features");
+
 function isKnownWorkspacePlan(value) {
   return typeof value === "string" && Object.hasOwn(PLAN_CATALOG, value);
 }

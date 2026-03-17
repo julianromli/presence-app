@@ -10,6 +10,7 @@ import {
 } from "./helpers";
 import { isAdminManagedActivationAllowed, isSelfDeactivation } from "./usersPolicy";
 import { isLastActiveSuperadminTransition } from "./workspaceMembersPolicy";
+import { assertWorkspaceActiveMemberLimitNotReached } from "./workspaceSubscription";
 import {
   filterUsers,
   paginateFilteredRows,
@@ -379,14 +380,6 @@ export const updateAdminManagedFields = mutation({
     const roleChanged = nextRole !== membership.role;
     const activeChanged = nextActive !== membership.isActive;
 
-    await assertWorkspaceHasAnotherActiveSuperadmin(
-      ctx,
-      args.workspaceId,
-      membership,
-      nextRole,
-      nextActive,
-    );
-
     if (!roleChanged && !activeChanged) {
       return {
         _id: targetUser._id,
@@ -399,6 +392,26 @@ export const updateAdminManagedFields = mutation({
         createdAt: targetUser.createdAt,
         updatedAt: targetUser.updatedAt,
       };
+    }
+
+    await assertWorkspaceHasAnotherActiveSuperadmin(
+      ctx,
+      args.workspaceId,
+      membership,
+      nextRole,
+      nextActive,
+    );
+
+    if (!membership.isActive && nextActive === true) {
+      const workspace = await ctx.db.get(args.workspaceId);
+      if (!workspace || !workspace.isActive) {
+        throw new ConvexError({
+          code: "WORKSPACE_INVALID",
+          message: "Workspace tidak valid.",
+        });
+      }
+
+      await assertWorkspaceActiveMemberLimitNotReached(ctx, workspace);
     }
 
     const now = Date.now();
