@@ -1,5 +1,35 @@
 import { ACTIVE_WORKSPACE_COOKIE } from "@/lib/workspace-context";
 
+type WorkspaceActionFailureStage = "switch" | "create" | "join" | "activate";
+
+type WorkspaceActionSuccess = {
+  ok: true;
+  workspaceId: string;
+  workspaceName?: string;
+};
+
+type WorkspaceActionFailure = {
+  ok: false;
+  stage: WorkspaceActionFailureStage;
+  response: Response;
+  workspaceId?: string;
+};
+
+type WorkspaceMutationPayload = {
+  workspaceId: string;
+  workspaceName?: string;
+};
+
+function buildWorkspaceMutationErrorResponse(message: string) {
+  return Response.json(
+    {
+      code: "INTERNAL_ERROR",
+      message,
+    },
+    { status: 500 },
+  );
+}
+
 export function getActiveWorkspaceIdFromBrowser() {
   if (typeof document === "undefined") {
     return null;
@@ -138,6 +168,128 @@ export async function workspaceFetch(
   }
 
   return response;
+}
+
+async function postWorkspaceMutation(
+  path: string,
+  body: Record<string, string>,
+) {
+  try {
+    return await workspaceFetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return buildWorkspaceMutationErrorResponse("Permintaan workspace gagal diproses.");
+  }
+}
+
+async function readWorkspaceMutationPayload(response: Response) {
+  try {
+    return (await response.json()) as WorkspaceMutationPayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function activateWorkspaceInBrowser(
+  workspaceId: string,
+): Promise<WorkspaceActionSuccess | WorkspaceActionFailure> {
+  const response = await postWorkspaceMutation("/api/workspaces/active", { workspaceId });
+  if (!response.ok) {
+    return {
+      ok: false,
+      stage: "switch",
+      response,
+      workspaceId,
+    };
+  }
+
+  setActiveWorkspaceIdInBrowser(workspaceId);
+  return {
+    ok: true,
+    workspaceId,
+  };
+}
+
+export async function createWorkspaceAndActivate(
+  name: string,
+): Promise<WorkspaceActionSuccess | WorkspaceActionFailure> {
+  const createResponse = await postWorkspaceMutation("/api/workspaces/create", { name });
+  if (!createResponse.ok) {
+    return {
+      ok: false,
+      stage: "create",
+      response: createResponse,
+    };
+  }
+
+  const payload = await readWorkspaceMutationPayload(createResponse);
+  if (!payload?.workspaceId) {
+    return {
+      ok: false,
+      stage: "create",
+      response: buildWorkspaceMutationErrorResponse("Respons workspace baru tidak valid."),
+    };
+  }
+  const activateResponse = await postWorkspaceMutation("/api/workspaces/active", {
+    workspaceId: payload.workspaceId,
+  });
+  if (!activateResponse.ok) {
+    return {
+      ok: false,
+      stage: "activate",
+      response: activateResponse,
+      workspaceId: payload.workspaceId,
+    };
+  }
+
+  setActiveWorkspaceIdInBrowser(payload.workspaceId);
+  return {
+    ok: true,
+    workspaceId: payload.workspaceId,
+  };
+}
+
+export async function joinWorkspaceAndActivate(
+  code: string,
+): Promise<WorkspaceActionSuccess | WorkspaceActionFailure> {
+  const joinResponse = await postWorkspaceMutation("/api/workspaces/join", { code });
+  if (!joinResponse.ok) {
+    return {
+      ok: false,
+      stage: "join",
+      response: joinResponse,
+    };
+  }
+
+  const payload = await readWorkspaceMutationPayload(joinResponse);
+  if (!payload?.workspaceId) {
+    return {
+      ok: false,
+      stage: "join",
+      response: buildWorkspaceMutationErrorResponse("Respons join workspace tidak valid."),
+    };
+  }
+  const activateResponse = await postWorkspaceMutation("/api/workspaces/active", {
+    workspaceId: payload.workspaceId,
+  });
+  if (!activateResponse.ok) {
+    return {
+      ok: false,
+      stage: "activate",
+      response: activateResponse,
+      workspaceId: payload.workspaceId,
+    };
+  }
+
+  setActiveWorkspaceIdInBrowser(payload.workspaceId);
+  return {
+    ok: true,
+    workspaceId: payload.workspaceId,
+    workspaceName: payload.workspaceName,
+  };
 }
 
 export function recoverWorkspaceScopeViolation(code: string) {
