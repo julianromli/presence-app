@@ -29,28 +29,12 @@ function listActiveWorkspaceMemberships(ctx, workspaceId) {
     );
 }
 
-async function countPaginatedQuery(queryBuilder, pageSize = 256) {
-  let total = 0;
-  let cursor = null;
-
-  while (true) {
-    const page = await queryBuilder().paginate({
-      cursor,
-      numItems: pageSize,
-      maximumRowsRead: pageSize,
-    });
-    total += page.page.length;
-
-    if (page.isDone) {
-      return total;
-    }
-
-    cursor = page.continueCursor;
-  }
-}
-
-function countActiveWorkspaceMemberships(ctx, workspaceId) {
-  return countPaginatedQuery(() => listActiveWorkspaceMemberships(ctx, workspaceId));
+async function countActiveWorkspaceMemberships(ctx, workspaceId) {
+  const activeMemberships = await listActiveWorkspaceMemberships(
+    ctx,
+    workspaceId,
+  ).collect();
+  return activeMemberships.length;
 }
 
 function listActiveWorkspaceDevices(ctx, workspaceId) {
@@ -61,8 +45,9 @@ function listActiveWorkspaceDevices(ctx, workspaceId) {
     );
 }
 
-function countActiveWorkspaceDevices(ctx, workspaceId) {
-  return countPaginatedQuery(() => listActiveWorkspaceDevices(ctx, workspaceId));
+async function countActiveWorkspaceDevices(ctx, workspaceId) {
+  const activeDevices = await listActiveWorkspaceDevices(ctx, workspaceId).collect();
+  return activeDevices.length;
 }
 
 export async function getWorkspaceSubscriptionSummary(ctx, workspace) {
