@@ -45,6 +45,15 @@ import {
   type UsersPanelFilters,
 } from '@/lib/users-filters';
 import {
+  formatWorkspaceDeviceUsageCopy,
+  formatWorkspaceMemberUsageCopy,
+  getAttendanceScheduleUpgradeCopy,
+  getWorkspacePlanBadgeText,
+  isAttendanceScheduleSaveDisabled,
+  refreshWorkspaceSubscription,
+  useWorkspaceSubscriptionClient,
+} from '@/lib/workspace-subscription-client';
+import {
   beginWorkspacePanelRefresh,
   buildWorkspaceDeleteConfirmation,
   canStartWorkspaceMutation,
@@ -119,6 +128,7 @@ function resolveInviteExpiryOption(expiresAt?: number): InviteExpirySelectValue 
 export function WorkspacePanel() {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get('q') ?? '').trim();
+  const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
   const [workspaceData, setWorkspaceData] = useState<WorkspaceManagementPayload | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [inviteVisible, setInviteVisible] = useState(false);
@@ -328,6 +338,28 @@ export function WorkspacePanel() {
   }, [appliedFilters, headerQuery, loadMembers]);
 
   useEffect(() => {
+    const handleWorkspaceChanged = () => {
+      void loadWorkspaceData();
+      void loadSettingsData();
+      void loadMembers({ append: false, cursor: null, activeFilters: appliedFilters });
+    };
+
+    const handleDashboardRefresh = () => {
+      void loadWorkspaceData();
+      void loadSettingsData();
+      void loadMembers({ append: false, cursor: null, activeFilters: appliedFilters });
+    };
+
+    window.addEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
+    window.addEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+
+    return () => {
+      window.removeEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
+      window.removeEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+    };
+  }, [appliedFilters, loadMembers, loadSettingsData, loadWorkspaceData]);
+
+  useEffect(() => {
     setInviteExpiryValue(resolveInviteExpiryOption(workspaceData?.activeInviteCode?.expiresAt));
   }, [workspaceData?.activeInviteCode?.expiresAt]);
 
@@ -530,6 +562,7 @@ export function WorkspacePanel() {
       await Promise.all([
         loadMembers({ append: false, cursor: null, activeFilters: appliedFilters }),
         loadWorkspaceData(),
+        refreshWorkspaceSubscription(),
       ]);
       setNotice({ tone: 'success', text: 'Perubahan member berhasil disimpan.' });
     } finally {
@@ -610,6 +643,27 @@ export function WorkspacePanel() {
     workspaceData?.activeInviteCode?.expiresAt !== undefined
       ? new Date(workspaceData.activeInviteCode.expiresAt).toLocaleString('id-ID')
       : 'Tidak kedaluwarsa';
+  const subscription = workspaceSubscriptionState.ready
+    ? workspaceSubscriptionState.subscription
+    : workspaceData?.subscription ?? null;
+  const planBadgeText = subscription
+    ? getWorkspacePlanBadgeText(subscription.plan)
+    : null;
+  const memberUsageCopy = subscription
+    ? formatWorkspaceMemberUsageCopy(
+      subscription.usage.activeMembers,
+      subscription.limits.maxMembersPerWorkspace,
+    )
+    : null;
+  const deviceUsageCopy = subscription
+    ? formatWorkspaceDeviceUsageCopy(
+      subscription.usage.activeDevices,
+      subscription.limits.maxDevicesPerWorkspace,
+    )
+    : null;
+  const attendanceScheduleSaveDisabled =
+    !workspaceSubscriptionState.ready || isAttendanceScheduleSaveDisabled(subscription);
+  const attendanceScheduleUpgradeCopy = getAttendanceScheduleUpgradeCopy(subscription);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -734,6 +788,26 @@ export function WorkspacePanel() {
               <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} />
             </label>
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600">
+              {planBadgeText ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Plan:</span>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
+                    {planBadgeText}
+                  </span>
+                </div>
+              ) : null}
+              {memberUsageCopy ? (
+                <p className="mt-2">
+                  Member aktif:{' '}
+                  <span className="font-semibold text-zinc-900">{memberUsageCopy}</span>
+                </p>
+              ) : null}
+              {deviceUsageCopy ? (
+                <p className="mt-1">
+                  Device aktif:{' '}
+                  <span className="font-semibold text-zinc-900">{deviceUsageCopy}</span>
+                </p>
+              ) : null}
               <p>Slug: <span className="font-mono text-zinc-900">{workspaceData?.workspace.slug ?? '-'}</span></p>
               <p className="mt-1">
                 Created:{' '}
@@ -761,11 +835,16 @@ export function WorkspacePanel() {
             <p className="mt-1 text-sm text-zinc-600">
               Atur jam masuk per hari untuk menentukan status tepat waktu atau terlambat.
             </p>
+            {workspaceSubscriptionState.ready && attendanceScheduleUpgradeCopy ? (
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                {attendanceScheduleUpgradeCopy}
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"
             onClick={() => void handleSaveSchedule()}
-            disabled={loadingSettings || savingSchedule}
+            disabled={loadingSettings || savingSchedule || attendanceScheduleSaveDisabled}
             isLoading={actionLoadingState.saveSchedule}
             loadingText="Menyimpan..."
           >
@@ -793,6 +872,7 @@ export function WorkspacePanel() {
                       <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
                         <Checkbox
                           checked={row.enabled}
+                          disabled={attendanceScheduleSaveDisabled}
                           onCheckedChange={(checked) =>
                             updateScheduleRow(row.day, { enabled: checked === true })
                           }
@@ -806,7 +886,7 @@ export function WorkspacePanel() {
                           type="time"
                           step={60}
                           value={row.checkInTime}
-                          disabled={!row.enabled}
+                          disabled={!row.enabled || attendanceScheduleSaveDisabled}
                           onChange={(event) =>
                             updateScheduleRow(row.day, { checkInTime: event.target.value })
                           }

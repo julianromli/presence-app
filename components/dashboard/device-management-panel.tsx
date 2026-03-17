@@ -16,6 +16,11 @@ import {
 } from "@/components/ui/table";
 import { parseApiErrorResponse } from "@/lib/client-error";
 import {
+  buildDeviceLimitNoticeCopy,
+  refreshWorkspaceSubscription,
+  useWorkspaceSubscriptionClient,
+} from "@/lib/workspace-subscription-client";
+import {
   getActiveWorkspaceIdFromBrowser,
   recoverWorkspaceScopeViolation,
   workspaceFetch,
@@ -199,6 +204,7 @@ function RegistrationCodeListSkeleton() {
 }
 
 export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
+  const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
   const [registrationCodes, setRegistrationCodes] = useState<DeviceRegistrationCodeRow[]>([]);
   const [devices, setDevices] = useState<ManagedDeviceRow[]>([]);
   const [generatedCode, setGeneratedCode] = useState<GeneratedRegistrationCode | null>(null);
@@ -341,17 +347,36 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
   const latestRegistrationCode = getLatestRegistrationCode(registrationCodes);
   const codesSummary = buildCodesSummary(registrationCodes);
   const devicesSummary = buildDevicesSummary(devices);
+  const activeDeviceCount =
+    workspaceSubscriptionState.ready
+      ? (workspaceSubscriptionState.subscription?.usage.activeDevices ??
+        devicesSummary.activeCount)
+      : devicesSummary.activeCount;
+  const maxDevicesPerWorkspace =
+    workspaceSubscriptionState.ready
+      ? (workspaceSubscriptionState.subscription?.limits.maxDevicesPerWorkspace ?? null)
+      : null;
+  const deviceLimitNotice = buildDeviceLimitNoticeCopy(
+    activeDeviceCount,
+    maxDevicesPerWorkspace,
+  );
+  const generateCodeDisabled = !workspaceSubscriptionState.ready || deviceLimitNotice !== null;
 
   async function refresh() {
     setToolbarAction("refresh");
     try {
-      await refreshAll(true);
+      await Promise.all([refreshAll(true), refreshWorkspaceSubscription()]);
     } finally {
       setToolbarAction("none");
     }
   }
 
   async function generateCode() {
+    if (generateCodeDisabled) {
+      setNotice(deviceLimitNotice);
+      return;
+    }
+
     setToolbarAction("generate");
 
     try {
@@ -460,7 +485,7 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
       }
 
       setNotice("Device berhasil direvoke.");
-      await loadDevices(false);
+      await Promise.all([loadDevices(false), refreshWorkspaceSubscription()]);
     } finally {
       setConfirmRevokeDevice(null);
       setRevokingDeviceId(null);
@@ -525,6 +550,7 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
+              disabled={generateCodeDisabled}
               isLoading={toolbarAction === "generate"}
               onClick={() => void generateCode()}
             >
@@ -575,6 +601,11 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
       {notice ? (
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
           {notice}
+        </div>
+      ) : null}
+      {workspaceSubscriptionState.ready && deviceLimitNotice ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {deviceLimitNotice}
         </div>
       ) : null}
 

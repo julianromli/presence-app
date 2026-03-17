@@ -38,6 +38,11 @@ import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/c
 import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
 import { getLocalDateKey } from "@/lib/date-key";
+import {
+  getReportExportUpgradeCopy,
+  isReportExportDisabled,
+  useWorkspaceSubscriptionClient,
+} from "@/lib/workspace-subscription-client";
 import { cn } from "@/lib/utils";
 import { recoverWorkspaceScopeViolation, workspaceFetch } from "@/lib/workspace-client";
 
@@ -199,6 +204,7 @@ function sectionTitle(title: string, description: string, countLabel?: string) {
 export function ReportPanel() {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get("q") ?? "").trim();
+  const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
   const [dateKey, setDateKey] = useState(() => getLocalDateKey());
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary>({
@@ -238,6 +244,7 @@ export function ReportPanel() {
     byReason: [],
   });
   const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
+  const [scanEventsError, setScanEventsError] = useState<ApiErrorInfo | null>(null);
   const [toolbarPendingState, setToolbarPendingState] =
     useState<ReportToolbarPendingState>({});
   const hasLoadedInitial = useRef(false);
@@ -250,6 +257,14 @@ export function ReportPanel() {
 
   const hasAttendanceFilter =
     employeeName.trim().length > 0 || editedFilter !== "all";
+  const reportExportDisabled = isReportExportDisabled(
+    workspaceSubscriptionState.subscription,
+  );
+  const reportExportUpgradeCopy = getReportExportUpgradeCopy(
+    workspaceSubscriptionState.subscription,
+  );
+  const reportExportUnavailable =
+    !workspaceSubscriptionState.ready || reportExportDisabled;
 
   const toggleSection = (key: SectionKey, open: boolean) => {
     setSectionOpen((prev) => ({ ...prev, [key]: open }));
@@ -395,11 +410,27 @@ export function ReportPanel() {
 
   const loadScanEvents = useCallback(async () => {
     setScanEventsStatus("loading");
+    setScanEventsError(null);
     const res = await workspaceFetch(
       `/api/admin/attendance/scan-events?dateKey=${encodeURIComponent(dateKey)}&limit=50`,
       { cache: "no-store" },
     );
     if (!res.ok) {
+      const error = await parseApiErrorResponse(
+        res,
+        "Gagal memuat scan events.",
+      );
+      if (recoverWorkspaceScopeViolation(error.code)) {
+        return;
+      }
+      setScanEvents([]);
+      setScanEventSummary({
+        total: 0,
+        accepted: 0,
+        rejected: 0,
+        byReason: [],
+      });
+      setScanEventsError(error);
       setScanEventsStatus("error");
       return;
     }
@@ -407,6 +438,7 @@ export function ReportPanel() {
     const data = (await res.json()) as ScanEventsResponse;
     setScanEvents(data.rows);
     setScanEventSummary(data.summary);
+    setScanEventsError(null);
     setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
   }, [dateKey]);
 
@@ -443,6 +475,10 @@ export function ReportPanel() {
   };
 
   const downloadReport = (reportId: string) => {
+    if (reportExportDisabled) {
+      return;
+    }
+
     window.location.assign(
       `/api/admin/reports/download?reportId=${encodeURIComponent(reportId)}`,
     );
@@ -631,14 +667,22 @@ export function ReportPanel() {
   }, [headerQuery, loadAttendance]);
 
   useEffect(() => {
+    const handleWorkspaceChanged = () => {
+      void loadAttendance({ append: false, cursor: null });
+      void loadReports({ silent: true });
+      void loadScanEvents();
+    };
+
     const handleRefresh = () => {
       void loadAttendance({ append: false, cursor: null });
       void loadReports({ silent: true });
       void loadScanEvents();
     };
 
+    window.addEventListener("workspace:changed", handleWorkspaceChanged as EventListener);
     window.addEventListener("dashboard:refresh", handleRefresh as EventListener);
     return () => {
+      window.removeEventListener("workspace:changed", handleWorkspaceChanged as EventListener);
       window.removeEventListener("dashboard:refresh", handleRefresh as EventListener);
     };
   }, [loadAttendance, loadReports, loadScanEvents]);
@@ -840,6 +884,11 @@ export function ReportPanel() {
             Refresh Scan Events
           </Button>
         </div>
+        {workspaceSubscriptionState.ready && reportExportUpgradeCopy ? (
+          <p className="mt-3 text-sm font-medium text-amber-700">
+            {reportExportUpgradeCopy}
+          </p>
+        ) : null}
       </section>
 
       <Collapsible
@@ -1075,6 +1124,28 @@ export function ReportPanel() {
                     Memuat scan events...
                   </TableCell>
                 </TableRow>
+              ) : scanEventsStatus === "error" && scanEventsError ? (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                      <span>
+                        [{scanEventsError.code}] {scanEventsError.message}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleRefreshScanEvents()}
+                        isLoading={isReportToolbarActionPending(
+                          toolbarPendingState,
+                          "refresh-scan-events",
+                        )}
+                      >
+                        Coba lagi
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : scanEvents.length === 0 ? (
                 <TableRow>
                   <TableCell className="text-zinc-500" colSpan={5}>
@@ -1204,7 +1275,7 @@ export function ReportPanel() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={report.status !== "success"}
+                        disabled={report.status !== "success" || reportExportUnavailable}
                         onClick={() => downloadReport(report._id)}
                       >
                         Unduh
