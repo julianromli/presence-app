@@ -6,6 +6,11 @@ import {
   requireIdentityUser,
   requireWorkspaceRole,
 } from "./helpers";
+import {
+  resolveWorkspaceEntitlements,
+  resolveWorkspacePlan,
+  workspacePlanValidator,
+} from "./plans";
 import { toInviteCodeView } from "./workspaceInviteView";
 import { listActiveInviteCodeIds } from "./workspaceInvitePolicy";
 
@@ -21,10 +26,38 @@ const workspaceValidator = v.object({
   _creationTime: v.number(),
   slug: v.string(),
   name: v.string(),
+  plan: workspacePlanValidator,
   isActive: v.boolean(),
   createdAt: v.number(),
   updatedAt: v.number(),
   createdByUserId: v.optional(v.id("users")),
+});
+
+const workspaceSubscriptionLimitsValidator = v.object({
+  maxOwnedWorkspaces: v.union(v.number(), v.null()),
+  maxMembersPerWorkspace: v.union(v.number(), v.null()),
+  maxDevicesPerWorkspace: v.union(v.number(), v.null()),
+});
+
+const workspaceSubscriptionFeaturesValidator = v.object({
+  geofence: v.boolean(),
+  ipWhitelist: v.boolean(),
+  attendanceSchedule: v.boolean(),
+  reportExport: v.boolean(),
+  inviteRotation: v.boolean(),
+  inviteExpiry: v.boolean(),
+});
+
+const workspaceSubscriptionUsageValidator = v.object({
+  activeMembers: v.number(),
+  activeDevices: v.number(),
+});
+
+const workspaceSubscriptionSummaryValidator = v.object({
+  plan: workspacePlanValidator,
+  limits: workspaceSubscriptionLimitsValidator,
+  features: workspaceSubscriptionFeaturesValidator,
+  usage: workspaceSubscriptionUsageValidator,
 });
 
 const membershipWithWorkspaceValidator = v.object({
@@ -58,6 +91,7 @@ const workspaceManagementValidator = v.object({
     activeCount: v.number(),
     activeCountExcludingCurrentUser: v.number(),
   }),
+  subscription: workspaceSubscriptionSummaryValidator,
 });
 
 function normalizeWorkspaceName(value) {
@@ -76,6 +110,13 @@ function slugifyWorkspaceName(name) {
 
 function normalizeInviteCode(input) {
   return input.trim().toUpperCase().replace(/\s+/g, "").replace(/-+/g, "-");
+}
+
+function toWorkspaceView(workspace) {
+  return {
+    ...workspace,
+    plan: resolveWorkspacePlan(workspace),
+  };
 }
 
 function generateInviteCode(seed) {
@@ -140,7 +181,7 @@ async function listActiveMemberships(ctx, userId) {
       membershipId: membership._id,
       role: membership.role,
       isActive: membership.isActive,
-      workspace,
+      workspace: toWorkspaceView(workspace),
     });
   }
 
@@ -174,6 +215,44 @@ function summarizeWorkspaceMembers(memberships, currentUserId) {
     activeCountExcludingCurrentUser: activeMemberships.filter(
       (membership) => membership.userId !== currentUserId,
     ).length,
+  };
+}
+
+async function listActiveWorkspaceMemberships(ctx, workspaceId) {
+  return await ctx.db
+    .query("workspace_members")
+    .withIndex("by_workspace_active", (q) =>
+      q.eq("workspaceId", workspaceId).eq("isActive", true),
+    )
+    .collect();
+}
+
+async function listActiveWorkspaceDevices(ctx, workspaceId) {
+  return await ctx.db
+    .query("devices")
+    .withIndex("by_workspace_status", (q) =>
+      q.eq("workspaceId", workspaceId).eq("status", "active"),
+    )
+    .collect();
+}
+
+async function getWorkspaceSubscriptionSummary(ctx, workspace) {
+  const workspaceView = toWorkspaceView(workspace);
+  const plan = workspaceView.plan;
+  const { limits, features } = resolveWorkspaceEntitlements(plan);
+  const [activeMemberships, activeDevices] = await Promise.all([
+    listActiveWorkspaceMemberships(ctx, workspaceView._id),
+    listActiveWorkspaceDevices(ctx, workspaceView._id),
+  ]);
+
+  return {
+    plan,
+    limits,
+    features,
+    usage: {
+      activeMembers: activeMemberships.length,
+      activeDevices: activeDevices.length,
+    },
   };
 }
 
@@ -226,7 +305,38 @@ export const myMembershipByWorkspace = query({
       membershipId: membership._id,
       role: membership.role,
       isActive: membership.isActive,
-      workspace,
+      workspace: toWorkspaceView(workspace),
+    };
+  },
+});
+
+export const currentWorkspaceSummary = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.object({
+    workspaceId: v.id("workspaces"),
+    subscription: workspaceSubscriptionSummaryValidator,
+  }),
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, [
+      "superadmin",
+      "admin",
+      "karyawan",
+      "device-qr",
+    ]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    return {
+      workspaceId: workspace._id,
+      subscription: await getWorkspaceSubscriptionSummary(ctx, workspace),
     };
   },
 });
@@ -249,10 +359,12 @@ export const workspaceManagementDetail = query({
 
     const activeInviteCode = await getActiveInviteCodeByWorkspace(ctx, args.workspaceId);
     const memberships = await listWorkspaceMembershipsByWorkspace(ctx, args.workspaceId);
+    const workspaceView = toWorkspaceView(workspace);
     return {
-      workspace,
+      workspace: workspaceView,
       activeInviteCode,
       memberSummary: summarizeWorkspaceMembers(memberships, user._id),
+      subscription: await getWorkspaceSubscriptionSummary(ctx, workspaceView),
     };
   },
 });
@@ -283,6 +395,7 @@ export const createWorkspace = mutation({
     const workspaceId = await ctx.db.insert("workspaces", {
       slug,
       name,
+      plan: "free",
       isActive: true,
       createdAt: now,
       updatedAt: now,
