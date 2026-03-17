@@ -17,8 +17,41 @@ function createLinkComponent() {
 }
 
 describe('dashboard mobile navigation', () => {
+  let workspaceHubState: {
+    memberships: Array<{
+      workspace: {
+        _id: string;
+        name: string;
+        slug: string;
+      };
+      role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
+    }>;
+    activeWorkspaceId: string | null;
+    activeWorkspaceName: string;
+    loading: boolean;
+    pendingAction: 'none' | 'switch' | 'create' | 'join';
+    notice: null;
+  };
+
   beforeEach(() => {
     vi.resetModules();
+    workspaceHubState = {
+      memberships: [
+        {
+          workspace: {
+            _id: 'workspace_123456',
+            name: 'Lumbung Tour Haramain',
+            slug: 'lumbung-tour-haramain',
+          },
+          role: 'admin',
+        },
+      ],
+      activeWorkspaceId: 'workspace_123456',
+      activeWorkspaceName: 'Lumbung Tour Haramain',
+      loading: false,
+      pendingAction: 'none',
+      notice: null,
+    };
 
     vi.doMock('next/link', () => ({
       default: createLinkComponent(),
@@ -126,16 +159,35 @@ describe('dashboard mobile navigation', () => {
     }));
     vi.doMock('@/components/ui/menu', () => ({
       Menu: ({ children }: { children: React.ReactNode }) => children,
+      MenuItem: ({ children }: { children: React.ReactNode }) => children,
       MenuPopup: ({ children }: { children: React.ReactNode }) => children,
       MenuRadioGroup: ({ children }: { children: React.ReactNode }) => children,
       MenuRadioItem: ({ children }: { children: React.ReactNode }) => children,
-      MenuTrigger: ({ children }: { children: React.ReactNode }) => children,
+      MenuSeparator: () => React.createElement('hr'),
+      MenuTrigger: ({
+        children,
+        ...props
+      }: {
+        children: React.ReactNode;
+        [key: string]: unknown;
+      }) => React.createElement('button', props, children),
     }));
     vi.doMock('@/components/providers/sidebar-provider', () => ({
       useSidebar: () => ({
         isCollapsed: false,
         toggleSidebar: vi.fn(),
       }),
+    }));
+    vi.doMock('@/components/dashboard/workspace-hub-provider', () => ({
+      useWorkspaceHub: () => ({
+        ...workspaceHubState,
+        clearNotice: vi.fn(),
+        refreshMemberships: vi.fn(),
+        switchWorkspace: vi.fn(async () => true),
+        createWorkspace: vi.fn(async () => true),
+        joinWorkspace: vi.fn(async () => true),
+      }),
+      WorkspaceHubProvider: ({ children }: { children: React.ReactNode }) => children,
     }));
   });
 
@@ -223,5 +275,85 @@ describe('dashboard mobile navigation', () => {
 
     expect(html).toContain('hidden md:block');
     expect(html).toContain('data-testid="user-button"');
+  });
+
+  it('renders create and join workspace actions inside the desktop workspace menu', async () => {
+    vi.doMock('@/lib/workspace-client', () => ({
+      recoverWorkspaceScopeViolation: vi.fn(() => false),
+      setActiveWorkspaceIdInBrowser: vi.fn(),
+      workspaceFetch: vi.fn(async () => ({
+        ok: false,
+      })),
+    }));
+    vi.doMock('@/lib/client-error', () => ({
+      parseApiErrorResponse: vi.fn(async () => ({
+        code: 'ERR',
+        message: 'error',
+      })),
+    }));
+
+    const { DashboardHeader } = await import('../components/dashboard/header');
+    const html = renderToStaticMarkup(
+      <DashboardHeader role="admin" name="Faiz" email="faiz@example.com" />,
+    );
+
+    expect(html).toContain('Buat workspace baru');
+    expect(html).toContain('Gabung workspace');
+    expect(html).toContain('Lumbung Tour Haramain');
+    expect(html).toContain('hidden items-center gap-2 text-sm text-zinc-300 md:flex');
+  });
+
+  it('renders the workspace hub entry in the mobile More sheet', async () => {
+    const { DashboardMobileMoreSheet } = await import(
+      '../components/dashboard/mobile-bottom-nav'
+    );
+    const html = renderToStaticMarkup(
+      <DashboardMobileMoreSheet
+        role="admin"
+        name="Faiz"
+        email="faiz@example.com"
+        pathname="/dashboard"
+        activeQuery=""
+        open
+        onOpenChange={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('Workspace');
+    expect(html).toContain('Lumbung Tour Haramain');
+    expect(html).toContain('Buat workspace baru');
+    expect(html).toContain('Gabung workspace');
+  });
+
+  it('keeps the desktop workspace trigger available even with zero memberships', async () => {
+    workspaceHubState = {
+      ...workspaceHubState,
+      memberships: [],
+      activeWorkspaceId: null,
+      activeWorkspaceName: 'Tidak ada workspace',
+    };
+
+    vi.doMock('@/lib/workspace-client', () => ({
+      recoverWorkspaceScopeViolation: vi.fn(() => false),
+      workspaceFetch: vi.fn(async () => ({
+        ok: false,
+      })),
+    }));
+    vi.doMock('@/lib/client-error', () => ({
+      parseApiErrorResponse: vi.fn(async () => ({
+        code: 'ERR',
+        message: 'error',
+      })),
+    }));
+
+    const { DashboardHeader } = await import('../components/dashboard/header');
+    const html = renderToStaticMarkup(
+      <DashboardHeader role="admin" name="Faiz" email="faiz@example.com" />,
+    );
+
+    expect(html).toContain('Tidak ada workspace');
+    expect(html).toContain('Buat workspace baru');
+    expect(html).toContain('Gabung workspace');
+    expect(html).not.toContain('disabled=""');
   });
 });

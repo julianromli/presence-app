@@ -7,8 +7,8 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { startTransition, useState } from 'react';
 
 import {
   getDashboardNavLabel,
@@ -28,6 +28,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { useWorkspaceHub } from '@/components/dashboard/workspace-hub-provider';
+import { WorkspaceHubDialog } from '@/components/dashboard/workspace-hub-dialog';
 
 type MobileBottomNavProps = {
   role: string;
@@ -54,121 +56,236 @@ export function DashboardMobileMoreSheet({
   open,
   onOpenChange,
 }: DashboardMobileMoreSheetProps) {
+  const router = useRouter();
   const navigation = getDashboardNavigation(role);
   const manageAccountAction = navigation.mobileAccountActions.find(
     (item) => item.key === 'manage-account',
   );
+  const {
+    memberships,
+    activeWorkspaceId,
+    activeWorkspaceName,
+    loading,
+    pendingAction,
+    switchWorkspace,
+    createWorkspace,
+    joinWorkspace,
+  } = useWorkspaceHub();
+  const [workspaceDialogMode, setWorkspaceDialogMode] = useState<'create' | 'join' | null>(null);
+
+  const handleWorkspaceDialogSubmit = async (value: string) => {
+    const succeeded =
+      workspaceDialogMode === 'join'
+        ? await joinWorkspace(value)
+        : await createWorkspace(value);
+
+    if (succeeded) {
+      onOpenChange(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    }
+
+    return succeeded;
+  };
+
+  const handleWorkspaceSwitch = async (workspaceId: string) => {
+    const succeeded = await switchWorkspace(workspaceId);
+    if (succeeded) {
+      onOpenChange(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    }
+  };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetPopup
-        side="bottom"
-        showCloseButton={false}
-        className="mx-auto max-h-[min(82vh,680px)] max-w-md overflow-hidden rounded-t-[30px] border-border bg-background md:hidden"
-      >
-        <SheetHeader className="border-b border-border/50 pb-4 text-left">
-          <div className="mx-auto mb-1 h-1.5 w-12 rounded-full bg-muted-foreground/25" />
-          <SheetTitle className="text-xl font-bold">More</SheetTitle>
-          <SheetDescription>
-            Shortcut tambahan dashboard dan akses akun dalam satu panel.
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <WorkspaceHubDialog
+        mode={workspaceDialogMode}
+        open={workspaceDialogMode !== null}
+        pendingAction={pendingAction}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setWorkspaceDialogMode(null);
+          }
+        }}
+        onSubmit={handleWorkspaceDialogSubmit}
+      />
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetPopup
+          side="bottom"
+          showCloseButton={false}
+          className="mx-auto max-h-[min(82vh,680px)] max-w-md overflow-hidden rounded-t-[30px] border-border bg-background md:hidden"
+        >
+          <SheetHeader className="border-b border-border/50 pb-4 text-left">
+            <div className="mx-auto mb-1 h-1.5 w-12 rounded-full bg-muted-foreground/25" />
+            <SheetTitle className="text-xl font-bold">More</SheetTitle>
+            <SheetDescription>
+              Shortcut tambahan dashboard dan akses akun dalam satu panel.
+            </SheetDescription>
+          </SheetHeader>
 
-        <SheetPanel className="space-y-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-          {navigation.mobileSecondary.length > 0 ? (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Navigasi
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {navigation.mobileSecondary.length} item
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {navigation.mobileSecondary.map((item) => {
-                  const active = isDashboardRouteActive(pathname, item.href);
-                  const Icon = item.icon;
+          <SheetPanel className="space-y-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            {navigation.mobileSecondary.length > 0 ? (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Navigasi
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {navigation.mobileSecondary.length} item
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {navigation.mobileSecondary.map((item) => {
+                    const active = isDashboardRouteActive(pathname, item.href);
+                    const Icon = item.icon;
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={resolveDashboardNavHref(item.href, activeQuery)}
-                      onClick={() => onOpenChange(false)}
-                      className={cn(
-                        'rounded-[22px] border px-4 py-4 transition-colors',
-                        active
-                          ? 'border-primary/20 bg-primary/8 text-primary'
-                          : 'border-border/60 bg-card text-foreground hover:bg-secondary/50',
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <Icon
-                            weight={active ? 'fill' : 'regular'}
+                    return (
+                      <Link
+                        key={item.href}
+                        href={resolveDashboardNavHref(item.href, activeQuery)}
+                        onClick={() => onOpenChange(false)}
+                        className={cn(
+                          'rounded-[22px] border px-4 py-4 transition-colors',
+                          active
+                            ? 'border-primary/20 bg-primary/8 text-primary'
+                            : 'border-border/60 bg-card text-foreground hover:bg-secondary/50',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <Icon
+                              weight={active ? 'fill' : 'regular'}
+                              className={cn(
+                                'h-5 w-5',
+                                active ? 'text-primary' : 'text-muted-foreground',
+                              )}
+                            />
+                            <p className="mt-3 text-sm font-semibold">
+                              {getDashboardNavLabel(item, 'mobile')}
+                            </p>
+                          </div>
+                          <CaretRight
+                            weight="bold"
                             className={cn(
-                              'h-5 w-5',
+                              'mt-0.5 h-4 w-4',
                               active ? 'text-primary' : 'text-muted-foreground',
                             )}
                           />
-                          <p className="mt-3 text-sm font-semibold">
-                            {getDashboardNavLabel(item, 'mobile')}
-                          </p>
                         </div>
-                        <CaretRight
-                          weight="bold"
-                          className={cn(
-                            'mt-0.5 h-4 w-4',
-                            active ? 'text-primary' : 'text-muted-foreground',
-                          )}
-                        />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
 
-          {navigation.mobileAccountSection ? (
             <section className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {navigation.mobileAccountSection.label}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Workspace
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {loading ? 'Memuat...' : `${memberships.length} workspace`}
+                </p>
+              </div>
 
               <div className="rounded-[24px] border border-border/60 bg-card p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{name}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{email}</p>
-                    <p className="mt-3 inline-flex rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-foreground">
-                      {role}
-                    </p>
-                    {manageAccountAction ? (
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        {manageAccountAction.label} lewat kontrol Clerk di panel ini.
-                      </p>
-                    ) : null}
-                  </div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Workspace aktif
+                </p>
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  {activeWorkspaceName}
+                </p>
 
-                  <div className="shrink-0">
-                    <UserButton
-                      afterSignOutUrl="/"
-                      appearance={{
-                        elements: {
-                          userButtonAvatarBox:
-                            'h-11 w-11 rounded-full ring-1 ring-border shadow-sm',
-                        },
-                      }}
-                    />
-                  </div>
+                <div className="mt-4 space-y-2">
+                  {memberships.map((item) => {
+                    const isActive = item.workspace._id === activeWorkspaceId;
+                    return (
+                      <button
+                        key={item.workspace._id}
+                        type="button"
+                        disabled={pendingAction !== 'none'}
+                        onClick={() => void handleWorkspaceSwitch(item.workspace._id)}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left transition-colors',
+                          isActive
+                            ? 'border-primary/20 bg-primary/8 text-primary'
+                            : 'border-border/60 bg-background text-foreground hover:bg-secondary/40',
+                        )}
+                      >
+                        <span className="truncate text-sm font-medium">
+                          {item.workspace.name}
+                        </span>
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                          {isActive ? 'Aktif' : item.role}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceDialogMode('create')}
+                    className="rounded-2xl border border-border/60 bg-background px-3 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/40"
+                  >
+                    Buat workspace baru
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceDialogMode('join')}
+                    className="rounded-2xl border border-border/60 bg-background px-3 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/40"
+                  >
+                    Gabung workspace
+                  </button>
                 </div>
               </div>
             </section>
-          ) : null}
-        </SheetPanel>
-      </SheetPopup>
-    </Sheet>
+
+            {navigation.mobileAccountSection ? (
+              <section className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  {navigation.mobileAccountSection.label}
+                </p>
+
+                <div className="rounded-[24px] border border-border/60 bg-card p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{name}</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{email}</p>
+                      <p className="mt-3 inline-flex rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-foreground">
+                        {role}
+                      </p>
+                      {manageAccountAction ? (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          {manageAccountAction.label} lewat kontrol Clerk di panel ini.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="shrink-0">
+                      <UserButton
+                        afterSignOutUrl="/"
+                        appearance={{
+                          elements: {
+                            userButtonAvatarBox:
+                              'h-11 w-11 rounded-full ring-1 ring-border shadow-sm',
+                          },
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+          </SheetPanel>
+        </SheetPopup>
+      </Sheet>
+    </>
   );
 }
 

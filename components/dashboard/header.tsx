@@ -12,16 +12,32 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator,
+  MenuTrigger,
+} from '@/components/ui/menu';
 import { useSidebar } from '@/components/providers/sidebar-provider';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import {
   recoverWorkspaceScopeViolation,
-  setActiveWorkspaceIdInBrowser,
   workspaceFetch,
 } from '@/lib/workspace-client';
+import { WorkspaceHubDialog } from '@/components/dashboard/workspace-hub-dialog';
+import { useWorkspaceHub } from '@/components/dashboard/workspace-hub-provider';
 
 type DashboardHeaderProps = {
   role?: string;
@@ -32,20 +48,6 @@ type DashboardHeaderProps = {
 type WeeklyReportRow = {
   _id: string;
   status: 'pending' | 'success' | 'failed';
-};
-
-type WorkspaceMembership = {
-  workspace: {
-    _id: string;
-    name: string;
-    slug: string;
-  };
-  role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
-};
-
-type WorkspaceMembershipsResponse = {
-  memberships: WorkspaceMembership[];
-  activeWorkspaceId: string | null;
 };
 
 type SearchCapability = {
@@ -108,22 +110,33 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
   const pathname = usePathname();
   const { user } = useUser();
   const { toggleSidebar, isCollapsed } = useSidebar();
+  const {
+    memberships,
+    activeWorkspaceId,
+    activeWorkspaceName,
+    loading: workspaceLoading,
+    notice: workspaceNotice,
+    clearNotice: clearWorkspaceNotice,
+    pendingAction,
+    switchWorkspace,
+    createWorkspace,
+    joinWorkspace,
+  } = useWorkspaceHub();
   const actualName = user?.fullName || name;
   const actualEmail = user?.primaryEmailAddress?.emailAddress || email;
 
   const [busy, setBusy] = useState<'none' | 'refresh' | 'report' | 'export'>('none');
   const [notice, setNotice] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [workspaceLoading, setWorkspaceLoading] = useState(true);
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(false);
-  const [memberships, setMemberships] = useState<WorkspaceMembership[]>([]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [workspaceDialogMode, setWorkspaceDialogMode] = useState<'create' | 'join' | null>(null);
 
   const initialSearchValue = useMemo(() => searchParams?.get('q') ?? '', [searchParams]);
   const [searchValue, setSearchValue] = useState(initialSearchValue);
   const searchCapability = useMemo(() => resolveSearchCapability(pathname), [pathname]);
   const canManageReports = role === 'admin' || role === 'superadmin';
+  const workspaceSwitching = pendingAction === 'switch';
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const desktopSearchRef = useRef<HTMLInputElement | null>(null);
@@ -138,25 +151,6 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => { document.removeEventListener('mousedown', handleOutsideClick); };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadMemberships = async () => {
-      setWorkspaceLoading(true);
-      try {
-        const res = await workspaceFetch('/api/workspaces/memberships', { cache: 'no-store' });
-        if (!res.ok) return;
-        const payload = (await res.json()) as WorkspaceMembershipsResponse;
-        if (cancelled) return;
-        setMemberships(payload.memberships);
-        setActiveWorkspaceId(payload.activeWorkspaceId);
-      } finally {
-        if (!cancelled) setWorkspaceLoading(false);
-      }
-    };
-    void loadMemberships();
-    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -212,30 +206,29 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
   };
 
   const handleWorkspaceChange = async (nextWorkspaceId: string) => {
-    if (!nextWorkspaceId || nextWorkspaceId === activeWorkspaceId) return;
-    setWorkspaceSwitching(true);
-    setNotice(null);
-    try {
-      const res = await workspaceFetch('/api/workspaces/active', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ workspaceId: nextWorkspaceId }),
+    const succeeded = await switchWorkspace(nextWorkspaceId);
+    if (succeeded) {
+      setWorkspaceMenuOpen(false);
+      startTransition(() => {
+        router.refresh();
       });
-      if (!res.ok) {
-        const error = await parseApiErrorResponse(res, 'Gagal mengganti workspace aktif.');
-        if (recoverWorkspaceScopeViolation(error.code)) return;
-        setNotice({ tone: 'error', text: `[${error.code}] ${error.message}` });
-        return;
-      }
-      setActiveWorkspaceId(nextWorkspaceId);
-      setActiveWorkspaceIdInBrowser(nextWorkspaceId);
-      window.dispatchEvent(new CustomEvent('workspace:changed', { detail: { workspaceId: nextWorkspaceId } }));
-      dispatchRefresh();
-      router.refresh();
-      setNotice({ tone: 'success', text: 'Workspace aktif berhasil diganti.' });
-    } finally {
-      setWorkspaceSwitching(false);
     }
+  };
+
+  const handleWorkspaceDialogSubmit = async (value: string) => {
+    const succeeded =
+      workspaceDialogMode === 'join'
+        ? await joinWorkspace(value)
+        : await createWorkspace(value);
+
+    if (succeeded) {
+      setWorkspaceMenuOpen(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    }
+
+    return succeeded;
   };
 
   const runGenerateWeeklyReport = async () => {
@@ -295,11 +288,22 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
     router.push(query.length > 0 ? `${pathname}?${query}` : pathname);
   };
 
-  const activeWorkspaceInfo = memberships.find((m) => m.workspace._id === activeWorkspaceId);
-  const workspaceDisplayText = activeWorkspaceInfo ? activeWorkspaceInfo.workspace.name : (workspaceLoading ? 'Memuat...' : 'Tidak ada workspace');
+  const workspaceDisplayText = activeWorkspaceName;
+  const visibleNotice = workspaceNotice ?? notice;
 
   return (
     <>
+      <WorkspaceHubDialog
+        mode={workspaceDialogMode}
+        open={workspaceDialogMode !== null}
+        pendingAction={pendingAction}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWorkspaceDialogMode(null);
+          }
+        }}
+        onSubmit={handleWorkspaceDialogSubmit}
+      />
       <header className="relative z-40 shrink-0 border-b border-zinc-800 bg-[#141414] px-3 py-2 text-zinc-100 md:px-4">
         <div className="flex min-w-0 items-center justify-between gap-2">
           {/* Brand */}
@@ -324,7 +328,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
               <SidebarSimple weight="regular" className="h-5 w-5" />
             </button>
 
-            <div className="hidden items-center gap-2 text-sm text-zinc-300 lg:flex">
+            <div className="hidden items-center gap-2 text-sm text-zinc-300 md:flex">
               <div className="flex items-center gap-2 rounded px-2 py-1.5 transition hover:bg-zinc-800" title={actualEmail}>
                 <div className="grid h-5 w-5 place-items-center rounded-full bg-zinc-700 text-[10px] font-medium text-white ring-1 ring-zinc-700">
                   {actualName[0]?.toUpperCase()}
@@ -334,10 +338,10 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
 
               <span className="text-zinc-600">/</span>
 
-              <Menu>
+              <Menu open={workspaceMenuOpen} onOpenChange={setWorkspaceMenuOpen}>
                 <MenuTrigger
                   className="group flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={workspaceLoading || workspaceSwitching || memberships.length === 0}
+                  disabled={workspaceLoading || workspaceSwitching}
                 >
                   <div className="grid h-5 w-5 place-items-center rounded-sm bg-emerald-600/80 text-[10px] font-bold text-white shadow-sm ring-1 ring-emerald-500/50">
                     {workspaceDisplayText[0]?.toUpperCase() || 'W'}
@@ -349,6 +353,9 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
                   align="start"
                   className="min-w-[240px] border-zinc-700 bg-zinc-900 text-zinc-100"
                 >
+                  <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    Workspace
+                  </div>
                   <MenuRadioGroup
                     value={activeWorkspaceId ?? ''}
                     onValueChange={(value) => void handleWorkspaceChange(value)}
@@ -363,6 +370,19 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
                       </MenuRadioItem>
                     ))}
                   </MenuRadioGroup>
+                  <MenuSeparator className="my-1 h-px bg-zinc-800" />
+                  <MenuItem
+                    className="text-zinc-100 data-highlighted:bg-zinc-800 data-highlighted:text-zinc-100"
+                    onClick={() => setWorkspaceDialogMode('create')}
+                  >
+                    Buat workspace baru
+                  </MenuItem>
+                  <MenuItem
+                    className="text-zinc-100 data-highlighted:bg-zinc-800 data-highlighted:text-zinc-100"
+                    onClick={() => setWorkspaceDialogMode('join')}
+                  >
+                    Gabung workspace
+                  </MenuItem>
                 </MenuPopup>
               </Menu>
             </div>
@@ -484,16 +504,25 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
         ) : null}
       </header>
 
-      {notice && (
+      {visibleNotice && (
         <div className="absolute top-14 left-0 right-0 z-30 flex justify-center pt-2 pointer-events-none">
-          <div className={`pointer-events-auto flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium shadow-lg backdrop-blur-md transition-all animate-in slide-in-from-top-2 border ${notice.tone === 'error'
+          <div className={`pointer-events-auto flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium shadow-lg backdrop-blur-md transition-all animate-in slide-in-from-top-2 border ${visibleNotice.tone === 'error'
             ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
-            : notice.tone === 'success'
+            : visibleNotice.tone === 'success'
               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
               : 'border-sky-500/30 bg-sky-500/10 text-sky-200'
             }`}>
-            <span>{notice.text}</span>
-            <button onClick={() => setNotice(null)} className="ml-2 opacity-70 hover:opacity-100">
+            <span>{visibleNotice.text}</span>
+            <button
+              onClick={() => {
+                if (workspaceNotice) {
+                  clearWorkspaceNotice();
+                  return;
+                }
+                setNotice(null);
+              }}
+              className="ml-2 opacity-70 hover:opacity-100"
+            >
               &times;
             </button>
           </div>
