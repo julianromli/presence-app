@@ -517,4 +517,28 @@ describe("security auth and rbac routes", () => {
     });
     expect(mutation).not.toHaveBeenCalled();
   });
+
+  it("rejects invalid timezone values before calling settings mutation", async () => {
+    const mutation = vi.fn(async () => null);
+    const { PATCH } = await setupAdminSettingsRoute({
+      convexClient: { mutation, query: vi.fn() },
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          timezone: "Invalid/Timezone",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "BAD_REQUEST",
+      message: "Timezone tidak valid.",
+    });
+    expect(mutation).not.toHaveBeenCalled();
+  });
 });

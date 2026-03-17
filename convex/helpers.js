@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values';
+import { DEFAULT_TIMEZONE, isValidTimeZone, normalizeTimeZone } from '../lib/timezones';
 
 export const ATTENDANCE_SCHEDULE_DAYS = [
   'monday',
@@ -71,7 +72,7 @@ export async function requireWorkspaceRole(ctx, workspaceId, allowedRoles) {
 
 export function buildDateKey(ts, timezone) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
+    timeZone: normalizeTimeZone(timezone),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -201,7 +202,7 @@ function buildDefaultGlobalSettings(now = Date.now(), workspaceId) {
   return {
     key: 'global',
     workspaceId,
-    timezone: 'Asia/Jakarta',
+    timezone: DEFAULT_TIMEZONE,
     geofenceEnabled: false,
     geofenceRadiusMeters: 100,
     scanCooldownSeconds: 30,
@@ -294,6 +295,13 @@ export function hasValidGeofenceConfiguration(settings) {
 }
 
 export function assertValidGeofenceSettings(settings) {
+  if (!isValidTimeZone(settings.timezone)) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Timezone tidak valid.',
+    });
+  }
+
   if (!isValidGeofenceRadius(settings.geofenceRadiusMeters)) {
     throw new ConvexError({
       code: 'VALIDATION_ERROR',

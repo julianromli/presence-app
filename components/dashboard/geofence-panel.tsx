@@ -1,10 +1,14 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { parseApiErrorResponse } from '@/lib/client-error';
+import { getTimeZoneOptions, normalizeTimeZone } from '@/lib/timezones';
 import {
   getGeofencePremiumBannerCopy,
   useWorkspaceSubscriptionClient,
@@ -84,6 +88,51 @@ function noticeClass(tone: NoticeTone) {
   }
 }
 
+type GeofenceTimezoneFieldProps = {
+  disabled: boolean;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+export function GeofenceTimezoneField({
+  disabled,
+  value,
+  onChange,
+}: GeofenceTimezoneFieldProps) {
+  const timezoneOptions = getTimeZoneOptions(value);
+
+  return (
+    <label className="space-y-1 sm:col-span-2">
+      <span className="text-sm font-medium text-zinc-700">Timezone</span>
+      <Menu>
+        <MenuTrigger
+          disabled={disabled}
+          render={
+            <Button
+              variant="outline"
+              className="h-10 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+            />
+          }
+        >
+          <span className="truncate">{value}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
+        </MenuTrigger>
+        <MenuPopup align="start" className="w-[var(--anchor-width)] p-0">
+          <div className="max-h-72 overflow-y-auto p-1">
+            <MenuRadioGroup value={value} onValueChange={onChange}>
+              {timezoneOptions.map((timezone) => (
+                <MenuRadioItem key={timezone} value={timezone}>
+                  {timezone}
+                </MenuRadioItem>
+              ))}
+            </MenuRadioGroup>
+          </div>
+        </MenuPopup>
+      </Menu>
+    </label>
+  );
+}
+
 export function GeofencePanel() {
   const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
   const [data, setData] = useState<SettingsPayload>({
@@ -117,6 +166,7 @@ export function GeofencePanel() {
       const payload = (await res.json()) as SettingsPayload;
       setData({
         ...payload,
+        timezone: normalizeTimeZone(payload.timezone),
         minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
       });
       setIpText((payload.whitelistIps ?? []).join(', '));
@@ -143,6 +193,7 @@ export function GeofencePanel() {
       const payload = (await res.json()) as SettingsPayload;
       setData({
         ...payload,
+        timezone: normalizeTimeZone(payload.timezone),
         minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
       });
       setIpText((payload.whitelistIps ?? []).join(', '));
@@ -262,14 +313,11 @@ export function GeofencePanel() {
         <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">Lokasi geofence</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">Timezone</span>
-              <Input
-                value={data.timezone}
-                disabled={loading}
-                onChange={(event) => setData((prev) => ({ ...prev, timezone: event.target.value }))}
-              />
-            </label>
+            <GeofenceTimezoneField
+              value={data.timezone}
+              disabled={loading}
+              onChange={(timezone) => setData((prev) => ({ ...prev, timezone }))}
+            />
             <label className="space-y-1">
               <span className="text-sm font-medium text-zinc-700">Latitude</span>
               <Input
