@@ -171,6 +171,74 @@ function makeJoinWorkspaceCtx(options: JoinWorkspaceOptions = {}) {
   };
 }
 
+type UpdateActiveInviteExpiryOptions = {
+  inviteCodes?: Array<{
+    _id: string;
+    workspaceId: string;
+    code: string;
+    isActive: boolean;
+    expiresAt?: number;
+    updatedAt: number;
+  }>;
+  workspace?: {
+    _id: string;
+    name: string;
+    slug?: string;
+    plan?: "free" | "pro" | "enterprise";
+    isActive: boolean;
+  };
+};
+
+function makeUpdateActiveInviteExpiryCtx(options: UpdateActiveInviteExpiryOptions = {}) {
+  const workspace =
+    options.workspace ?? {
+      _id: "workspace_free",
+      name: "Presence HQ",
+      slug: "presence-hq",
+      plan: "free" as const,
+      isActive: true,
+    };
+  const inviteCodes =
+    options.inviteCodes ?? [
+      {
+        _id: "invite_active",
+        workspaceId: workspace._id,
+        code: "TEAM-123-PRESENCE",
+        isActive: true,
+        updatedAt: 2000,
+      },
+    ];
+
+  const get = vi.fn(async (id: string) => (id === workspace._id ? workspace : null));
+  const patch = vi.fn(async () => undefined);
+  const collectInviteCodes = vi.fn(async () => inviteCodes);
+  const query = vi.fn((table: string) => ({
+    withIndex: vi.fn((indexName: string) => {
+      if (table === "workspace_invite_codes" && indexName === "by_workspace") {
+        return { collect: collectInviteCodes };
+      }
+
+      throw new Error(`Unexpected query: ${table}.${indexName}`);
+    }),
+  }));
+
+  return {
+    ctx: {
+      db: {
+        get,
+        patch,
+        query,
+      },
+    },
+    mocks: {
+      collectInviteCodes,
+      get,
+      patch,
+      query,
+    },
+  };
+}
+
 type UpdateAdminManagedFieldsOptions = {
   actorRole?: "superadmin" | "admin";
   targetMembership?: {
@@ -507,5 +575,132 @@ describe("workspace subscription member limits", () => {
 
     expect(mocks.patch).not.toHaveBeenCalled();
     expect(mocks.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("workspace invite expiry entitlements", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    requireWorkspaceRole.mockResolvedValue({
+      user: { _id: "user_actor" },
+      membership: {
+        _id: "membership_actor",
+        workspaceId: "workspace_free",
+        userId: "user_actor",
+        role: "superadmin",
+        isActive: true,
+      },
+    });
+  });
+
+  it("prevents free workspaces from setting an invite expiry", async () => {
+    const { updateActiveInviteExpiry } = await import("../convex/workspaces.js");
+    const { ctx, mocks } = makeUpdateActiveInviteExpiryCtx({
+      workspace: {
+        _id: "workspace_free",
+        name: "Presence HQ",
+        slug: "presence-hq",
+        plan: "free",
+        isActive: true,
+      },
+    });
+
+    await expect(
+      updateActiveInviteExpiry._handler(ctx as never, {
+        workspaceId: "workspace_free" as never,
+        expiryPreset: "30d",
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: "FEATURE_NOT_AVAILABLE",
+        message: "Invite expiry hanya tersedia untuk paket Pro atau Enterprise.",
+      },
+    });
+
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
+
+  it("allows pro workspaces to set a new expiry timestamp on the active invite code", async () => {
+    const { updateActiveInviteExpiry } = await import("../convex/workspaces.js");
+    vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+    const { ctx, mocks } = makeUpdateActiveInviteExpiryCtx({
+      workspace: {
+        _id: "workspace_pro",
+        name: "Presence Pro",
+        slug: "presence-pro",
+        plan: "pro",
+        isActive: true,
+      },
+      inviteCodes: [
+        {
+          _id: "invite_active",
+          workspaceId: "workspace_pro",
+          code: "PRO-123-PRESENCE",
+          isActive: true,
+          updatedAt: 2000,
+        },
+      ],
+    });
+
+    const result = await updateActiveInviteExpiry._handler(ctx as never, {
+      workspaceId: "workspace_pro" as never,
+      expiryPreset: "30d",
+    });
+
+    expect(result).toEqual({
+      inviteCodeId: "invite_active",
+      expiresAt: 1_902_592_000_000,
+      updatedAt: 1_900_000_000_000,
+    });
+    expect(mocks.patch).toHaveBeenCalledWith(
+      "invite_active",
+      {
+        expiresAt: 1_902_592_000_000,
+        updatedAt: 1_900_000_000_000,
+      },
+    );
+  });
+
+  it("allows superadmin to clear invite expiry back to undefined", async () => {
+    const { updateActiveInviteExpiry } = await import("../convex/workspaces.js");
+    vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+    const { ctx, mocks } = makeUpdateActiveInviteExpiryCtx({
+      workspace: {
+        _id: "workspace_pro",
+        name: "Presence Pro",
+        slug: "presence-pro",
+        plan: "pro",
+        isActive: true,
+      },
+      inviteCodes: [
+        {
+          _id: "invite_active",
+          workspaceId: "workspace_pro",
+          code: "PRO-123-PRESENCE",
+          isActive: true,
+          expiresAt: 1900000000000,
+          updatedAt: 2000,
+        },
+      ],
+    });
+
+    const result = await updateActiveInviteExpiry._handler(ctx as never, {
+      workspaceId: "workspace_pro" as never,
+      expiryPreset: "never",
+    });
+
+    expect(result).toEqual({
+      inviteCodeId: "invite_active",
+      expiresAt: undefined,
+      updatedAt: 1_900_000_000_000,
+    });
+    expect(mocks.patch).toHaveBeenCalledWith(
+      "invite_active",
+      {
+        expiresAt: undefined,
+        updatedAt: 1_900_000_000_000,
+      },
+    );
   });
 });

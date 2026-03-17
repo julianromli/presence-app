@@ -8,6 +8,7 @@ import {
 } from "./helpers";
 import {
   assertPlanLimitNotReached,
+  assertWorkspaceFeatureEnabled,
   compareWorkspacePlans,
   resolveWorkspacePlan,
   workspacePlanValidator,
@@ -25,6 +26,13 @@ const workspaceRoleValidator = v.union(
   v.literal("admin"),
   v.literal("karyawan"),
   v.literal("device-qr"),
+);
+
+const inviteExpiryPresetValidator = v.union(
+  v.literal("never"),
+  v.literal("1d"),
+  v.literal("7d"),
+  v.literal("30d"),
 );
 
 const workspaceValidator = v.object({
@@ -89,6 +97,19 @@ function slugifyWorkspaceName(name) {
 
 function normalizeInviteCode(input) {
   return input.trim().toUpperCase().replace(/\s+/g, "").replace(/-+/g, "-");
+}
+
+function resolveInviteExpiryFromPreset(preset, now = Date.now()) {
+  switch (preset) {
+    case "1d":
+      return now + 24 * 60 * 60 * 1000;
+    case "7d":
+      return now + 7 * 24 * 60 * 60 * 1000;
+    case "30d":
+      return now + 30 * 24 * 60 * 60 * 1000;
+    default:
+      return undefined;
+  }
 }
 
 function toWorkspaceView(workspace) {
@@ -168,14 +189,18 @@ async function listActiveMemberships(ctx, userId) {
 }
 
 async function getActiveInviteCodeByWorkspace(ctx, workspaceId) {
+  const active = await getActiveInviteCodeRecordByWorkspace(ctx, workspaceId);
+  return toInviteCodeView(active ?? null);
+}
+
+async function getActiveInviteCodeRecordByWorkspace(ctx, workspaceId) {
   const inviteCodes = await ctx.db
     .query("workspace_invite_codes")
     .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
     .collect();
-  const active = inviteCodes
+  return inviteCodes
     .filter((item) => item.isActive)
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
-  return toInviteCodeView(active ?? null);
 }
 
 async function listWorkspaceMembershipsByWorkspace(ctx, workspaceId) {
@@ -631,6 +656,56 @@ export const rotateWorkspaceInviteCode = mutation({
     return {
       code,
       rotatedAt: now,
+    };
+  },
+});
+
+export const updateActiveInviteExpiry = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    expiryPreset: inviteExpiryPresetValidator,
+  },
+  returns: v.object({
+    inviteCodeId: v.id("workspace_invite_codes"),
+    expiresAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    assertWorkspaceFeatureEnabled({
+      plan: workspace,
+      featureKey: "inviteExpiry",
+      message: "Invite expiry hanya tersedia untuk paket Pro atau Enterprise.",
+    });
+
+    const activeInviteCode = await getActiveInviteCodeRecordByWorkspace(ctx, workspace._id);
+    if (!activeInviteCode) {
+      throw new ConvexError({
+        code: "INVITE_CODE_NOT_FOUND",
+        message: "Invitation code aktif tidak ditemukan.",
+      });
+    }
+
+    const updatedAt = Date.now();
+    const expiresAt = resolveInviteExpiryFromPreset(args.expiryPreset, updatedAt);
+    await ctx.db.patch(activeInviteCode._id, {
+      expiresAt,
+      updatedAt,
+    });
+
+    return {
+      inviteCodeId: activeInviteCode._id,
+      expiresAt,
+      updatedAt,
     };
   },
 });

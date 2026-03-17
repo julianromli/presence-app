@@ -66,6 +66,18 @@ type InlineNotice = {
   text: string;
 };
 
+const INVITE_EXPIRY_DAY_MS = 24 * 60 * 60 * 1000;
+
+const INVITE_EXPIRY_OPTIONS = [
+  { value: 'never', label: 'Tidak kedaluwarsa' },
+  { value: '1d', label: '1 hari', durationMs: INVITE_EXPIRY_DAY_MS },
+  { value: '7d', label: '7 hari', durationMs: 7 * INVITE_EXPIRY_DAY_MS },
+  { value: '30d', label: '30 hari', durationMs: 30 * INVITE_EXPIRY_DAY_MS },
+] as const;
+
+type InviteExpiryOptionValue = (typeof INVITE_EXPIRY_OPTIONS)[number]['value'];
+type InviteExpirySelectValue = InviteExpiryOptionValue | '';
+
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
     case 'success':
@@ -79,15 +91,42 @@ function noticeClass(tone: NoticeTone) {
   }
 }
 
+function resolveInviteExpiryOption(expiresAt?: number): InviteExpirySelectValue {
+  if (expiresAt === undefined) {
+    return 'never';
+  }
+
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) {
+    return '';
+  }
+
+  const toleranceMs = 5 * 60 * 1000;
+
+  for (const option of INVITE_EXPIRY_OPTIONS) {
+    if (!('durationMs' in option)) {
+      continue;
+    }
+
+    if (Math.abs(remaining - option.durationMs) <= toleranceMs) {
+      return option.value;
+    }
+  }
+
+  return '';
+}
+
 export function WorkspacePanel() {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get('q') ?? '').trim();
   const [workspaceData, setWorkspaceData] = useState<WorkspaceManagementPayload | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [inviteVisible, setInviteVisible] = useState(false);
+  const [inviteExpiryValue, setInviteExpiryValue] = useState<InviteExpirySelectValue>('never');
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [busyAction, setBusyAction] = useState<WorkspacePanelBusyAction>('none');
+  const [savingInviteExpiry, setSavingInviteExpiry] = useState(false);
   const [copyingInviteCode, setCopyingInviteCode] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
@@ -288,6 +327,10 @@ export function WorkspacePanel() {
     return () => window.clearTimeout(timer);
   }, [appliedFilters, headerQuery, loadMembers]);
 
+  useEffect(() => {
+    setInviteExpiryValue(resolveInviteExpiryOption(workspaceData?.activeInviteCode?.expiresAt));
+  }, [workspaceData?.activeInviteCode?.expiresAt]);
+
   const runWorkspaceMutation = useCallback(
     async (action: Exclude<WorkspacePanelBusyAction, 'none'>, operation: () => Promise<void>) => {
       if (!canStartWorkspaceMutation(busyAction) || workspaceMutationLockRef.current) {
@@ -354,6 +397,60 @@ export function WorkspacePanel() {
       setInviteVisible(true);
       setNotice({ tone: 'success', text: 'Invitation code baru berhasil dibuat.' });
     });
+  };
+
+  const handleInviteExpiryChange = async (nextValue: InviteExpiryOptionValue) => {
+    if (
+      !workspaceData?.activeInviteCode ||
+      savingInviteExpiry ||
+      workspaceMutationLockRef.current ||
+      isWorkspaceMutationBusy(busyAction)
+    ) {
+      return;
+    }
+
+    const previousValue = inviteExpiryValue;
+    setInviteExpiryValue(nextValue);
+    setSavingInviteExpiry(true);
+    workspaceMutationLockRef.current = true;
+    setNotice(null);
+
+    try {
+      const res = await workspaceFetch('/api/admin/workspace', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'updateInviteExpiry', expiryPreset: nextValue }),
+      });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memperbarui masa berlaku invitation code.');
+        setInviteExpiryValue(previousValue);
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        return;
+      }
+
+      await loadWorkspaceData();
+      setNotice({
+        tone: 'success',
+        text:
+          nextValue === 'never'
+            ? 'Invitation code tidak lagi memiliki masa berlaku.'
+            : 'Masa berlaku invitation code berhasil diperbarui.',
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Terjadi kesalahan tidak terduga saat memperbarui masa berlaku invitation code.';
+      console.error('invite expiry update failed', error);
+      setInviteExpiryValue(previousValue);
+      setNotice({ tone: 'error', text: `[UNEXPECTED_ERROR] ${message}` });
+    } finally {
+      workspaceMutationLockRef.current = false;
+      setSavingInviteExpiry(false);
+    }
   };
 
   const requestDeleteWorkspace = () => {
@@ -502,10 +599,17 @@ export function WorkspacePanel() {
   const activeMembersExcludingCurrentUser = workspaceData?.memberSummary.activeCountExcludingCurrentUser ?? 0;
   const deleteBlocked = activeMembersExcludingCurrentUser > 0;
   const actionLoadingState = resolveWorkspaceButtonLoadingState({ busyAction, savingSchedule });
-  const workspaceMutationBusy = isWorkspaceMutationBusy(busyAction);
+  const workspaceMutationBusy = isWorkspaceMutationBusy(busyAction) || savingInviteExpiry;
   const deleteConfirmation = workspaceData
     ? buildWorkspaceDeleteConfirmation(workspaceData.workspace.name)
     : null;
+  const inviteExpiryEnabled = workspaceData?.subscription.features.inviteExpiry === true;
+  const inviteExpiryHasCustomValue =
+    workspaceData?.activeInviteCode?.expiresAt !== undefined && inviteExpiryValue === '';
+  const inviteExpiryLabel =
+    workspaceData?.activeInviteCode?.expiresAt !== undefined
+      ? new Date(workspaceData.activeInviteCode.expiresAt).toLocaleString('id-ID')
+      : 'Tidak kedaluwarsa';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -559,8 +663,9 @@ export function WorkspacePanel() {
                 ? new Date(workspaceData.activeInviteCode.lastRotatedAt).toLocaleString('id-ID')
                 : '-'}
             </p>
+            <p className="mt-1 text-xs text-zinc-500">Kedaluwarsa: {inviteExpiryLabel}</p>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -584,6 +689,37 @@ export function WorkspacePanel() {
               ) : null}
               Rotate
             </Button>
+            <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700">
+              <span className="whitespace-nowrap">Kedaluwarsa</span>
+              <select
+                className="min-w-[148px] bg-transparent text-xs text-zinc-900 outline-none disabled:cursor-not-allowed disabled:text-zinc-400"
+                value={inviteExpiryValue}
+                disabled={!inviteExpiryEnabled || !workspaceData?.activeInviteCode || workspaceMutationBusy}
+                onChange={(event) =>
+                  void handleInviteExpiryChange(event.target.value as InviteExpiryOptionValue)
+                }
+              >
+                {inviteExpiryHasCustomValue ? (
+                  <option value="" disabled>
+                    Nilai tersimpan saat ini
+                  </option>
+                ) : null}
+                {INVITE_EXPIRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!inviteExpiryEnabled ? (
+              <p className="text-xs font-medium text-amber-700">
+                Pro: upgrade untuk mengatur masa berlaku kode.
+              </p>
+            ) : inviteExpiryHasCustomValue ? (
+              <p className="text-xs text-zinc-500">
+                Masa berlaku saat ini berasal dari nilai lama dan tidak akan berubah sampai Anda memilih preset baru.
+              </p>
+            ) : null}
           </div>
         </article>
 

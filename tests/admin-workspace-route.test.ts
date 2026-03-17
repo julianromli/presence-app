@@ -238,4 +238,24 @@ describe("admin workspace route", () => {
       workspaceId: "workspace_123456",
     });
   });
+
+  it("validates invite expiry payload and calls update mutation on POST", async () => {
+    const { POST, mocks } = await setupWorkspaceRoute();
+    const response = await POST(
+      new Request("http://localhost/api/admin/workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "updateInviteExpiry",
+          expiryPreset: "30d",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("workspaces:updateActiveInviteExpiry", {
+      workspaceId: "workspace_123456",
+      expiryPreset: "30d",
+    });
+  });
 });
