@@ -12,12 +12,12 @@ import {
   shouldResetStoredDeviceSession,
 } from "../components/device-qr/device-runtime-state";
 import {
-  parseStoredDeviceSession,
-  serializeStoredDeviceSession,
+  parseDeviceSession,
+  serializeDeviceSession,
 } from "../lib/device-auth";
 
 describe("device qr panel state", () => {
-  it("defaults to enter-code when no local secret exists", () => {
+  it("defaults to enter-code when no device session exists", () => {
     expect(getInitialDeviceQrPanelState(null)).toMatchObject({
       step: "enter-code",
       session: null,
@@ -32,25 +32,23 @@ describe("device qr panel state", () => {
     });
   });
 
-  it("persists local session payload and enters active-device after claim success", () => {
+  it("serializes the visible device session and enters active-device after claim success", () => {
     const nextState = finalizeDeviceClaim({
       deviceId: "device_123",
       label: "Front Desk Tablet",
-      secret: "secret_456",
       claimedAt: 1_234_567_890,
     });
 
-    const serialized = serializeStoredDeviceSession(nextState.session!);
-    expect(parseStoredDeviceSession(serialized)).toEqual(nextState.session);
+    const serialized = serializeDeviceSession(nextState.session!);
+    expect(parseDeviceSession(serialized)).toEqual(nextState.session);
     expect(nextState.step).toBe("active-device");
   });
 
-  it("clears local session and returns to enter-code on invalid auth restore", () => {
+  it("returns to enter-code on invalid auth restore", () => {
     const nextState = resolveDeviceAuthRestore(
       {
         deviceId: "device_123",
         label: "Front Desk Tablet",
-        secret: "secret_456",
         claimedAt: 1_234_567_890,
       },
       false,
@@ -62,12 +60,12 @@ describe("device qr panel state", () => {
     });
   });
 
-  it("keeps the local session on temporary restore failures", () => {
+  it("keeps the device session on temporary restore failures", () => {
     expect(shouldResetStoredDeviceSession(500, "INTERNAL_ERROR")).toBe(false);
     expect(shouldResetStoredDeviceSession(503, null)).toBe(false);
   });
 
-  it("resets local session only for explicit device unauthorized responses", () => {
+  it("resets the device session only for explicit device unauthorized responses", () => {
     expect(shouldResetStoredDeviceSession(401, "DEVICE_UNAUTHORIZED")).toBe(true);
     expect(shouldResetStoredDeviceSession(401, "INTERNAL_ERROR")).toBe(false);
   });

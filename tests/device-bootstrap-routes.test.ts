@@ -28,10 +28,10 @@ async function setupValidateCodeRoute(options: SetupOptions = {}) {
   const requireWorkspaceApiContext = vi.fn(() =>
     options.workspaceContext ?? { workspace: { workspaceId: "workspace_123456" } },
   );
-  const query =
+  const mutation =
     options.queryImpl ??
     vi.fn(async () => ({ ok: false, message: "Kode tidak valid atau sudah tidak aktif." }));
-  const getConvexHttpClient = vi.fn(() => ({ query }));
+  const getConvexHttpClient = vi.fn(() => ({ mutation }));
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext,
@@ -40,9 +40,14 @@ async function setupValidateCodeRoute(options: SetupOptions = {}) {
     getConvexHttpClient,
     getPublicConvexHttpClient: getConvexHttpClient,
   }));
+  vi.doMock("@/lib/api-error", () => ({
+    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+    ),
+  }));
 
   const routeModule = await import("../app/api/device/bootstrap/validate-code/route");
-  return { POST: routeModule.POST, mocks: { requireWorkspaceApiContext, query } };
+  return { POST: routeModule.POST, mocks: { requireWorkspaceApiContext, mutation } };
 }
 
 async function setupClaimRoute(options: SetupOptions = {}) {
@@ -128,7 +133,7 @@ describe("device bootstrap routes", () => {
       code: "WORKSPACE_REQUIRED",
       message: "Missing x-workspace-id header",
     });
-    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.mutation).not.toHaveBeenCalled();
   });
 
   it("validate-code returns generic invalid response for bad code", async () => {
@@ -147,13 +152,14 @@ describe("device bootstrap routes", () => {
       ok: false,
       message: "Kode tidak valid atau sudah tidak aktif.",
     });
-    expect(mocks.query).toHaveBeenCalledWith("devices:validateRegistrationCodePreview", {
+    expect(mocks.mutation).toHaveBeenCalledWith("devices:validateRegistrationCodePreview", {
       workspaceId: "workspace_123456",
       code: "BAD-CODE",
+      rateLimitKey: undefined,
     });
   });
 
-  it("claim returns secret payload on success", async () => {
+  it("claim returns visible device payload and sets a secure auth cookie", async () => {
     const { POST, mocks } = await setupClaimRoute();
 
     const response = await POST(
@@ -161,7 +167,7 @@ describe("device bootstrap routes", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-forwarded-for": "203.0.113.1, 10.0.0.2",
+          "x-real-ip": "203.0.113.1",
           "user-agent": "Vitest Browser",
         },
         body: JSON.stringify({ code: "GOOD-CODE", label: "Front Desk Tablet" }),
@@ -172,15 +178,16 @@ describe("device bootstrap routes", () => {
     await expect(response.json()).resolves.toEqual({
       deviceId: "device_123",
       label: "Front Desk Tablet",
-      secret: "secret_456",
       claimedAt: 1_234_567_890,
     });
+    expect(response.headers.get("set-cookie")).toContain("absenin.id.deviceAuth=");
     expect(mocks.mutation).toHaveBeenCalledWith("devices:claimRegistrationCode", {
       workspaceId: "workspace_123456",
       code: "GOOD-CODE",
       label: "Front Desk Tablet",
       ipAddress: "203.0.113.1",
       userAgent: "Vitest Browser",
+      rateLimitKey: "ip:203.0.113.1|ua:Vitest Browser",
     });
   });
 

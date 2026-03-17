@@ -11,6 +11,7 @@ type SettingsPayload = {
   timezone: string;
   geofenceEnabled: boolean;
   geofenceRadiusMeters: number;
+  minLocationAccuracyMeters: number;
   geofenceLat?: number;
   geofenceLng?: number;
   whitelistEnabled: boolean;
@@ -23,6 +24,48 @@ type InlineNotice = {
   tone: NoticeTone;
   text: string;
 };
+
+function hasFiniteNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function getGeofenceValidationErrors(data: SettingsPayload) {
+  const errors: string[] = [];
+
+  if (!hasFiniteNumber(data.geofenceRadiusMeters) || data.geofenceRadiusMeters < 10) {
+    errors.push('Radius geofence minimal 10 meter.');
+  }
+
+  if (
+    !hasFiniteNumber(data.minLocationAccuracyMeters) ||
+    data.minLocationAccuracyMeters <= 0
+  ) {
+    errors.push('Batas akurasi GPS harus lebih besar dari 0 meter.');
+  }
+
+  if (!data.geofenceEnabled) {
+    return errors;
+  }
+
+  if (data.geofenceLat === undefined || data.geofenceLng === undefined) {
+    errors.push('Latitude dan longitude wajib diisi saat geofence aktif.');
+    return errors;
+  }
+
+  if (!hasFiniteNumber(data.geofenceLat) || data.geofenceLat < -90 || data.geofenceLat > 90) {
+    errors.push('Latitude geofence harus berada di antara -90 dan 90.');
+  }
+
+  if (
+    !hasFiniteNumber(data.geofenceLng) ||
+    data.geofenceLng < -180 ||
+    data.geofenceLng > 180
+  ) {
+    errors.push('Longitude geofence harus berada di antara -180 dan 180.');
+  }
+
+  return errors;
+}
 
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
@@ -42,6 +85,7 @@ export function GeofencePanel() {
     timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
     geofenceRadiusMeters: 100,
+    minLocationAccuracyMeters: 100,
     geofenceLat: undefined,
     geofenceLng: undefined,
     whitelistEnabled: false,
@@ -66,7 +110,10 @@ export function GeofencePanel() {
       }
 
       const payload = (await res.json()) as SettingsPayload;
-      setData(payload);
+      setData({
+        ...payload,
+        minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
+      });
       setIpText((payload.whitelistIps ?? []).join(', '));
       setInitialLoading(false);
     };
@@ -74,8 +121,22 @@ export function GeofencePanel() {
     void load();
   }, []);
 
+  const geofenceValidationErrors = getGeofenceValidationErrors(data);
+  const hasBlockingValidationErrors = geofenceValidationErrors.length > 0;
+  const showsBlockingGeofenceWarning =
+    data.geofenceEnabled && geofenceValidationErrors.length > 0;
+
   const save = async (event: FormEvent) => {
     event.preventDefault();
+
+    if (hasBlockingValidationErrors) {
+      setNotice({
+        tone: 'error',
+        text: 'Pengaturan geofence belum valid. Perbaiki konfigurasi sebelum menyimpan.',
+      });
+      return;
+    }
+
     setLoading(true);
     setNotice({ tone: 'info', text: 'Menyimpan pengaturan geofence...' });
 
@@ -122,6 +183,12 @@ export function GeofencePanel() {
         <p className="mt-1 text-sm text-zinc-600">
           Atur area absensi, whitelist jaringan, dan kontrol validasi scan sesuai kebijakan kantor.
         </p>
+        {showsBlockingGeofenceWarning ? (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+            Geofence sedang aktif tetapi konfigurasinya belum valid. Scan karyawan akan ditolak
+            sampai titik lokasi, radius, dan batas akurasi GPS diperbaiki.
+          </div>
+        ) : null}
         {notice ? (
           <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
             {notice.text}
@@ -180,6 +247,32 @@ export function GeofencePanel() {
                 }
               />
             </label>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-sm font-medium text-zinc-700">
+                Batas Akurasi GPS Maksimum (meter)
+              </span>
+              <Input
+                type="number"
+                min={1}
+                value={data.minLocationAccuracyMeters}
+                onChange={(event) =>
+                  setData((prev) => ({
+                    ...prev,
+                    minLocationAccuracyMeters: Math.max(1, Number(event.target.value) || 1),
+                  }))
+                }
+              />
+              <p className="text-xs text-zinc-500">
+                Scan ditolak jika ketidakpastian GPS lebih buruk dari batas ini.
+              </p>
+            </label>
+            {geofenceValidationErrors.length > 0 ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-900 sm:col-span-2">
+                {geofenceValidationErrors.map((error) => (
+                  <p key={error}>{error}</p>
+                ))}
+              </div>
+            ) : null}
           </div>
         </article>
 
@@ -225,7 +318,7 @@ export function GeofencePanel() {
       <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
         <Button
           type="submit"
-          disabled={loading}
+          disabled={loading || hasBlockingValidationErrors}
           className="min-w-40"
           isLoading={loading}
           loadingText="Menyimpan..."

@@ -27,6 +27,12 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   WRITE_CONFLICT: 'Terjadi konflik data. Silakan coba lagi.',
   SPAM_DETECTED: 'Aksi terlalu cepat. Tunggu sebentar lalu coba lagi.',
   DEVICE_HEARTBEAT_STALE: 'Perangkat QR sedang offline. Minta petugas menyegarkan perangkat QR.',
+  GEOFENCE_NOT_CONFIGURED:
+    'Area absensi kantor belum dikonfigurasi dengan benar. Hubungi admin workspace.',
+  GEOFENCE_ACCURACY_REQUIRED:
+    'Izin lokasi dan akurasi GPS diperlukan untuk scan di area kantor.',
+  GEOFENCE_ACCURACY_TOO_LOW:
+    'Akurasi GPS Anda belum cukup. Dekatkan diri ke area terbuka lalu coba lagi.',
   INTERNAL_ERROR: 'Terjadi gangguan sistem. Coba lagi beberapa saat.',
 };
 

@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { getTrustedClientIp } from "@/lib/request-ip";
 
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ipAddress = getTrustedClientIp(req) ?? undefined;
   const token = await getConvexTokenOrNull();
   if (!token) {
     return Response.json(

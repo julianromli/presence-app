@@ -156,7 +156,7 @@ describe("scan route guardrails", () => {
     });
   });
 
-  it("forwards first ip from x-forwarded-for to attendance mutation", async () => {
+  it("forwards trusted proxy ip to attendance mutation", async () => {
     const { POST, mocks } = await setupScanRoute();
 
     const response = await POST(
@@ -164,7 +164,7 @@ describe("scan route guardrails", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-forwarded-for": "203.0.113.1, 10.0.0.2",
+          "x-real-ip": "203.0.113.1",
         },
         body: JSON.stringify({
           token: "token-active",
@@ -181,6 +181,34 @@ describe("scan route guardrails", () => {
       ipAddress: "203.0.113.1",
       latitude: -6.2,
       longitude: 106.8,
+      accuracyMeters: undefined,
+      idempotencyKey: undefined,
+    });
+  });
+
+  it("ignores raw x-forwarded-for when no trusted proxy marker is present", async () => {
+    const { POST, mocks } = await setupScanRoute();
+
+    const response = await POST(
+      new Request("http://localhost/api/scan", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.1, 10.0.0.2",
+        },
+        body: JSON.stringify({ token: "token-active" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("attendance:recordScan", {
+      workspaceId: "workspace_123456",
+      token: "token-active",
+      ipAddress: undefined,
+      latitude: undefined,
+      longitude: undefined,
+      accuracyMeters: undefined,
+      idempotencyKey: undefined,
     });
   });
 

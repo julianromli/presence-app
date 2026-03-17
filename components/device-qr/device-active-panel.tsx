@@ -3,7 +3,7 @@
 import Image from "next/image";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { StoredDeviceSession } from "@/lib/device-auth";
+import type { DeviceSession } from "@/lib/device-auth";
 
 import { buildDeviceActivePanelModel } from "./device-runtime-state";
 
@@ -13,7 +13,7 @@ type DeviceActivePanelProps = {
   qrCodeDataUrl: string | null;
   runtimeErrorMessage: string | null;
   secondsUntilRefresh: number | null;
-  session: StoredDeviceSession;
+  session: DeviceSession;
   tokenIssuedAt: number | null;
 };
 
@@ -45,8 +45,8 @@ export function DeviceActivePanel({
           {session.label}
         </CardTitle>
         <CardDescription className="max-w-2xl text-sm text-zinc-600">
-          Device ini sudah terpasang permanen di browser saat ini. Secret lokal disimpan untuk
-          restore session dan akan divalidasi ulang pada request berikutnya.
+          Device ini sudah terpasang permanen di browser saat ini. Sesi device dipulihkan lewat
+          cookie browser yang divalidasi ulang pada setiap request runtime.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

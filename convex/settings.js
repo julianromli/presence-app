@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import {
+  assertValidGeofenceSettings,
   defaultAttendanceSchedule,
   ensureGlobalSettingsForMutation,
   getGlobalSettingsOrThrow,
@@ -112,8 +113,7 @@ export const update = mutation({
       args.attendanceSchedule !== undefined
         ? normalizeAttendanceSchedule(args.attendanceSchedule)
         : current.attendanceSchedule ?? defaultAttendanceSchedule();
-
-    await ctx.db.patch(current._id, {
+    const nextSettings = {
       timezone: args.timezone ?? current.timezone,
       geofenceEnabled: args.geofenceEnabled ?? current.geofenceEnabled,
       geofenceRadiusMeters:
@@ -129,6 +129,12 @@ export const update = mutation({
       whitelistEnabled: args.whitelistEnabled ?? current.whitelistEnabled,
       whitelistIps: args.whitelistIps ?? current.whitelistIps,
       attendanceSchedule,
+    };
+
+    assertValidGeofenceSettings(nextSettings);
+
+    await ctx.db.patch(current._id, {
+      ...nextSettings,
       updatedBy: actor._id,
       updatedAt: Date.now(),
     });

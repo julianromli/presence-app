@@ -18,58 +18,13 @@ import {
 } from "@/components/device-qr/device-runtime-state";
 import {
   buildDeviceRequestHeaders,
-  buildDeviceKey,
-  DEVICE_SESSION_STORAGE_KEY,
-  parseStoredDeviceSession,
-  serializeStoredDeviceSession,
-  type StoredDeviceSession,
+  type DeviceSession,
 } from "@/lib/device-auth";
 import {
   getActiveWorkspaceIdFromBrowser,
   setActiveWorkspaceIdInBrowser,
   workspaceFetch,
 } from "@/lib/workspace-client";
-
-function readStoredDeviceSession() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return parseStoredDeviceSession(
-      window.localStorage.getItem(DEVICE_SESSION_STORAGE_KEY),
-    );
-  } catch {
-    return null;
-  }
-}
-
-function persistStoredDeviceSession(session: StoredDeviceSession) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      DEVICE_SESSION_STORAGE_KEY,
-      serializeStoredDeviceSession(session),
-    );
-  } catch {
-    // Ignore storage failures and let the current session continue in memory.
-  }
-}
-
-function clearStoredDeviceSession() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.removeItem(DEVICE_SESSION_STORAGE_KEY);
-  } catch {
-    // Ignore storage failures.
-  }
-}
 
 type ValidateCodeResponse = {
   ok: boolean;
@@ -79,7 +34,6 @@ type ValidateCodeResponse = {
 type ClaimDeviceResponse = {
   deviceId: string;
   label: string;
-  secret: string;
   claimedAt: number;
 };
 
@@ -144,30 +98,11 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     setActiveWorkspaceIdInBrowser(initialWorkspaceId);
   }, [initialWorkspaceId]);
 
-  async function scopedWorkspaceFetch(input: RequestInfo | URL, init?: RequestInit) {
-    return await workspaceFetch(input, {
-      ...init,
-      headers: buildDeviceRequestHeaders({
-        workspaceId: resolvedWorkspaceId,
-        deviceKey: init?.headers
-          ? new Headers(init.headers).get("x-device-key")
-          : null,
-        contentType: init?.headers
-          ? new Headers(init.headers).get("content-type")
-          : null,
-      }),
-    });
-  }
-
   useEffect(() => {
     let active = true;
 
     const restore = async () => {
-      const storedSession = readStoredDeviceSession();
-      if (!storedSession) {
-        if (!active) {
-          return;
-        }
+      if (!resolvedWorkspaceId) {
         setPanelState(getInitialDeviceQrPanelState(null));
         setIsRestoring(false);
         return;
@@ -177,15 +112,12 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         return;
       }
 
-      setPanelState(getInitialDeviceQrPanelState(storedSession));
-
       try {
         const response = await workspaceFetch("/api/device/auth", {
           cache: "no-store",
           headers: {
             ...buildDeviceRequestHeaders({
               workspaceId: resolvedWorkspaceId,
-              deviceKey: buildDeviceKey(storedSession),
             }),
           },
         });
@@ -196,13 +128,10 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
             response.status,
             payload.code ?? null,
           );
-          if (shouldReset) {
-            clearStoredDeviceSession();
-          }
           if (!active) {
             return;
           }
-          setPanelState(resolveDeviceAuthRestore(storedSession, !shouldReset));
+          setPanelState(resolveDeviceAuthRestore(null, false));
           setErrorMessage(
             shouldReset
               ? "Sesi device tidak valid lagi. Masukkan code baru untuk pairing ulang."
@@ -212,13 +141,11 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         }
 
         const payload = (await response.json()) as DeviceAuthResponse;
-        const restoredSession: StoredDeviceSession = {
-          ...storedSession,
+        const restoredSession: DeviceSession = {
           deviceId: payload.device.deviceId,
           label: payload.device.label,
           claimedAt: payload.device.claimedAt,
         };
-        persistStoredDeviceSession(restoredSession);
         if (!active) {
           return;
         }
@@ -229,7 +156,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         if (!active) {
           return;
         }
-        setPanelState(resolveDeviceAuthRestore(storedSession, true));
+        setPanelState(resolveDeviceAuthRestore(null, false));
         setErrorMessage("Gagal memulihkan sesi device. Runtime akan mencoba lagi.");
       } finally {
         if (active) {
@@ -270,14 +197,11 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
       return;
     }
 
-    const session = panelState.session;
-    const deviceKey = buildDeviceKey(session);
     let active = true;
     let refreshTimeoutId: number | null = null;
     let heartbeatIntervalId: number | null = null;
 
     const resetToBootstrap = (message: string) => {
-      clearStoredDeviceSession();
       setQrCodeDataUrl(null);
       setTokenExpiresAt(null);
       setTokenIssuedAt(null);
@@ -307,7 +231,6 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           headers: {
             ...buildDeviceRequestHeaders({
               workspaceId: resolvedWorkspaceId,
-              deviceKey,
             }),
           },
         });
@@ -345,7 +268,6 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           headers: {
             ...buildDeviceRequestHeaders({
               workspaceId: resolvedWorkspaceId,
-              deviceKey,
             }),
           },
         });
@@ -431,7 +353,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     setErrorMessage(null);
 
     try {
-      const response = await scopedWorkspaceFetch("/api/device/bootstrap/validate-code", {
+      const response = await workspaceFetch("/api/device/bootstrap/validate-code", {
         method: "POST",
         headers: {
           ...buildDeviceRequestHeaders({
@@ -479,7 +401,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     setErrorMessage(null);
 
     try {
-      const response = await scopedWorkspaceFetch("/api/device/bootstrap/claim", {
+      const response = await workspaceFetch("/api/device/bootstrap/claim", {
         method: "POST",
         headers: {
           ...buildDeviceRequestHeaders({
@@ -497,7 +419,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         | ClaimDeviceResponse
         | { code?: string; message?: string };
 
-      if (!response.ok || !("secret" in payload)) {
+      if (!response.ok || !("deviceId" in payload)) {
         setErrorMessage(
           "message" in payload && payload.message
             ? payload.message
@@ -506,18 +428,16 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         return;
       }
 
-      const storedSession: StoredDeviceSession = {
+      const session: DeviceSession = {
         deviceId: payload.deviceId,
         label: payload.label,
-        secret: payload.secret,
         claimedAt: payload.claimedAt,
       };
-      persistStoredDeviceSession(storedSession);
       setActiveWorkspaceIdInBrowser(resolvedWorkspaceId);
       setLabel("");
       setErrorMessage(null);
       setRuntimeErrorMessage(null);
-      setPanelState(finalizeDeviceClaim(storedSession));
+      setPanelState(finalizeDeviceClaim(session));
     } catch {
       setErrorMessage("Gagal mengaktifkan device.");
     } finally {

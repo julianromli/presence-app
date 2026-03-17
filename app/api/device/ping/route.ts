@@ -3,10 +3,15 @@ import {
 } from '@/lib/auth';
 import { convexErrorResponse } from '@/lib/api-error';
 import { getPublicConvexHttpClient } from '@/lib/convex-http';
+import { createExpiredDeviceAuthCookieHeader } from '@/lib/device-auth';
+import { getTrustedClientIp } from '@/lib/request-ip';
 
 export async function POST(req: Request) {
   const result = await requireWorkspaceDeviceApi(req);
   if ('error' in result) {
+    if (result.error.status === 401) {
+      result.error.headers.append('Set-Cookie', createExpiredDeviceAuthCookieHeader());
+    }
     return result.error;
   }
 
@@ -15,7 +20,7 @@ export async function POST(req: Request) {
     return Response.json({ code: 'INTERNAL_ERROR', message: 'Convex URL missing' }, { status: 500 });
   }
 
-  const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const ipAddress = getTrustedClientIp(req) ?? undefined;
   const userAgent = req.headers.get('user-agent') ?? undefined;
 
   try {

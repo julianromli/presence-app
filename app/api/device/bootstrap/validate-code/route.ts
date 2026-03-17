@@ -1,5 +1,7 @@
+import { convexErrorResponse } from "@/lib/api-error";
 import { requireWorkspaceApiContext } from "@/lib/auth";
 import { getPublicConvexHttpClient } from "@/lib/convex-http";
+import { getRequestRateLimitKey } from "@/lib/request-ip";
 
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
@@ -33,23 +35,28 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await convex.query<{
-    ok: boolean;
-    expiresAt?: number;
-  }>("devices:validateRegistrationCodePreview", {
-    workspaceId: workspaceContext.workspace.workspaceId,
-    code,
-  });
+  try {
+    const result = await convex.mutation<{
+      ok: boolean;
+      expiresAt?: number;
+    }>("devices:validateRegistrationCodePreview", {
+      workspaceId: workspaceContext.workspace.workspaceId,
+      code,
+      rateLimitKey: getRequestRateLimitKey(req) ?? undefined,
+    });
 
-  if (!result.ok) {
-    return Response.json(
-      { ok: false, message: "Kode tidak valid atau sudah tidak aktif." },
-      { status: 400 },
-    );
+    if (!result.ok) {
+      return Response.json(
+        { ok: false, message: "Kode tidak valid atau sudah tidak aktif." },
+        { status: 400 },
+      );
+    }
+
+    return Response.json({
+      ok: true,
+      expiresAt: result.expiresAt,
+    });
+  } catch (error) {
+    return convexErrorResponse(error, "Gagal memvalidasi registration code.");
   }
-
-  return Response.json({
-    ok: true,
-    expiresAt: result.expiresAt,
-  });
 }

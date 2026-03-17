@@ -3,10 +3,14 @@ import {
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getPublicConvexHttpClient } from "@/lib/convex-http";
+import { createExpiredDeviceAuthCookieHeader } from "@/lib/device-auth";
 
 export async function GET(req: Request) {
   const result = await requireWorkspaceDeviceApi(req);
   if ("error" in result) {
+    if (result.error.status === 401) {
+      result.error.headers.append("Set-Cookie", createExpiredDeviceAuthCookieHeader());
+    }
     return result.error;
   }
   const convex = getPublicConvexHttpClient();

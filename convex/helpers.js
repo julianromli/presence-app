@@ -91,6 +91,26 @@ export function defaultAttendanceSchedule() {
   ];
 }
 
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isLatitudeInRange(value) {
+  return isFiniteNumber(value) && value >= -90 && value <= 90;
+}
+
+function isLongitudeInRange(value) {
+  return isFiniteNumber(value) && value >= -180 && value <= 180;
+}
+
+function isValidGeofenceRadius(value) {
+  return isFiniteNumber(value) && value >= 10;
+}
+
+function isValidLocationAccuracyThreshold(value) {
+  return isFiniteNumber(value) && value > 0;
+}
+
 function isValidClock(value) {
   if (typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) {
     return false;
@@ -258,6 +278,60 @@ export async function ensureGlobalSettingsForMutation(ctx, workspaceId) {
     });
   }
   return created;
+}
+
+export function hasValidGeofenceConfiguration(settings) {
+  if (!settings?.geofenceEnabled) {
+    return false;
+  }
+
+  return (
+    isLatitudeInRange(settings.geofenceLat) &&
+    isLongitudeInRange(settings.geofenceLng) &&
+    isValidGeofenceRadius(settings.geofenceRadiusMeters) &&
+    isValidLocationAccuracyThreshold(settings.minLocationAccuracyMeters)
+  );
+}
+
+export function assertValidGeofenceSettings(settings) {
+  if (!isValidGeofenceRadius(settings.geofenceRadiusMeters)) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Radius geofence minimal 10 meter.',
+    });
+  }
+
+  if (!isValidLocationAccuracyThreshold(settings.minLocationAccuracyMeters)) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Batas akurasi GPS harus lebih besar dari 0 meter.',
+    });
+  }
+
+  if (!settings.geofenceEnabled) {
+    return;
+  }
+
+  if (settings.geofenceLat === undefined || settings.geofenceLng === undefined) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Latitude dan longitude geofence wajib diisi saat geofence aktif.',
+    });
+  }
+
+  if (!isLatitudeInRange(settings.geofenceLat)) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Latitude geofence harus berada di antara -90 dan 90.',
+    });
+  }
+
+  if (!isLongitudeInRange(settings.geofenceLng)) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: 'Longitude geofence harus berada di antara -180 dan 180.',
+    });
+  }
 }
 
 export function ipAllowed(ip, whitelistIps) {

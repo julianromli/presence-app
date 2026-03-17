@@ -16,6 +16,35 @@ type CommonSetupOptions = {
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
 };
 
+function mockConvexErrorResponse(error: unknown, fallbackMessage: string) {
+  const data =
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof (error as { data?: unknown }).data === "object" &&
+    (error as { data?: unknown }).data !== null
+      ? ((error as { data: { code?: string; message?: string } }).data ?? null)
+      : null;
+
+  if (data?.code) {
+    return Response.json(
+      {
+        code: data.code,
+        message: data.message ?? fallbackMessage,
+      },
+      { status: data.code === "VALIDATION_ERROR" ? 400 : 500 },
+    );
+  }
+
+  return Response.json(
+    {
+      code: "INTERNAL_ERROR",
+      message: fallbackMessage,
+    },
+    { status: 500 },
+  );
+}
+
 function buildWorkspaceContextMock(options: CommonSetupOptions) {
   return vi.fn(() => {
     if (options.workspaceContext) {
@@ -61,15 +90,7 @@ async function setupDeviceQrTokenRoute(options: CommonSetupOptions = {}) {
     getPublicConvexHttpClient: getAuthedConvexHttpClient,
   }));
   vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json(
-        {
-          code: "INTERNAL_ERROR",
-          message: fallbackMessage,
-        },
-        { status: 500 },
-      ),
-    ),
+    convexErrorResponse: vi.fn(mockConvexErrorResponse),
   }));
 
   const routeModule = await import("../app/api/device/qr-token/route");
@@ -120,15 +141,7 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
     getAuthedConvexHttpClient,
   }));
   vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json(
-        {
-          code: "INTERNAL_ERROR",
-          message: fallbackMessage,
-        },
-        { status: 500 },
-      ),
-    ),
+    convexErrorResponse: vi.fn(mockConvexErrorResponse),
   }));
 
   const routeModule = await import("../app/api/admin/settings/route");
@@ -334,6 +347,7 @@ describe("security auth and rbac routes", () => {
           timezone: "Asia/Jakarta",
           geofenceEnabled: true,
           geofenceRadiusMeters: 150,
+          minLocationAccuracyMeters: 30,
           geofenceLat: -6.2,
           geofenceLng: 106.8,
           whitelistEnabled: true,
@@ -357,6 +371,7 @@ describe("security auth and rbac routes", () => {
       timezone: "Asia/Jakarta",
       geofenceEnabled: true,
       geofenceRadiusMeters: 150,
+      minLocationAccuracyMeters: 30,
       geofenceLat: -6.2,
       geofenceLng: 106.8,
       whitelistEnabled: true,
@@ -364,6 +379,41 @@ describe("security auth and rbac routes", () => {
       attendanceSchedule: defaultAttendanceSchedule(),
     });
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("returns validation errors from settings mutation when geofence payload is invalid", async () => {
+    const mutation = vi.fn(async () => {
+      const error = new Error("invalid geofence payload") as Error & {
+        data?: { code: string; message: string };
+      };
+      error.data = {
+        code: "VALIDATION_ERROR",
+        message: "Latitude dan longitude geofence wajib diisi saat geofence aktif.",
+      };
+      throw error;
+    });
+    const { PATCH } = await setupAdminSettingsRoute({
+      convexClient: { mutation, query: vi.fn() },
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          geofenceEnabled: true,
+          geofenceRadiusMeters: 150,
+          minLocationAccuracyMeters: 30,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "VALIDATION_ERROR",
+      message: "Latitude dan longitude geofence wajib diisi saat geofence aktif.",
+    });
+    expect(mutation).toHaveBeenCalledOnce();
   });
 
   it("rejects attendanceSchedule rows with invalid HH:mm", async () => {
