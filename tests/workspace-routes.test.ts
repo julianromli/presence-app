@@ -4,6 +4,7 @@ type SetupOptions = {
   convexToken?: string | null;
   queryImpl?: ReturnType<typeof vi.fn>;
   mutationImpl?: ReturnType<typeof vi.fn>;
+  useActualApiError?: boolean;
 };
 
 async function setupActiveRoute(options: SetupOptions = {}) {
@@ -52,11 +53,20 @@ async function setupCreateRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
-  }));
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error"
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
 
   const routeModule = await import("../app/api/workspaces/create/route");
   return { POST: routeModule.POST, mocks: { mutation } };
@@ -191,6 +201,35 @@ describe("workspace lifecycle routes", () => {
     });
     expect(mocks.mutation).toHaveBeenCalledWith("workspaces:createWorkspace", {
       name: "Presence Ops",
+    });
+  });
+
+  it("create route preserves the domain error code from convex", async () => {
+    const domainError = {
+      data: {
+        code: "PLAN_LIMIT_REACHED",
+        message: "Jumlah workspace aktif sudah mencapai batas paket.",
+      },
+    };
+    const { POST } = await setupCreateRoute({
+      mutationImpl: vi.fn(async () => {
+        throw domainError;
+      }),
+      useActualApiError: true,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Presence Ops" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "PLAN_LIMIT_REACHED",
+      message: "Jumlah workspace aktif sudah mencapai batas paket.",
     });
   });
 

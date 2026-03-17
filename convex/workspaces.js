@@ -7,6 +7,8 @@ import {
   requireWorkspaceRole,
 } from "./helpers";
 import {
+  assertPlanLimitNotReached,
+  compareWorkspacePlans,
   resolveWorkspaceEntitlements,
   resolveWorkspacePlan,
   workspacePlanValidator,
@@ -256,6 +258,33 @@ async function getWorkspaceSubscriptionSummary(ctx, workspace) {
   };
 }
 
+async function resolveCreateWorkspaceEntitlements(ctx, userId) {
+  const ownedRows = await ctx.db
+    .query("workspaces")
+    .withIndex("by_created_by_user", (q) => q.eq("createdByUserId", userId))
+    .collect();
+
+  const activeOwnedWorkspaces = ownedRows.filter((workspace) => workspace.isActive);
+  const plan = activeOwnedWorkspaces.reduce((bestPlan, workspace) => {
+    const workspacePlan = resolveWorkspacePlan(workspace);
+    return compareWorkspacePlans(workspacePlan, bestPlan) > 0 ? workspacePlan : bestPlan;
+  }, "free");
+
+  const entitlements = assertPlanLimitNotReached({
+    plan,
+    limitKey: "maxOwnedWorkspaces",
+    currentCount: activeOwnedWorkspaces.length,
+    code: "PLAN_LIMIT_REACHED",
+    message: "Jumlah workspace aktif sudah mencapai batas paket workspace Anda.",
+  });
+
+  return {
+    activeOwnedWorkspaces,
+    entitlements,
+    plan,
+  };
+}
+
 export const myOnboardingState = query({
   args: {},
   returns: onboardingStateValidator,
@@ -388,6 +417,8 @@ export const createWorkspace = mutation({
       });
     }
 
+    await resolveCreateWorkspaceEntitlements(ctx, user._id);
+
     const baseSlug = slugifyWorkspaceName(name);
     const slug = await ensureUniqueWorkspaceSlug(ctx, baseSlug);
     const now = Date.now();
@@ -411,7 +442,7 @@ export const createWorkspace = mutation({
       updatedAt: now,
     });
 
-    const inviteCode = generateInviteCode(slug.toUpperCase());
+    const inviteCode = await generateUniqueInviteCode(ctx, slug.toUpperCase());
     await ctx.db.insert("workspace_invite_codes", {
       workspaceId,
       code: inviteCode,
