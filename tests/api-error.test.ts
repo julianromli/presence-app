@@ -51,6 +51,22 @@ describe('convexErrorResponse', () => {
     });
   });
 
+  it('maps geofence configuration errors to 503', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'GEOFENCE_NOT_CONFIGURED',
+        'Geofence kantor belum dikonfigurasi dengan benar. Hubungi admin.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'GEOFENCE_NOT_CONFIGURED',
+      message: 'Geofence kantor belum dikonfigurasi dengan benar. Hubungi admin.',
+    });
+  });
+
   it('maps forbidden text errors to 403', async () => {
     const response = convexErrorResponse(new Error('FORBIDDEN'), 'fallback');
 

@@ -4,14 +4,15 @@ import {
   paginationResultValidator,
 } from "convex/server";
 
-import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, internalQuery } from "./_generated/server";
 import {
   buildDateKey,
   distanceMeters,
   ensureGlobalSettingsForMutation,
+  hasValidGeofenceConfiguration,
   ipAllowed,
   requireWorkspaceRole,
+  sha256Hex,
 } from "./helpers";
 import {
   filterAttendanceByEmployeeName,
@@ -204,7 +205,9 @@ function throwScanError(code, message) {
 }
 
 const actionableFailureNotificationCodes = new Set([
+  "GEOFENCE_NOT_CONFIGURED",
   "GEOFENCE_COORD_REQUIRED",
+  "GEOFENCE_ACCURACY_REQUIRED",
   "GEOFENCE_ACCURACY_TOO_LOW",
   "GEOFENCE_OUTSIDE_RADIUS",
   "IP_NOT_ALLOWED",
@@ -302,7 +305,82 @@ export function assertScanSourceDeviceAllowed(
   return device._id;
 }
 
-async function processScan(ctx, actor, args, runtime) {
+async function resolveValidScanToken(ctx, workspaceId, token) {
+  const tokenHash = await sha256Hex(token);
+  const tokenRow = await ctx.db
+    .query("qr_tokens")
+    .withIndex("by_workspace_token_hash", (q) =>
+      q.eq("workspaceId", workspaceId).eq("tokenHash", tokenHash),
+    )
+    .unique();
+
+  if (!tokenRow) {
+    throwScanError("TOKEN_UNKNOWN", "Token tidak dikenal");
+  }
+
+  const now = Date.now();
+  if (tokenRow.expiresAt < now) {
+    throwScanError("TOKEN_EXPIRED", "Token sudah expired");
+  }
+
+  if (tokenRow.usedAt) {
+    throwScanError("TOKEN_REPLAY", "Token sudah pernah dipakai");
+  }
+
+  return tokenRow;
+}
+
+async function markScanTokenUsed(ctx, tokenRowId, usedAt) {
+  await ctx.db.patch(tokenRowId, { usedAt });
+}
+
+export function assertGeofenceScanAllowed(settings, args) {
+  if (!settings.geofenceEnabled) {
+    return;
+  }
+
+  if (!hasValidGeofenceConfiguration(settings)) {
+    throwScanError(
+      "GEOFENCE_NOT_CONFIGURED",
+      "Geofence kantor belum dikonfigurasi dengan benar. Hubungi admin.",
+    );
+  }
+
+  if (args.latitude === undefined || args.longitude === undefined) {
+    throwScanError("GEOFENCE_COORD_REQUIRED", "Lokasi wajib diisi");
+  }
+
+  if (
+    args.accuracyMeters === undefined ||
+    !Number.isFinite(args.accuracyMeters) ||
+    args.accuracyMeters < 0
+  ) {
+    throwScanError(
+      "GEOFENCE_ACCURACY_REQUIRED",
+      "Akurasi GPS wajib tersedia untuk scan di area kantor.",
+    );
+  }
+
+  if (args.accuracyMeters > settings.minLocationAccuracyMeters) {
+    throwScanError(
+      "GEOFENCE_ACCURACY_TOO_LOW",
+      "Akurasi GPS tidak mencukupi",
+    );
+  }
+
+  const meters = distanceMeters(
+    settings.geofenceLat,
+    settings.geofenceLng,
+    args.latitude,
+    args.longitude,
+  );
+
+  if (meters > settings.geofenceRadiusMeters) {
+    throwScanError("GEOFENCE_OUTSIDE_RADIUS", "Lokasi di luar radius kantor");
+  }
+}
+
+export async function processScan(ctx, actor, args, runtime) {
   if (actor.role !== "karyawan") {
     throwScanError("FORBIDDEN", "Only karyawan can scan");
   }
@@ -314,37 +392,6 @@ async function processScan(ctx, actor, args, runtime) {
     !ipAllowed(args.ipAddress, settings.whitelistIps)
   ) {
     throwScanError("IP_NOT_ALLOWED", "IP address tidak diizinkan");
-  }
-
-  if (
-    settings.geofenceEnabled &&
-    settings.geofenceLat !== undefined &&
-    settings.geofenceLng !== undefined
-  ) {
-    if (args.latitude === undefined || args.longitude === undefined) {
-      throwScanError("GEOFENCE_COORD_REQUIRED", "Lokasi wajib diisi");
-    }
-
-    if (
-      args.accuracyMeters !== undefined &&
-      args.accuracyMeters > settings.minLocationAccuracyMeters
-    ) {
-      throwScanError(
-        "GEOFENCE_ACCURACY_TOO_LOW",
-        "Akurasi GPS tidak mencukupi",
-      );
-    }
-
-    const meters = distanceMeters(
-      settings.geofenceLat,
-      settings.geofenceLng,
-      args.latitude,
-      args.longitude,
-    );
-
-    if (meters > settings.geofenceRadiusMeters) {
-      throwScanError("GEOFENCE_OUTSIDE_RADIUS", "Lokasi di luar radius kantor");
-    }
   }
 
   if (args.idempotencyKey) {
@@ -378,25 +425,12 @@ async function processScan(ctx, actor, args, runtime) {
     }
   }
 
-  const tokenResult = await ctx.runMutation(internal.qrTokens.validateAndConsume, {
-    workspaceId: runtime.workspaceId,
-    token: args.token,
-  });
-  if (!tokenResult.valid || !tokenResult.deviceId) {
-    const reasonCode = tokenResult.reason ?? "TOKEN_UNKNOWN";
-    const reasonMessage =
-      reasonCode === "TOKEN_EXPIRED"
-        ? "Token sudah expired"
-        : reasonCode === "TOKEN_REPLAY"
-          ? "Token sudah pernah dipakai"
-          : "Token tidak dikenal";
-    throwScanError(reasonCode, reasonMessage);
-  }
-  const sourceDevice = await ctx.db.get(tokenResult.deviceId);
+  const tokenRow = await resolveValidScanToken(ctx, runtime.workspaceId, args.token);
+  const sourceDevice = await ctx.db.get(tokenRow.deviceId);
   const heartbeat = await ctx.db
     .query("device_heartbeats")
     .withIndex("by_workspace_device_id", (q) =>
-      q.eq("workspaceId", runtime.workspaceId).eq("deviceId", tokenResult.deviceId),
+      q.eq("workspaceId", runtime.workspaceId).eq("deviceId", tokenRow.deviceId),
     )
     .unique();
   const sourceDeviceId = assertScanSourceDeviceAllowed(
@@ -422,7 +456,10 @@ async function processScan(ctx, actor, args, runtime) {
     throwScanError("SPAM_DETECTED", "Scan terlalu cepat, coba lagi beberapa detik");
   }
 
+  assertGeofenceScanAllowed(settings, args);
+
   if (!existing) {
+    await markScanTokenUsed(ctx, tokenRow._id, now);
     await ctx.db.insert("attendance", {
       workspaceId: runtime.workspaceId,
       userId: actor._id,
@@ -455,6 +492,7 @@ async function processScan(ctx, actor, args, runtime) {
     throwScanError("CHECKOUT_ALREADY_RECORDED", "Check-out sudah tercatat");
   }
 
+  await markScanTokenUsed(ctx, tokenRow._id, now);
   await ctx.db.patch(existing._id, {
     checkOutAt: now,
     sourceDeviceId,

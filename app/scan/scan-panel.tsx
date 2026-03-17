@@ -50,7 +50,16 @@ type LocationPayload = {
   accuracyMeters?: number;
 };
 
-function getLocationPayload(timeoutMs = 1500): Promise<LocationPayload> {
+type ScanFailureResponse = Partial<ScanResponse> & {
+  code?: string;
+  message?: string;
+};
+
+export function shouldRetryLocation(code: string | undefined) {
+  return code === 'GEOFENCE_COORD_REQUIRED' || code === 'GEOFENCE_ACCURACY_REQUIRED';
+}
+
+export function getLocationPayload(timeoutMs = 1500): Promise<LocationPayload> {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       resolve({});
@@ -80,6 +89,37 @@ function getLocationPayload(timeoutMs = 1500): Promise<LocationPayload> {
       },
     );
   });
+}
+
+export async function submitScanWithLocationRetry({
+  value,
+  sendScan,
+  buildIdempotencyKey,
+  getLocation = getLocationPayload,
+  locationTimeoutMs = 2000,
+}: {
+  value: string;
+  sendScan: (
+    value: string,
+    location: LocationPayload,
+    idempotencyKey: string,
+  ) => Promise<Response>;
+  buildIdempotencyKey: () => string;
+  getLocation?: (timeoutMs?: number) => Promise<LocationPayload>;
+  locationTimeoutMs?: number;
+}) {
+  let response = await sendScan(value, {}, buildIdempotencyKey());
+  let data = (await response.json()) as ScanFailureResponse;
+
+  if (!response.ok && shouldRetryLocation(data.code)) {
+    const location = await getLocation(locationTimeoutMs);
+    if (location.latitude !== undefined && location.longitude !== undefined) {
+      response = await sendScan(value, location, buildIdempotencyKey());
+      data = (await response.json()) as ScanFailureResponse;
+    }
+  }
+
+  return { response, data };
 }
 
 export function ScanPanel() {
@@ -344,22 +384,11 @@ export function ScanPanel() {
     setLastRejectCode('none');
     lastSubmittedRef.current = { token: value, at: Date.now() };
 
-    let res = await sendScan(value, {}, buildIdempotencyKey());
-    let data = (await res.json()) as Partial<ScanResponse> & {
-      code?: string;
-      message?: string;
-    };
-
-    if (!res.ok && data.code === 'GEOFENCE_COORD_REQUIRED') {
-      const location = await getLocationPayload(2000);
-      if (location.latitude !== undefined && location.longitude !== undefined) {
-        res = await sendScan(value, location, buildIdempotencyKey());
-        data = (await res.json()) as Partial<ScanResponse> & {
-          code?: string;
-          message?: string;
-        };
-      }
-    }
+    const { response: res, data } = await submitScanWithLocationRetry({
+      value,
+      sendScan,
+      buildIdempotencyKey,
+    });
 
     if (!res.ok) {
       const errorCode = data.code ?? 'SCAN_FAILED';

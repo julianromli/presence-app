@@ -109,4 +109,107 @@ describe("scan panel", () => {
     expect(html).toContain('href="/dashboard"');
     expect(html).toContain("Dashboard Saya");
   });
+
+  it("retries location once when geofence coordinates or accuracy are required", async () => {
+    const { submitScanWithLocationRetry } = await import("../app/scan/scan-panel");
+    const sendScan = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            code: "GEOFENCE_COORD_REQUIRED",
+            message: "Lokasi wajib diisi",
+          },
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "check-in",
+          dateKey: "2026-03-17",
+          message: "Check-in berhasil",
+          scanAt: 1_234,
+        }),
+      );
+    const getLocation = vi.fn(async () => ({
+      latitude: -6.2,
+      longitude: 106.8,
+      accuracyMeters: 15,
+    }));
+
+    const result = await submitScanWithLocationRetry({
+      value: "token-1",
+      sendScan,
+      buildIdempotencyKey: () => "idempotency-key",
+      getLocation,
+    });
+
+    expect(result.response.ok).toBe(true);
+    expect(sendScan).toHaveBeenCalledTimes(2);
+    expect(getLocation).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when location retry cannot provide coordinates", async () => {
+    const { submitScanWithLocationRetry } = await import("../app/scan/scan-panel");
+    const sendScan = vi.fn().mockResolvedValue(
+      Response.json(
+        {
+          code: "GEOFENCE_ACCURACY_REQUIRED",
+          message: "Akurasi GPS wajib tersedia untuk scan di area kantor.",
+        },
+        { status: 400 },
+      ),
+    );
+    const getLocation = vi.fn(async () => ({}));
+
+    const result = await submitScanWithLocationRetry({
+      value: "token-2",
+      sendScan,
+      buildIdempotencyKey: () => "idempotency-key",
+      getLocation,
+    });
+
+    expect(result.response.ok).toBe(false);
+    expect(sendScan).toHaveBeenCalledTimes(1);
+    expect(getLocation).toHaveBeenCalledTimes(1);
+    expect(result.data.code).toBe("GEOFENCE_ACCURACY_REQUIRED");
+  });
+
+  it("reads geolocation payload from the browser API", async () => {
+    const { getLocationPayload } = await import("../app/scan/scan-panel");
+    const originalNavigator = globalThis.navigator;
+
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        geolocation: {
+          getCurrentPosition: (
+            success: (position: {
+              coords: { latitude: number; longitude: number; accuracy: number };
+            }) => void,
+          ) =>
+            success({
+              coords: {
+                latitude: -6.2,
+                longitude: 106.8,
+                accuracy: 12,
+              },
+            }),
+        },
+      },
+    });
+
+    try {
+      await expect(getLocationPayload(50)).resolves.toEqual({
+        latitude: -6.2,
+        longitude: 106.8,
+        accuracyMeters: 12,
+      });
+    } finally {
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: originalNavigator,
+      });
+    }
+  });
 });
