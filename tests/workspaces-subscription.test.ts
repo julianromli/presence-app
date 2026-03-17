@@ -33,12 +33,15 @@ type LegacyOwnershipMembershipRow = {
   userId: string;
   role: "superadmin" | "admin" | "karyawan" | "device-qr";
   isActive: boolean;
+  createdAt?: number;
+  _creationTime?: number;
 };
 
 function makeCreateWorkspaceCtx(
   ownedWorkspaces: OwnedWorkspaceRow[] = [],
   options: {
     legacyOwnerMemberships?: LegacyOwnershipMembershipRow[];
+    legacyWorkspaceMemberships?: LegacyOwnershipMembershipRow[];
     legacyWorkspaces?: OwnedWorkspaceRow[];
   } = {},
 ) {
@@ -51,15 +54,26 @@ function makeCreateWorkspaceCtx(
   });
 
   const legacyOwnerMemberships = options.legacyOwnerMemberships ?? [];
+  const legacyWorkspaceMemberships =
+    options.legacyWorkspaceMemberships ?? legacyOwnerMemberships;
   const allWorkspaces = [...ownedWorkspaces, ...(options.legacyWorkspaces ?? [])];
   const workspacesBySlugUnique = vi.fn(async () => null);
   const workspacesByOwnerCollect = vi.fn(async () => ownedWorkspaces);
   const membershipsByUserCollect = vi.fn(async () => legacyOwnerMemberships);
+  const membershipsByWorkspaceRoleActiveCollect = vi.fn(
+    async (workspaceId: string, role: string, isActive: boolean) =>
+      legacyWorkspaceMemberships.filter(
+        (membership) =>
+          membership.workspaceId === workspaceId &&
+          membership.role === role &&
+          membership.isActive === isActive,
+      ),
+  );
   const inviteCodeUnique = vi.fn(async () => null);
   const get = vi.fn(async (id: string) => allWorkspaces.find((workspace) => workspace._id === id) ?? null);
 
   const query = vi.fn((table: string) => ({
-    withIndex: vi.fn((indexName: string) => {
+    withIndex: vi.fn((indexName: string, applyIndex?: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
       if (table === "workspaces" && indexName === "by_slug") {
         return {
           unique: workspacesBySlugUnique,
@@ -75,6 +89,20 @@ function makeCreateWorkspaceCtx(
       if (table === "workspace_members" && indexName === "by_user_and_workspace") {
         return {
           collect: membershipsByUserCollect,
+        };
+      }
+
+      if (table === "workspace_members" && indexName === "by_workspace_role_active") {
+        const filters: string[] = [];
+        applyIndex?.({
+          eq(_field, value) {
+            filters.push(String(value));
+            return this;
+          },
+        });
+        return {
+          collect: () =>
+            membershipsByWorkspaceRoleActiveCollect(filters[0], filters[1], filters[2] === "true"),
         };
       }
 
@@ -102,6 +130,7 @@ function makeCreateWorkspaceCtx(
       query,
       inviteCodeUnique,
       membershipsByUserCollect,
+      membershipsByWorkspaceRoleActiveCollect,
       workspacesByOwnerCollect,
       workspacesBySlugUnique,
     },
@@ -556,6 +585,61 @@ describe("workspace subscription create limits", () => {
     expect(mocks.membershipsByUserCollect).toHaveBeenCalledTimes(1);
     expect(mocks.get).toHaveBeenCalledWith("workspace_legacy_free");
     expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it("does not treat later legacy superadmin memberships as ownership", async () => {
+    const { createWorkspace } = await import("../convex/workspaces.js");
+    const { ctx, mocks } = makeCreateWorkspaceCtx([], {
+      legacyOwnerMemberships: [
+        {
+          _id: "membership_actor",
+          workspaceId: "workspace_legacy_shared",
+          userId: "user_actor",
+          role: "superadmin",
+          isActive: true,
+          createdAt: 20,
+        },
+      ],
+      legacyWorkspaceMemberships: [
+        {
+          _id: "membership_original_owner",
+          workspaceId: "workspace_legacy_shared",
+          userId: "user_owner",
+          role: "superadmin",
+          isActive: true,
+          createdAt: 10,
+        },
+        {
+          _id: "membership_actor",
+          workspaceId: "workspace_legacy_shared",
+          userId: "user_actor",
+          role: "superadmin",
+          isActive: true,
+          createdAt: 20,
+        },
+      ],
+      legacyWorkspaces: [
+        {
+          _id: "workspace_legacy_shared",
+          slug: "legacy-shared",
+          name: "Legacy Shared",
+          plan: "free",
+          isActive: true,
+        },
+      ],
+    });
+
+    const result = await createWorkspace._handler(ctx as never, {
+      name: "Fresh Workspace",
+    });
+
+    expect(result.workspaceId).toBe("workspace_created");
+    expect(mocks.membershipsByUserCollect).toHaveBeenCalledTimes(1);
+    expect(mocks.membershipsByWorkspaceRoleActiveCollect).toHaveBeenCalledWith(
+      "workspace_legacy_shared",
+      "superadmin",
+      true,
+    );
   });
 });
 

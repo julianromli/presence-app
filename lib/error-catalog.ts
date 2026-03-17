@@ -56,6 +56,10 @@ export const CLIENT_MESSAGE_BY_CODE: Record<string, string> = {
   FEATURE_NOT_AVAILABLE: "Fitur ini hanya tersedia pada paket workspace yang lebih tinggi.",
   WORKSPACE_PLAN_INVALID:
     "Paket workspace tidak valid. Hubungi tim support atau periksa data workspace.",
+  WORKSPACE_PLAN_LIMIT_KEY_INVALID:
+    "Konfigurasi batas paket workspace sedang bermasalah. Hubungi tim support.",
+  WORKSPACE_PLAN_FEATURE_KEY_INVALID:
+    "Konfigurasi fitur paket workspace sedang bermasalah. Hubungi tim support.",
   WORKSPACE_REQUIRED: "Workspace aktif belum dipilih. Pilih workspace terlebih dahulu.",
   WORKSPACE_INVALID: "Workspace aktif tidak valid. Pilih ulang workspace Anda.",
   ONBOARDING_REQUIRED:

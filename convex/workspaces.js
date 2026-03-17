@@ -112,6 +112,34 @@ function resolveInviteExpiryFromPreset(preset, now = Date.now()) {
   }
 }
 
+function getLegacyOwnershipTimestamp(membership) {
+  if (typeof membership.createdAt === "number") {
+    return membership.createdAt;
+  }
+
+  if (typeof membership._creationTime === "number") {
+    return membership._creationTime;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function compareLegacyOwnershipMemberships(left, right) {
+  const leftTimestamp = getLegacyOwnershipTimestamp(left);
+  const rightTimestamp = getLegacyOwnershipTimestamp(right);
+  if (leftTimestamp !== rightTimestamp) {
+    return leftTimestamp - rightTimestamp;
+  }
+
+  const leftUserId = String(left.userId);
+  const rightUserId = String(right.userId);
+  if (leftUserId !== rightUserId) {
+    return leftUserId.localeCompare(rightUserId);
+  }
+
+  return String(left._id).localeCompare(String(right._id));
+}
+
 function toWorkspaceView(workspace) {
   return {
     ...workspace,
@@ -251,6 +279,24 @@ async function resolveCreateWorkspaceEntitlements(ctx, userId) {
 
     const workspace = await ctx.db.get(membership.workspaceId);
     if (!workspace || !workspace.isActive || workspace.createdByUserId !== undefined) {
+      continue;
+    }
+
+    const activeSuperadminMemberships = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspace_role_active", (q) =>
+        q.eq("workspaceId", membership.workspaceId).eq("role", "superadmin").eq("isActive", true),
+      )
+      .collect();
+    const legacyOwnerMembership = activeSuperadminMemberships.reduce(
+      (currentOwner, candidate) =>
+        currentOwner === null ||
+        compareLegacyOwnershipMemberships(candidate, currentOwner) < 0
+          ? candidate
+          : currentOwner,
+      null,
+    );
+    if (!legacyOwnerMembership || String(legacyOwnerMembership.userId) !== String(userId)) {
       continue;
     }
 

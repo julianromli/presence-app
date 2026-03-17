@@ -186,6 +186,25 @@ describe("settings premium plan gates", () => {
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 
+  it("blocks geofence coordinate updates for free workspaces even when geofence stays disabled", async () => {
+    const { update } = await import("../convex/settings");
+    const ctx = buildCtx("free");
+
+    await expect(
+      update.handler(ctx as never, {
+        workspaceId: "workspace_123456" as never,
+        geofenceLat: -6.2,
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: "FEATURE_NOT_AVAILABLE",
+        message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
+      },
+    });
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
   it("still allows timezone-only updates for free workspaces with legacy premium settings", async () => {
     const { update } = await import("../convex/settings");
     const ctx = buildCtx("free");
@@ -232,5 +251,73 @@ describe("settings premium plan gates", () => {
     });
 
     expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it("blocks whitelist IP updates for free workspaces even when whitelist stays disabled", async () => {
+    const { update } = await import("../convex/settings");
+    const ctx = buildCtx("free");
+
+    await expect(
+      update.handler(ctx as never, {
+        workspaceId: "workspace_123456" as never,
+        whitelistIps: ["203.0.113.9"],
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: "FEATURE_NOT_AVAILABLE",
+        message: "IP whitelist hanya tersedia untuk paket Pro atau Enterprise.",
+      },
+    });
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it("allows pure geofence disable without rechecking plan entitlements", async () => {
+    const { update } = await import("../convex/settings");
+    const ctx = buildCtx("free");
+    ensureGlobalSettingsForMutation.mockResolvedValue({
+      ...buildCurrentSettings(),
+      geofenceEnabled: true,
+      geofenceLat: -6.2,
+      geofenceLng: 106.8,
+    });
+
+    await expect(
+      update.handler(ctx as never, {
+        workspaceId: "workspace_123456" as never,
+        geofenceEnabled: false,
+      }),
+    ).resolves.toBeNull();
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      "settings_123",
+      expect.objectContaining({
+        geofenceEnabled: false,
+      }),
+    );
+  });
+
+  it("allows pure whitelist disable without rechecking plan entitlements", async () => {
+    const { update } = await import("../convex/settings");
+    const ctx = buildCtx("free");
+    ensureGlobalSettingsForMutation.mockResolvedValue({
+      ...buildCurrentSettings(),
+      whitelistEnabled: true,
+      whitelistIps: ["203.0.113.1"],
+    });
+
+    await expect(
+      update.handler(ctx as never, {
+        workspaceId: "workspace_123456" as never,
+        whitelistEnabled: false,
+      }),
+    ).resolves.toBeNull();
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      "settings_123",
+      expect.objectContaining({
+        whitelistEnabled: false,
+      }),
+    );
   });
 });

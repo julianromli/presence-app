@@ -29,12 +29,27 @@ function listActiveWorkspaceMemberships(ctx, workspaceId) {
     );
 }
 
+async function countPaginatedQuery(query, pageSize = 128) {
+  let count = 0;
+  let cursor = null;
+
+  while (true) {
+    const page = await query.paginate({
+      cursor,
+      numItems: pageSize,
+    });
+    count += page.page.length;
+
+    if (page.isDone) {
+      return count;
+    }
+
+    cursor = page.continueCursor;
+  }
+}
+
 async function countActiveWorkspaceMemberships(ctx, workspaceId) {
-  const activeMemberships = await listActiveWorkspaceMemberships(
-    ctx,
-    workspaceId,
-  ).collect();
-  return activeMemberships.length;
+  return countPaginatedQuery(listActiveWorkspaceMemberships(ctx, workspaceId));
 }
 
 function listActiveWorkspaceDevices(ctx, workspaceId) {

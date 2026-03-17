@@ -10,6 +10,18 @@ function buildCtx({
   devices: Array<{ _id: string; workspaceId: string; status: "active" | "revoked" }>;
 }) {
   const membershipCollect = vi.fn(async () => memberships);
+  const membershipPaginate = vi.fn(async ({ cursor, numItems }: { cursor: string | null; numItems: number }) => {
+    const offset = cursor ? Number.parseInt(cursor.replace("offset:", ""), 10) : 0;
+    const page = memberships.slice(offset, offset + numItems);
+    const nextOffset = offset + page.length;
+    const isDone = nextOffset >= memberships.length;
+
+    return {
+      page,
+      continueCursor: isDone ? "" : `offset:${nextOffset}`,
+      isDone,
+    };
+  });
   const deviceCollect = vi.fn(async () => devices);
 
   const query = vi.fn((table: string) => ({
@@ -17,6 +29,7 @@ function buildCtx({
       if (table === "workspace_members" && indexName === "by_workspace_active") {
         return {
           collect: membershipCollect,
+          paginate: membershipPaginate,
           take: vi.fn(),
         };
       }
@@ -39,19 +52,20 @@ function buildCtx({
     mocks: {
       deviceCollect,
       membershipCollect,
+      membershipPaginate,
       query,
     },
   };
 }
 
 describe("workspace subscription summary", () => {
-  it("counts active members and devices without paginating", async () => {
+  it("counts active members via pagination without materializing every membership", async () => {
     const ctx = buildCtx({
-      memberships: [
-        { _id: "membership_1", workspaceId: "workspace_free", isActive: true },
-        { _id: "membership_2", workspaceId: "workspace_free", isActive: true },
-        { _id: "membership_3", workspaceId: "workspace_free", isActive: true },
-      ],
+      memberships: Array.from({ length: 130 }, (_, index) => ({
+        _id: `membership_${index + 1}`,
+        workspaceId: "workspace_free",
+        isActive: true,
+      })),
       devices: [
         { _id: "device_1", workspaceId: "workspace_free", status: "active" },
       ],
@@ -73,17 +87,18 @@ describe("workspace subscription summary", () => {
       features: {
         geofence: false,
         ipWhitelist: false,
-        attendanceSchedule: true,
+        attendanceSchedule: false,
         reportExport: false,
         inviteRotation: true,
         inviteExpiry: false,
       },
       usage: {
-        activeMembers: 3,
+        activeMembers: 130,
         activeDevices: 1,
       },
     });
-    expect(ctx.mocks.membershipCollect).toHaveBeenCalledTimes(1);
+    expect(ctx.mocks.membershipPaginate).toHaveBeenCalledTimes(2);
+    expect(ctx.mocks.membershipCollect).not.toHaveBeenCalled();
     expect(ctx.mocks.deviceCollect).toHaveBeenCalledTimes(1);
   });
 });

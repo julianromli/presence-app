@@ -140,16 +140,26 @@ export const update = mutation({
       attendanceSchedule,
     };
 
-    const touchesGeofenceSettings =
-      args.geofenceEnabled !== undefined ||
+    const geofencePremiumFieldsTouched =
       args.geofenceRadiusMeters !== undefined ||
       args.minLocationAccuracyMeters !== undefined ||
       args.geofenceLat !== undefined ||
       args.geofenceLng !== undefined;
+    const touchesGeofenceSettings =
+      args.geofenceEnabled !== undefined || geofencePremiumFieldsTouched;
+    const whitelistValuesTouched = args.whitelistIps !== undefined;
     const touchesWhitelistSettings =
-      args.whitelistEnabled !== undefined || args.whitelistIps !== undefined;
+      args.whitelistEnabled !== undefined || whitelistValuesTouched;
+    const isPureGeofenceDisable =
+      args.geofenceEnabled === false && !geofencePremiumFieldsTouched;
+    const isPureWhitelistDisable =
+      args.whitelistEnabled === false && !whitelistValuesTouched;
 
-    if (touchesGeofenceSettings && nextSettings.geofenceEnabled) {
+    if (
+      touchesGeofenceSettings &&
+      !isPureGeofenceDisable &&
+      (nextSettings.geofenceEnabled === true || geofencePremiumFieldsTouched)
+    ) {
       assertWorkspaceFeatureEnabled({
         plan: workspace,
         featureKey: "geofence",
@@ -157,7 +167,11 @@ export const update = mutation({
       });
     }
 
-    if (touchesWhitelistSettings && nextSettings.whitelistEnabled) {
+    if (
+      touchesWhitelistSettings &&
+      !isPureWhitelistDisable &&
+      (nextSettings.whitelistEnabled === true || whitelistValuesTouched)
+    ) {
       assertWorkspaceFeatureEnabled({
         plan: workspace,
         featureKey: "ipWhitelist",
