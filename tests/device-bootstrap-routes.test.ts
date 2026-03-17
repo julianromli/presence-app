@@ -20,6 +20,7 @@ type SetupOptions = {
   deviceApiResult?: DeviceApiResult;
   queryImpl?: ReturnType<typeof vi.fn>;
   mutationImpl?: ReturnType<typeof vi.fn>;
+  useActualApiError?: boolean;
 };
 
 async function setupValidateCodeRoute(options: SetupOptions = {}) {
@@ -40,11 +41,20 @@ async function setupValidateCodeRoute(options: SetupOptions = {}) {
     getConvexHttpClient,
     getPublicConvexHttpClient: getConvexHttpClient,
   }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
-  }));
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
 
   const routeModule = await import("../app/api/device/bootstrap/validate-code/route");
   return { POST: routeModule.POST, mocks: { requireWorkspaceApiContext, mutation } };
@@ -73,11 +83,20 @@ async function setupClaimRoute(options: SetupOptions = {}) {
     getConvexHttpClient,
     getPublicConvexHttpClient: getConvexHttpClient,
   }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
-  }));
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
 
   const routeModule = await import("../app/api/device/bootstrap/claim/route");
   return { POST: routeModule.POST, mocks: { requireWorkspaceApiContext, mutation } };
@@ -181,6 +200,47 @@ describe("device bootstrap routes", () => {
       claimedAt: 1_234_567_890,
     });
     expect(response.headers.get("set-cookie")).toContain("absenin.id.deviceAuth=");
+    expect(mocks.mutation).toHaveBeenCalledWith("devices:claimRegistrationCode", {
+      workspaceId: "workspace_123456",
+      code: "GOOD-CODE",
+      label: "Front Desk Tablet",
+      ipAddress: "203.0.113.1",
+      userAgent: "Vitest Browser",
+      rateLimitKey: "ip:203.0.113.1|ua:Vitest Browser",
+    });
+  });
+
+  it("claim preserves PLAN_LIMIT_REACHED for device cap feedback", async () => {
+    const domainError = {
+      data: {
+        code: "PLAN_LIMIT_REACHED",
+        message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",
+      },
+    };
+    const { POST, mocks } = await setupClaimRoute({
+      mutationImpl: vi.fn(async () => {
+        throw domainError;
+      }),
+      useActualApiError: true,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/device/bootstrap/claim", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-real-ip": "203.0.113.1",
+          "user-agent": "Vitest Browser",
+        },
+        body: JSON.stringify({ code: "GOOD-CODE", label: "Front Desk Tablet" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "PLAN_LIMIT_REACHED",
+      message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",
+    });
     expect(mocks.mutation).toHaveBeenCalledWith("devices:claimRegistrationCode", {
       workspaceId: "workspace_123456",
       code: "GOOD-CODE",

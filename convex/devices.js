@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import { internalMutation, mutation, query } from "./_generated/server";
 import { requireWorkspaceRole, sha256Hex } from "./helpers";
+import { assertWorkspaceActiveDeviceLimitNotReached } from "./workspaceSubscription";
 
 export const deviceStatusValidator = v.union(
   v.literal("active"),
@@ -97,6 +98,12 @@ const BOOTSTRAP_RATE_LIMIT_CONFIG = {
     blockMs: 30 * 60_000,
   },
 };
+
+const NON_ABUSE_BOOTSTRAP_ERROR_CODES = new Set([
+  "SPAM_DETECTED",
+  "PLAN_LIMIT_REACHED",
+  "WORKSPACE_INVALID",
+]);
 
 function normalizeRegistrationCode(input) {
   return input.trim().toUpperCase().replace(/\s+/g, "").replace(/-+/g, "-");
@@ -273,11 +280,23 @@ function shouldCountBootstrapFailure(error) {
     return false;
   }
 
-  return error.data.code !== "SPAM_DETECTED";
+  return !NON_ABUSE_BOOTSTRAP_ERROR_CODES.has(error.data.code);
 }
 
 async function insertAuditLog(ctx, entry) {
   await ctx.db.insert("audit_logs", entry);
+}
+
+async function getActiveWorkspaceOrThrow(ctx, workspaceId) {
+  const workspace = await ctx.db.get(workspaceId);
+  if (!workspace || !workspace.isActive) {
+    throw new ConvexError({
+      code: "WORKSPACE_INVALID",
+      message: "Workspace tidak valid.",
+    });
+  }
+
+  return workspace;
 }
 
 export const createRegistrationCode = mutation({
@@ -294,6 +313,8 @@ export const createRegistrationCode = mutation({
   }),
   handler: async (ctx, args) => {
     const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+    const workspace = await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
+    await assertWorkspaceActiveDeviceLimitNotReached(ctx, workspace);
     const now = Date.now();
     const ttlMs = Math.max(60_000, Math.trunc(args.ttlMs ?? 5 * 60_000));
     const code = generateRegistrationCode();
@@ -524,6 +545,8 @@ export const claimRegistrationCode = mutation({
 
       const claimedAt = Date.now();
       assertRegistrationCodeClaimable(codeRow, claimedAt);
+      const workspace = await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
+      await assertWorkspaceActiveDeviceLimitNotReached(ctx, workspace);
 
       const secret = generateDeviceSecret();
       const deviceSecretHash = await hashDeviceCredential(secret);
@@ -614,27 +637,32 @@ export const updateDevice = mutation({
       });
     }
 
-    const shouldRevoke = args.revoke === true;
+    const shouldRevoke = args.revoke === true && device.status !== "revoked";
+    const labelChanged = nextLabel !== device.label;
     const now = Date.now();
-    await ctx.db.patch(device._id, {
-      label: nextLabel,
-      status: shouldRevoke ? "revoked" : device.status,
-      revokedAt: shouldRevoke ? now : device.revokedAt,
-      revokedByUserId: shouldRevoke ? user._id : device.revokedByUserId,
-      updatedAt: now,
-    });
-
-    await insertAuditLog(ctx, {
-      actorUserId: user._id,
-      workspaceId: args.workspaceId,
-      action: shouldRevoke ? "device.revoked" : "device.renamed",
-      targetType: "devices",
-      targetId: String(device._id),
-      payload: {
+    if (labelChanged || shouldRevoke) {
+      await ctx.db.patch(device._id, {
         label: nextLabel,
-      },
-      createdAt: now,
-    });
+        status: shouldRevoke ? "revoked" : device.status,
+        revokedAt: shouldRevoke ? now : device.revokedAt,
+        revokedByUserId: shouldRevoke ? user._id : device.revokedByUserId,
+        updatedAt: now,
+      });
+    }
+
+    if (shouldRevoke || labelChanged) {
+      await insertAuditLog(ctx, {
+        actorUserId: user._id,
+        workspaceId: args.workspaceId,
+        action: shouldRevoke ? "device.revoked" : "device.renamed",
+        targetType: "devices",
+        targetId: String(device._id),
+        payload: {
+          label: nextLabel,
+        },
+        createdAt: now,
+      });
+    }
 
     return {
       deviceId: device._id,

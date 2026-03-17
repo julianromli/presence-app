@@ -44,12 +44,17 @@ async function listActiveWorkspaceDevices(ctx, workspaceId) {
     .collect();
 }
 
+export async function countActiveWorkspaceDevices(ctx, workspaceId) {
+  const activeDevices = await listActiveWorkspaceDevices(ctx, workspaceId);
+  return activeDevices.length;
+}
+
 export async function getWorkspaceSubscriptionSummary(ctx, workspace) {
   const plan = resolveWorkspacePlan(workspace);
   const { limits, features } = resolveWorkspaceEntitlements(plan);
-  const [activeMemberCount, activeDevices] = await Promise.all([
+  const [activeMemberCount, activeDeviceCount] = await Promise.all([
     countActiveWorkspaceMembers(ctx, workspace._id),
-    listActiveWorkspaceDevices(ctx, workspace._id),
+    countActiveWorkspaceDevices(ctx, workspace._id),
   ]);
 
   return {
@@ -58,7 +63,7 @@ export async function getWorkspaceSubscriptionSummary(ctx, workspace) {
     features,
     usage: {
       activeMembers: activeMemberCount,
-      activeDevices: activeDevices.length,
+      activeDevices: activeDeviceCount,
     },
   };
 }
@@ -72,6 +77,21 @@ export async function assertWorkspaceActiveMemberLimitNotReached(ctx, workspace)
     currentCount: activeMemberCount,
     code: "PLAN_LIMIT_REACHED",
     message: "Jumlah member aktif sudah mencapai batas paket workspace Anda.",
+    data: {
+      workspaceId: workspace._id,
+    },
+  });
+}
+
+export async function assertWorkspaceActiveDeviceLimitNotReached(ctx, workspace) {
+  const activeDeviceCount = await countActiveWorkspaceDevices(ctx, workspace._id);
+
+  return assertPlanLimitNotReached({
+    plan: resolveWorkspacePlan(workspace),
+    limitKey: "maxDevicesPerWorkspace",
+    currentCount: activeDeviceCount,
+    code: "PLAN_LIMIT_REACHED",
+    message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",
     data: {
       workspaceId: workspace._id,
     },
