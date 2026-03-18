@@ -49,7 +49,6 @@ next-env.d.ts
 .clerk/
 cloudflared.log
 .worktrees/
-/convex/_generated
 
 # Sentry Config File
 .env.sentry-build-plugin
