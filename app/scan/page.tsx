@@ -10,5 +10,5 @@ export default async function ScanPage() {
     currentUser(),
   ]);
 
-  return <ScanPanel firstName={clerkUser?.firstName?.trim() || 'Karyawan'} />;
+  return <ScanPanel firstName={clerkUser?.username?.trim() || 'Karyawan'} />;
 }

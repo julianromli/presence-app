@@ -46,6 +46,7 @@
     "framer-motion": "^12.35.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.577.0",
+    "maplibre-gl": "^5.20.2",
     "motion": "^12.34.4",
     "next": "16.1.6",
     "next-mdx-remote": "^6.0.0",
