@@ -38,6 +38,7 @@ The approved layout direction is **Mission Control**:
 - Merge `/dev` into existing workspace-scoped admin APIs.
 - Build a general-purpose backoffice for non-developer operators.
 - Ship full subscription-history integration in v1.
+- Build a v1 command palette or arbitrary quick-action framework.
 - Introduce broad product-wide role changes for existing tenant users.
 
 ## Current State
@@ -108,6 +109,23 @@ This means a signed-in Clerk user is still denied `/dev` unless they also:
 - carry the internal metadata flag
 - successfully complete the second unlock flow
 
+The second unlock contract for v1 is intentionally narrow:
+
+- credential type:
+  - one environment-backed internal passphrase validated server-side
+- storage:
+  - short-lived signed `httpOnly` cookie scoped to `/dev`
+- TTL:
+  - 30 minutes sliding session
+- failure handling:
+  - after 5 failed unlock attempts for the same session or IP fingerprint, block additional attempts for 15 minutes
+- invalidation:
+  - logout clears the `/dev` unlock cookie immediately
+  - changing the server-side passphrase invalidates future unlock attempts until the new passphrase is used
+  - expired or invalid signatures force return to `/dev/login`
+
+This unlock layer is for internal defense-in-depth and should not attempt to replace Clerk session management.
+
 ### Layout Direction
 
 The approved visual and structural direction is **Mission Control**.
@@ -116,9 +134,9 @@ The page should be organized into four functional layers:
 
 1. **Header bar**
    - `Developer Console` identity
-   - global search / command input
+   - global-scope badge
    - session status badges
-   - quick actions
+   - refresh and logout actions only
 
 2. **Top overview strip**
    - global KPI cards
@@ -135,6 +153,40 @@ The page should be organized into four functional layers:
    - future audit and subscription-history surfaces
 
 This structure keeps the page useful both for broad monitoring and for jumping quickly into repair actions.
+
+The v1 header explicitly does **not** include:
+
+- command palette
+- arbitrary quick actions
+- global freeform search spanning every module
+
+Those can be revisited later once the base console is working.
+
+### V1 Risk Taxonomy
+
+All overview cards, risk filters, and the risk queue must use the same explicit risk codes in v1.
+
+Approved v1 risk codes:
+
+- `workspace_inactive`
+  - workspace exists but `isActive === false`
+- `workspace_without_active_superadmin`
+  - workspace has no active membership with role `superadmin`
+- `invite_expiring_24h`
+  - workspace has an active invite code that expires within 24 hours
+- `plan_limit_reached`
+  - workspace member or device usage has reached its current plan limit
+- `user_inactive_with_active_membership`
+  - user is inactive but still has one or more active memberships
+- `identity_sync_mismatch`
+  - Clerk identity and app/Convex identity are out of sync in one of the explicitly supported ways defined in User Management below
+
+Rules:
+
+- `at-risk counts` on overview cards are counts of records matching one or more of these risk codes
+- `Attention Needed` is the top-priority subset of these same risk codes
+- `risk queue` is a list view of records tagged with these same risk codes
+- workspace filters and user filters may filter by one or more of these same risk codes
 
 ## Information Architecture
 
@@ -194,6 +246,8 @@ It should also include:
 - `Recent Mutations` feed
 - quick links into filtered workspace or user lists
 
+In v1, `Attention Needed` and `at-risk counts` are derived only from the approved v1 risk taxonomy. There is no separate hidden risk scoring system.
+
 This module should answer:
 
 - what looks broken right now?
@@ -209,7 +263,7 @@ It should support:
 - search across all workspaces
 - filter by plan
 - filter by active/inactive state
-- filter by risk or health flags
+- filter by one or more approved risk codes
 - select a workspace and inspect details in the context rail
 
 Detail context should surface:
@@ -233,6 +287,17 @@ Approved v1 mutations:
 - delete workspace
 
 Delete workspace is especially risky and should use stronger confirmation than standard mutations.
+
+For v1, `delete workspace` means **soft delete only**:
+
+- set workspace inactive
+- revoke or disable active invite codes for that workspace
+- prevent further device or member activity through normal workspace flows
+- preserve workspace record, memberships, devices, invites, and audit history for investigation
+- do not hard-delete users
+- do not hard-delete historical attendance or audit data
+
+Hard delete is explicitly out of scope for v1 `/dev`.
 
 ### 3. User Management
 
@@ -258,9 +323,30 @@ Approved v1 mutations:
 
 - activate/deactivate user
 - adjust workspace membership role
-- inspect and repair obvious membership/sync issues
+- perform one of the explicitly allowed repair actions below
 
 This module is intended to help recover bad data or access problems quickly, not just to browse user records.
+
+Supported v1 identity/membership mismatch cases:
+
+- Clerk user exists but app user record is missing
+- Clerk primary identity fields differ from stored app user name/email
+- inactive app user still has active memberships
+- membership role is incorrect for the intended workspace access
+
+Allowed v1 repair actions:
+
+- trigger Clerk-to-app resync for a selected user
+- activate or deactivate the app user
+- change a membership role
+- deactivate a membership
+
+Out of scope in v1:
+
+- deleting users
+- merging users
+- reassigning historical records between users
+- bulk repair flows
 
 ### 4. Plan Management
 
@@ -351,6 +437,15 @@ Suggested helpers:
 
 The unlock session should be clearly separate from normal app auth and should be easy to expire or rotate.
 
+The unlock cookie should be:
+
+- `httpOnly`
+- `secure` in production
+- scoped to `/dev`
+- signed server-side
+
+Unlock and logout events may be logged for diagnostics, but they are not part of the blocking mutation-audit requirement below.
+
 ## API Design
 
 ### Separate Namespace
@@ -380,6 +475,145 @@ This namespace should support global queries and global mutations.
 
 Exact route shapes can change during implementation, but the key rule is that they must remain rooted in `/api/dev` and protected by `/dev` access guards.
 
+### V1 HTTP Contracts
+
+These contracts are intentionally minimal but specific enough for planning.
+
+#### `GET /api/dev/overview`
+
+Response shape:
+
+- `kpis`
+  - workspace totals
+  - user totals
+  - plan distribution totals
+  - risk totals by approved risk code
+- `attention`
+  - top risk buckets using the approved risk taxonomy
+- `recentMutations`
+  - latest audit-backed mutation entries
+
+#### `GET /api/dev/workspaces`
+
+Query params:
+
+- `q`
+- `status` = `active | inactive | all`
+- `plan`
+- `risk`
+- `cursor`
+- `limit`
+- `sort` = `createdAt | updatedAt | name`
+
+Response shape:
+
+- `rows`
+- `summary`
+- `pageInfo`
+
+Each workspace row should contain enough data for:
+
+- identity
+- status
+- plan snapshot
+- usage snapshot
+- applied risk codes
+
+#### `PATCH /api/dev/workspaces/:id`
+
+Allowed payload families:
+
+- rename workspace
+- activate/deactivate workspace
+- update invite expiry
+- change plan
+
+Use explicit action-oriented payload validation rather than loosely typed partial updates.
+
+#### `POST /api/dev/workspaces/:id/actions`
+
+Allowed v1 actions:
+
+- rotate invite code
+- soft delete workspace
+
+#### `GET /api/dev/users`
+
+Query params:
+
+- `q`
+- `status` = `active | inactive | all`
+- `role`
+- `risk`
+- `cursor`
+- `limit`
+- `sort` = `createdAt | updatedAt | name`
+
+Response shape:
+
+- `rows`
+- `summary`
+- `pageInfo`
+
+Each user row should contain enough data for:
+
+- identity
+- status
+- membership summary
+- applied risk codes
+
+#### `PATCH /api/dev/users/:id`
+
+Allowed payload families:
+
+- activate/deactivate user
+- trigger resync for selected user
+
+#### `PATCH /api/dev/memberships/:id`
+
+Allowed payload families:
+
+- change membership role
+- deactivate membership
+
+#### `GET /api/dev/plans`
+
+Response shape:
+
+- `distribution`
+- `rows`
+- `summary`
+
+#### `GET /api/dev/mutations`
+
+Query params:
+
+- `targetType`
+- `action`
+- `cursor`
+- `limit`
+
+Response shape:
+
+- `rows`
+- `pageInfo`
+
+### Route Handler vs Convex Boundary
+
+For v1, Next route handlers in `app/api/dev/**` should own:
+
+- `/dev` auth validation
+- query parsing
+- body validation
+- HTTP response shaping
+
+Convex functions should own:
+
+- global data reads
+- mutation execution
+- audit persistence
+- consistency checks on domain rules
+
 ### Data Access Expectations
 
 The data layer for `/dev` must operate globally:
@@ -402,6 +636,19 @@ Risky actions are allowed in `/dev`, but the surface should still enforce discip
 - all mutations must show clear impact context
 - all mutations must refresh the affected panels after success
 - all important mutations must create audit records
+
+For v1, `important mutations` means every state-changing action in these approved sets:
+
+- workspace rename
+- workspace activate/deactivate
+- invite rotation
+- invite expiry update
+- workspace plan change
+- workspace soft delete
+- user activate/deactivate
+- user resync trigger
+- membership role change
+- membership deactivation
 
 ### Confirmation Rules
 
@@ -442,6 +689,17 @@ Minimum recommended fields:
 The right shape of storage can be decided during implementation, but auditability is a hard requirement for the design.
 
 The `Recent Mutations` utility lane on `/dev` should read from this audit source or a close equivalent.
+
+### Audit Failure Semantics
+
+For the important mutations listed above, v1 should fail closed:
+
+- if the domain mutation succeeds but the audit write fails, the overall request should be treated as failed
+- the implementation should prefer atomic mutation-plus-audit behavior when the data layer allows it
+
+Read-only requests do not depend on audit writes.
+
+Unlock and logout events may use best-effort logging because they are not domain mutations.
 
 ## UX State Rules
 
@@ -491,14 +749,21 @@ Add or update tests for:
 - `/dev` page access denied when Clerk user is missing
 - `/dev` page access denied when `publicMetadata.devAccess` is not true
 - `/dev/login` unlock flow success and failure
+- `/dev/login` temporary lockout after repeated failed unlock attempts
 - `/api/dev/*` denial when the `/dev` unlock session is missing
 - global overview rendering
+- overview risk counts derived from the approved risk taxonomy only
 - workspace list filtering
+- workspace risk filtering using approved risk codes
 - user list filtering
+- user risk filtering using approved risk codes
 - plan panel rendering
 - dangerous action confirmation flows
+- workspace soft delete semantics
+- user resync action handling
 - mutation success refresh behavior
 - mutation failure handling
+- audit failure causes important mutations to fail
 - subscription-history placeholder rendering
 
 If audit storage is introduced during implementation, add tests that verify audit records are written for important mutations.
@@ -510,15 +775,20 @@ If audit storage is introduced during implementation, add tests that verify audi
 - `/dev` requires Clerk auth.
 - `/dev` additionally requires `publicMetadata.devAccess === true`.
 - `/dev` additionally requires a second unlock step through `/dev/login`.
+- `/dev` unlock uses a short-lived signed cookie scoped to `/dev`.
 - The approved Mission Control structure is reflected in the page layout.
+- The v1 header does not require a command palette or arbitrary quick-action system.
 - Global Overview is usable in v1.
 - Workspace Management is usable in v1.
 - User Management is usable in v1.
 - Plan Management is usable in v1.
 - Subscription history appears as frontend-only placeholder content in v1.
 - Risky mutations are possible from `/dev`.
+- All overview risk counts and filters use the approved v1 risk taxonomy.
 - Important `/dev` mutations create audit records.
+- Important `/dev` mutations fail if audit persistence fails.
 - Destructive actions are contextual and explicitly confirmed.
+- Workspace delete in v1 is soft delete only.
 - `/api/dev/*` exists as a separate protected namespace rather than reusing workspace-scoped admin routes.
 
 ## Implementation Notes
