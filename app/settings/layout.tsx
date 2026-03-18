@@ -1,7 +1,12 @@
+import type { Metadata } from 'next';
+
 import { AppClerkProvider } from '@/components/providers/app-clerk-provider';
 import { DashboardLayout as DashboardShellLayout } from '@/components/dashboard/layout';
 import { requireWorkspaceOnboardingPage, requireWorkspaceRolePageFromDb } from '@/lib/auth';
+import { NOINDEX_METADATA } from '@/lib/seo';
 import { redirect } from 'next/navigation';
+
+export const metadata: Metadata = NOINDEX_METADATA;
 
 export default async function DashboardLayout({
   children,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import manifest from "../app/manifest";
 import robots from "../app/robots";
 import sitemap from "../app/sitemap";
+import { PUBLIC_SITEMAP_ENTRIES } from "../lib/seo";
 import { SITE_URL } from "../lib/site-config";
 
 describe("site metadata routes", () => {
@@ -27,14 +28,13 @@ describe("site metadata routes", () => {
   });
 
   it("includes public marketing and trust pages in the sitemap", () => {
-    const urls = sitemap().map((entry) => entry.url);
-
-    expect(urls).toEqual(
-      expect.arrayContaining([
-        `${SITE_URL}/`,
-        `${SITE_URL}/privacy`,
-        `${SITE_URL}/terms`,
-      ]),
+    expect(sitemap()).toEqual(
+      PUBLIC_SITEMAP_ENTRIES.map((entry) => ({
+        url: entry.path === "/" ? `${SITE_URL}/` : `${SITE_URL}${entry.path}`,
+        lastModified: entry.lastModified,
+        changeFrequency: entry.changeFrequency,
+        priority: entry.priority,
+      })),
     );
   });
 });
