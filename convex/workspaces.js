@@ -6,6 +6,18 @@ import {
   requireIdentityUser,
   requireWorkspaceRole,
 } from "./helpers";
+import {
+  assertPlanLimitNotReached,
+  assertWorkspaceFeatureEnabled,
+  compareWorkspacePlans,
+  resolveWorkspacePlan,
+  workspacePlanValidator,
+} from "./plans";
+import {
+  assertWorkspaceActiveMemberLimitNotReached,
+  getWorkspaceSubscriptionSummary,
+  workspaceSubscriptionSummaryValidator,
+} from "./workspaceSubscription";
 import { toInviteCodeView } from "./workspaceInviteView";
 import { listActiveInviteCodeIds } from "./workspaceInvitePolicy";
 
@@ -16,11 +28,19 @@ const workspaceRoleValidator = v.union(
   v.literal("device-qr"),
 );
 
+const inviteExpiryPresetValidator = v.union(
+  v.literal("never"),
+  v.literal("1d"),
+  v.literal("7d"),
+  v.literal("30d"),
+);
+
 const workspaceValidator = v.object({
   _id: v.id("workspaces"),
   _creationTime: v.number(),
   slug: v.string(),
   name: v.string(),
+  plan: workspacePlanValidator,
   isActive: v.boolean(),
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -58,6 +78,7 @@ const workspaceManagementValidator = v.object({
     activeCount: v.number(),
     activeCountExcludingCurrentUser: v.number(),
   }),
+  subscription: workspaceSubscriptionSummaryValidator,
 });
 
 function normalizeWorkspaceName(value) {
@@ -76,6 +97,54 @@ function slugifyWorkspaceName(name) {
 
 function normalizeInviteCode(input) {
   return input.trim().toUpperCase().replace(/\s+/g, "").replace(/-+/g, "-");
+}
+
+function resolveInviteExpiryFromPreset(preset, now = Date.now()) {
+  switch (preset) {
+    case "1d":
+      return now + 24 * 60 * 60 * 1000;
+    case "7d":
+      return now + 7 * 24 * 60 * 60 * 1000;
+    case "30d":
+      return now + 30 * 24 * 60 * 60 * 1000;
+    default:
+      return undefined;
+  }
+}
+
+function getLegacyOwnershipTimestamp(membership) {
+  if (typeof membership.createdAt === "number") {
+    return membership.createdAt;
+  }
+
+  if (typeof membership._creationTime === "number") {
+    return membership._creationTime;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function compareLegacyOwnershipMemberships(left, right) {
+  const leftTimestamp = getLegacyOwnershipTimestamp(left);
+  const rightTimestamp = getLegacyOwnershipTimestamp(right);
+  if (leftTimestamp !== rightTimestamp) {
+    return leftTimestamp - rightTimestamp;
+  }
+
+  const leftUserId = String(left.userId);
+  const rightUserId = String(right.userId);
+  if (leftUserId !== rightUserId) {
+    return leftUserId.localeCompare(rightUserId);
+  }
+
+  return String(left._id).localeCompare(String(right._id));
+}
+
+function toWorkspaceView(workspace) {
+  return {
+    ...workspace,
+    plan: resolveWorkspacePlan(workspace),
+  };
 }
 
 function generateInviteCode(seed) {
@@ -140,7 +209,7 @@ async function listActiveMemberships(ctx, userId) {
       membershipId: membership._id,
       role: membership.role,
       isActive: membership.isActive,
-      workspace,
+      workspace: toWorkspaceView(workspace),
     });
   }
 
@@ -148,14 +217,18 @@ async function listActiveMemberships(ctx, userId) {
 }
 
 async function getActiveInviteCodeByWorkspace(ctx, workspaceId) {
+  const active = await getActiveInviteCodeRecordByWorkspace(ctx, workspaceId);
+  return toInviteCodeView(active ?? null);
+}
+
+async function getActiveInviteCodeRecordByWorkspace(ctx, workspaceId) {
   const inviteCodes = await ctx.db
     .query("workspace_invite_codes")
     .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
     .collect();
-  const active = inviteCodes
+  return inviteCodes
     .filter((item) => item.isActive)
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
-  return toInviteCodeView(active ?? null);
 }
 
 async function listWorkspaceMembershipsByWorkspace(ctx, workspaceId) {
@@ -174,6 +247,80 @@ function summarizeWorkspaceMembers(memberships, currentUserId) {
     activeCountExcludingCurrentUser: activeMemberships.filter(
       (membership) => membership.userId !== currentUserId,
     ).length,
+  };
+}
+
+async function resolveCreateWorkspaceEntitlements(ctx, userId) {
+  const ownedRows = await ctx.db
+    .query("workspaces")
+    .withIndex("by_created_by_user", (q) => q.eq("createdByUserId", userId))
+    .collect();
+  const memberships = await ctx.db
+    .query("workspace_members")
+    .withIndex("by_user_and_workspace", (q) => q.eq("userId", userId))
+    .collect();
+
+  const activeOwnedWorkspacesById = new Map();
+  for (const workspace of ownedRows) {
+    if (!workspace.isActive) {
+      continue;
+    }
+
+    activeOwnedWorkspacesById.set(String(workspace._id), workspace);
+  }
+
+  const legacyOwnerMemberships = memberships.filter(
+    (membership) => membership.isActive && membership.role === "superadmin",
+  );
+  for (const membership of legacyOwnerMemberships) {
+    if (activeOwnedWorkspacesById.has(String(membership.workspaceId))) {
+      continue;
+    }
+
+    const workspace = await ctx.db.get(membership.workspaceId);
+    if (!workspace || !workspace.isActive || workspace.createdByUserId !== undefined) {
+      continue;
+    }
+
+    const activeSuperadminMemberships = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspace_role_active", (q) =>
+        q.eq("workspaceId", membership.workspaceId).eq("role", "superadmin").eq("isActive", true),
+      )
+      .collect();
+    const legacyOwnerMembership = activeSuperadminMemberships.reduce(
+      (currentOwner, candidate) =>
+        currentOwner === null ||
+        compareLegacyOwnershipMemberships(candidate, currentOwner) < 0
+          ? candidate
+          : currentOwner,
+      null,
+    );
+    if (!legacyOwnerMembership || String(legacyOwnerMembership.userId) !== String(userId)) {
+      continue;
+    }
+
+    activeOwnedWorkspacesById.set(String(workspace._id), workspace);
+  }
+
+  const activeOwnedWorkspaces = [...activeOwnedWorkspacesById.values()];
+  const plan = activeOwnedWorkspaces.reduce((bestPlan, workspace) => {
+    const workspacePlan = resolveWorkspacePlan(workspace);
+    return compareWorkspacePlans(workspacePlan, bestPlan) > 0 ? workspacePlan : bestPlan;
+  }, "free");
+
+  const entitlements = assertPlanLimitNotReached({
+    plan,
+    limitKey: "maxOwnedWorkspaces",
+    currentCount: activeOwnedWorkspaces.length,
+    code: "PLAN_LIMIT_REACHED",
+    message: "Jumlah workspace aktif sudah mencapai batas paket workspace Anda.",
+  });
+
+  return {
+    activeOwnedWorkspaces,
+    entitlements,
+    plan,
   };
 }
 
@@ -226,7 +373,38 @@ export const myMembershipByWorkspace = query({
       membershipId: membership._id,
       role: membership.role,
       isActive: membership.isActive,
-      workspace,
+      workspace: toWorkspaceView(workspace),
+    };
+  },
+});
+
+export const currentWorkspaceSummary = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.object({
+    workspaceId: v.id("workspaces"),
+    subscription: workspaceSubscriptionSummaryValidator,
+  }),
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, [
+      "superadmin",
+      "admin",
+      "karyawan",
+      "device-qr",
+    ]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    return {
+      workspaceId: workspace._id,
+      subscription: await getWorkspaceSubscriptionSummary(ctx, workspace),
     };
   },
 });
@@ -249,10 +427,12 @@ export const workspaceManagementDetail = query({
 
     const activeInviteCode = await getActiveInviteCodeByWorkspace(ctx, args.workspaceId);
     const memberships = await listWorkspaceMembershipsByWorkspace(ctx, args.workspaceId);
+    const workspaceView = toWorkspaceView(workspace);
     return {
-      workspace,
+      workspace: workspaceView,
       activeInviteCode,
       memberSummary: summarizeWorkspaceMembers(memberships, user._id),
+      subscription: await getWorkspaceSubscriptionSummary(ctx, workspaceView),
     };
   },
 });
@@ -276,6 +456,8 @@ export const createWorkspace = mutation({
       });
     }
 
+    await resolveCreateWorkspaceEntitlements(ctx, user._id);
+
     const baseSlug = slugifyWorkspaceName(name);
     const slug = await ensureUniqueWorkspaceSlug(ctx, baseSlug);
     const now = Date.now();
@@ -283,6 +465,7 @@ export const createWorkspace = mutation({
     const workspaceId = await ctx.db.insert("workspaces", {
       slug,
       name,
+      plan: "free",
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -298,7 +481,7 @@ export const createWorkspace = mutation({
       updatedAt: now,
     });
 
-    const inviteCode = generateInviteCode(slug.toUpperCase());
+    const inviteCode = await generateUniqueInviteCode(ctx, slug.toUpperCase());
     await ctx.db.insert("workspace_invite_codes", {
       workspaceId,
       code: inviteCode,
@@ -418,6 +601,8 @@ export const joinWorkspaceByCode = mutation({
         };
       }
 
+      await assertWorkspaceActiveMemberLimitNotReached(ctx, workspace);
+
       await ctx.db.patch(existingMembership._id, {
         role: "karyawan",
         isActive: true,
@@ -430,6 +615,8 @@ export const joinWorkspaceByCode = mutation({
         alreadyMember: false,
       };
     }
+
+    await assertWorkspaceActiveMemberLimitNotReached(ctx, workspace);
 
     await ctx.db.insert("workspace_members", {
       workspaceId: workspace._id,
@@ -544,6 +731,56 @@ export const rotateWorkspaceInviteCode = mutation({
     return {
       code,
       rotatedAt: now,
+    };
+  },
+});
+
+export const updateActiveInviteExpiry = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    expiryPreset: inviteExpiryPresetValidator,
+  },
+  returns: v.object({
+    inviteCodeId: v.id("workspace_invite_codes"),
+    expiresAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
+    assertWorkspaceFeatureEnabled({
+      plan: workspace,
+      featureKey: "inviteExpiry",
+      message: "Invite expiry hanya tersedia untuk paket Pro atau Enterprise.",
+    });
+
+    const activeInviteCode = await getActiveInviteCodeRecordByWorkspace(ctx, workspace._id);
+    if (!activeInviteCode) {
+      throw new ConvexError({
+        code: "INVITE_CODE_NOT_FOUND",
+        message: "Invitation code aktif tidak ditemukan.",
+      });
+    }
+
+    const updatedAt = Date.now();
+    const expiresAt = resolveInviteExpiryFromPreset(args.expiryPreset, updatedAt);
+    await ctx.db.patch(activeInviteCode._id, {
+      expiresAt,
+      updatedAt,
+    });
+
+    return {
+      inviteCodeId: activeInviteCode._id,
+      expiresAt,
+      updatedAt,
     };
   },
 });

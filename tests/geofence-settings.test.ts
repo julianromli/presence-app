@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildDateKey,
   assertValidGeofenceSettings,
   hasValidGeofenceConfiguration,
 } from '../convex/helpers';
@@ -9,10 +10,12 @@ function buildSettings(overrides: Partial<{
   geofenceEnabled: boolean;
   geofenceRadiusMeters: number;
   minLocationAccuracyMeters: number;
+  timezone: string;
   geofenceLat?: number;
   geofenceLng?: number;
 }> = {}) {
   return {
+    timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
     geofenceRadiusMeters: 100,
     minLocationAccuracyMeters: 50,
@@ -86,6 +89,16 @@ describe('geofence settings validation', () => {
     ).not.toThrow();
   });
 
+  it('rejects invalid timezone values', () => {
+    expect(() =>
+      assertValidGeofenceSettings(
+        buildSettings({
+          timezone: 'Invalid/Timezone',
+        }),
+      ),
+    ).toThrow(/timezone/i);
+  });
+
   it('reports whether an enabled geofence configuration is usable at runtime', () => {
     expect(
       hasValidGeofenceConfiguration(
@@ -103,5 +116,11 @@ describe('geofence settings validation', () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  it('falls back to Asia/Jakarta when a legacy timezone value is invalid', () => {
+    const ts = new Date('2026-03-05T17:00:00.000Z').getTime();
+
+    expect(buildDateKey(ts, 'Invalid/Timezone')).toBe('2026-03-06');
   });
 });

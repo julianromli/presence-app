@@ -49,6 +49,11 @@ import {
 import { formatClockInTimeZone, isValidClockValue } from "@/lib/timezone-clock";
 import { cn } from "@/lib/utils";
 import {
+  getReportExportUpgradeCopy,
+  isReportExportDisabled,
+  useWorkspaceSubscriptionClient,
+} from "@/lib/workspace-subscription-client";
+import {
   formatWeeklyReportFileMeta,
   formatWeeklyReportSourceLabel,
   formatWeeklyReportStatusLabel,
@@ -113,6 +118,8 @@ type LoadAttendanceOptions = {
   cursor: string | null;
   searchQueryOverride?: string;
   dateKeyOverride?: string;
+  editedFilterOverride?: "all" | "true" | "false";
+  attendanceStatusFilterOverride?: AttendanceStatusFilter;
 };
 
 type LoadReportOptions = {
@@ -225,6 +232,7 @@ function sectionTitle(title: string, description: string, countLabel?: string) {
 export function ReportPanel() {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get("q") ?? "").trim();
+  const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
   const initialDateKey = getLocalDateKey();
   const [draftDateKey, setDraftDateKey] = useState(initialDateKey);
   const [activeDateKey, setActiveDateKey] = useState(initialDateKey);
@@ -270,6 +278,7 @@ export function ReportPanel() {
     byReason: [],
   });
   const [scanEventsStatus, setScanEventsStatus] = useState<PanelStatus>("idle");
+  const [scanEventsError, setScanEventsError] = useState<ApiErrorInfo | null>(null);
   const [toolbarPendingState, setToolbarPendingState] =
     useState<ReportToolbarPendingState>({});
   const hasLoadedInitial = useRef(false);
@@ -282,7 +291,17 @@ export function ReportPanel() {
   });
 
   const hasAttendanceFilter =
-    employeeName.trim().length > 0 || editedFilter !== "all";
+    employeeName.trim().length > 0 ||
+    editedFilter !== "all" ||
+    attendanceStatusFilter !== "all";
+  const reportExportDisabled = isReportExportDisabled(
+    workspaceSubscriptionState.subscription,
+  );
+  const reportExportUpgradeCopy = getReportExportUpgradeCopy(
+    workspaceSubscriptionState.subscription,
+  );
+  const reportExportUnavailable =
+    !workspaceSubscriptionState.ready || reportExportDisabled;
 
   const toggleSection = (key: SectionKey, open: boolean) => {
     setSectionOpen((prev) => ({ ...prev, [key]: open }));
@@ -307,6 +326,8 @@ export function ReportPanel() {
       cursor: string | null,
       searchQueryOverride?: string,
       dateKeyOverride?: string,
+      editedFilterOverride?: "all" | "true" | "false",
+      attendanceStatusFilterOverride?: AttendanceStatusFilter,
     ) => {
       const query =
         searchQueryOverride === undefined
@@ -315,8 +336,9 @@ export function ReportPanel() {
       return buildAttendanceSearchParams({
         dateKey: dateKeyOverride ?? activeDateKey,
         employeeName: query,
-        editedFilter,
-        attendanceStatusFilter,
+        editedFilter: editedFilterOverride ?? editedFilter,
+        attendanceStatusFilter:
+          attendanceStatusFilterOverride ?? attendanceStatusFilter,
         cursor,
       });
     },
@@ -337,6 +359,8 @@ export function ReportPanel() {
             opts.cursor,
             opts.searchQueryOverride,
             opts.dateKeyOverride,
+            opts.editedFilterOverride,
+            opts.attendanceStatusFilterOverride,
           )}`,
           {
             cache: "no-store",
@@ -421,26 +445,57 @@ export function ReportPanel() {
     setReportsError(null);
   }, []);
 
-  const loadScanEvents = useCallback(async (dateKeyOverride?: string) => {
-    const targetDateKey = dateKeyOverride ?? activeDateKey;
-    setScanEventsStatus("loading");
-    const res = await workspaceFetch(
-      `/api/admin/attendance/scan-events?${buildScanEventsSearchParams({
-        dateKey: targetDateKey,
-        scanResultFilter,
-      })}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) {
-      setScanEventsStatus("error");
-      return;
-    }
+  const loadScanEvents = useCallback(
+    async ({
+      dateKeyOverride,
+      scanResultFilterOverride,
+    }: {
+      dateKeyOverride?: string;
+      scanResultFilterOverride?: ScanResultFilter;
+    } = {}) => {
+      const targetDateKey = dateKeyOverride ?? activeDateKey;
+      const targetScanResultFilter =
+        scanResultFilterOverride ?? scanResultFilter;
 
-    const data = (await res.json()) as ScanEventsResponse;
-    setScanEvents(data.rows);
-    setScanEventSummary(data.summary);
-    setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
-  }, [activeDateKey, scanResultFilter]);
+      setScanEventsStatus("loading");
+      setScanEventsError(null);
+      const res = await workspaceFetch(
+        `/api/admin/attendance/scan-events?${buildScanEventsSearchParams({
+          dateKey: targetDateKey,
+          scanResultFilter: targetScanResultFilter,
+        })}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(
+          res,
+          "Gagal memuat scan events.",
+        );
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          setScanEventsStatus("idle");
+          setScanEventsError(null);
+          return;
+        }
+        setScanEvents([]);
+        setScanEventSummary({
+          total: 0,
+          accepted: 0,
+          rejected: 0,
+          byReason: [],
+        });
+        setScanEventsError(error);
+        setScanEventsStatus("error");
+        return;
+      }
+
+      const data = (await res.json()) as ScanEventsResponse;
+      setScanEvents(data.rows);
+      setScanEventSummary(data.summary);
+      setScanEventsError(null);
+      setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
+    },
+    [activeDateKey, scanResultFilter],
+  );
 
   const triggerWeeklyReport = async () => {
     await runToolbarAction("trigger-weekly", async () => {
@@ -475,6 +530,10 @@ export function ReportPanel() {
   };
 
   const downloadReport = (reportId: string) => {
+    if (reportExportDisabled) {
+      return;
+    }
+
     window.location.assign(
       `/api/admin/reports/download?reportId=${encodeURIComponent(reportId)}`,
     );
@@ -617,7 +676,7 @@ export function ReportPanel() {
             cursor: null,
             dateKeyOverride: nextDateKey,
           }),
-        loadScanEvents: () => loadScanEvents(nextDateKey),
+        loadScanEvents: () => loadScanEvents({ dateKeyOverride: nextDateKey }),
       });
     });
   };
@@ -655,8 +714,10 @@ export function ReportPanel() {
             append: false,
             cursor: null,
             searchQueryOverride: headerQuery,
+            editedFilterOverride: "all",
+            attendanceStatusFilterOverride: "all",
           }),
-        loadScanEvents: () => loadScanEvents(),
+        loadScanEvents: () => loadScanEvents({ scanResultFilterOverride: "all" }),
       });
     });
   };
@@ -666,7 +727,7 @@ export function ReportPanel() {
     hasLoadedInitial.current = true;
     void loadAttendance({ append: false, cursor: null, dateKeyOverride: activeDateKey });
     void loadReports();
-    void loadScanEvents(activeDateKey);
+    void loadScanEvents({ dateKeyOverride: activeDateKey });
   }, [activeDateKey, loadAttendance, loadReports, loadScanEvents]);
 
   useEffect(() => {
@@ -685,7 +746,7 @@ export function ReportPanel() {
     const handleRefresh = () => {
       void loadAttendance({ append: false, cursor: null, dateKeyOverride: activeDateKey });
       void loadReports({ silent: true });
-      void loadScanEvents(activeDateKey);
+      void loadScanEvents({ dateKeyOverride: activeDateKey });
     };
 
     window.addEventListener("dashboard:refresh", handleRefresh as EventListener);
@@ -986,6 +1047,11 @@ export function ReportPanel() {
             Refresh Scan Events
           </Button>
         </div>
+        {workspaceSubscriptionState.ready && reportExportUpgradeCopy ? (
+          <p className="mt-3 text-sm font-medium text-amber-700">
+            {reportExportUpgradeCopy}
+          </p>
+        ) : null}
       </section>
 
       <Collapsible
@@ -1231,6 +1297,28 @@ export function ReportPanel() {
                     Memuat scan events...
                   </TableCell>
                 </TableRow>
+              ) : scanEventsStatus === "error" && scanEventsError ? (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                      <span>
+                        [{scanEventsError.code}] {scanEventsError.message}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleRefreshScanEvents()}
+                        isLoading={isReportToolbarActionPending(
+                          toolbarPendingState,
+                          "refresh-scan-events",
+                        )}
+                      >
+                        Coba lagi
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : scanEvents.length === 0 ? (
                 <TableRow>
                   <TableCell className="text-zinc-500" colSpan={5}>
@@ -1385,7 +1473,7 @@ export function ReportPanel() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={report.status !== "success"}
+                          disabled={report.status !== "success" || reportExportUnavailable}
                           onClick={() => downloadReport(report._id)}
                         >
                           {report.status === "success"

@@ -1,6 +1,6 @@
+import { DEFAULT_TIMEZONE, normalizeTimeZone } from "../lib/timezones";
+
 const DEFAULT_CUTOFF_MINUTES = 8 * 60;
-const DEFAULT_TIME_ZONE = "UTC";
-const validTimeZoneCache = new Map();
 const WEEKDAY_KEYS = [
   "sunday",
   "monday",
@@ -65,24 +65,7 @@ export function resolveCheckInPunctuality({ dateKey, checkInAt, timezone, schedu
 }
 
 function resolveTimeZone(timezone) {
-  if (typeof timezone !== "string" || timezone.trim().length === 0) {
-    return DEFAULT_TIME_ZONE;
-  }
-
-  const candidate = timezone.trim();
-  const cached = validTimeZoneCache.get(candidate);
-  if (cached) {
-    return cached;
-  }
-
-  try {
-    new Intl.DateTimeFormat("en-GB", { timeZone: candidate });
-    validTimeZoneCache.set(candidate, candidate);
-    return candidate;
-  } catch {
-    validTimeZoneCache.set(candidate, DEFAULT_TIME_ZONE);
-    return DEFAULT_TIME_ZONE;
-  }
+  return normalizeTimeZone(timezone, DEFAULT_TIMEZONE);
 }
 
 export function parseOffsetCursor(cursor) {

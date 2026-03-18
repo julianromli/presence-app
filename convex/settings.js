@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import {
@@ -9,6 +9,7 @@ import {
   normalizeAttendanceSchedule,
   requireWorkspaceRole,
 } from "./helpers";
+import { assertWorkspaceFeatureEnabled } from "./plans";
 
 const attendanceScheduleDayValidator = v.union(
   v.literal("monday"),
@@ -108,6 +109,14 @@ export const update = mutation({
     const { user: actor } = await requireWorkspaceRole(ctx, args.workspaceId, [
       "superadmin",
     ]);
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      throw new ConvexError({
+        code: "WORKSPACE_INVALID",
+        message: "Workspace tidak valid.",
+      });
+    }
+
     const current = await ensureGlobalSettingsForMutation(ctx, args.workspaceId);
     const attendanceSchedule =
       args.attendanceSchedule !== undefined
@@ -130,8 +139,61 @@ export const update = mutation({
       whitelistIps: args.whitelistIps ?? current.whitelistIps,
       attendanceSchedule,
     };
+    const timezoneTouched = args.timezone !== undefined;
 
-    assertValidGeofenceSettings(nextSettings);
+    const geofencePremiumFieldsTouched =
+      args.geofenceRadiusMeters !== undefined ||
+      args.minLocationAccuracyMeters !== undefined ||
+      args.geofenceLat !== undefined ||
+      args.geofenceLng !== undefined;
+    const touchesGeofenceSettings =
+      args.geofenceEnabled !== undefined || geofencePremiumFieldsTouched;
+    const whitelistValuesTouched = args.whitelistIps !== undefined;
+    const touchesWhitelistSettings =
+      args.whitelistEnabled !== undefined || whitelistValuesTouched;
+    const isPureGeofenceDisable =
+      args.geofenceEnabled === false && !geofencePremiumFieldsTouched;
+    const isClearingWhitelist =
+      args.whitelistEnabled === false &&
+      whitelistValuesTouched &&
+      Array.isArray(args.whitelistIps) &&
+      args.whitelistIps.length === 0;
+
+    if (
+      touchesGeofenceSettings &&
+      !isPureGeofenceDisable &&
+      (nextSettings.geofenceEnabled === true || geofencePremiumFieldsTouched)
+    ) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "geofence",
+        message: "Geofence hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    if (
+      touchesWhitelistSettings &&
+      !isClearingWhitelist &&
+      (nextSettings.whitelistEnabled === true || whitelistValuesTouched)
+    ) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "ipWhitelist",
+        message: "IP whitelist hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    if (args.attendanceSchedule !== undefined) {
+      assertWorkspaceFeatureEnabled({
+        plan: workspace,
+        featureKey: "attendanceSchedule",
+        message: "Attendance schedule hanya tersedia untuk paket Pro atau Enterprise.",
+      });
+    }
+
+    assertValidGeofenceSettings(nextSettings, {
+      skipTimezoneValidation: !timezoneTouched,
+    });
 
     await ctx.db.patch(current._id, {
       ...nextSettings,

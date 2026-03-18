@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { isValidTimeZone, normalizeTimeZone } from "@/lib/timezones";
 
 type AttendanceScheduleDay =
   | "monday"
@@ -162,6 +163,16 @@ export async function PATCH(req: Request) {
     );
   }
 
+  if (body.timezone !== undefined && !isValidTimeZone(body.timezone)) {
+    return Response.json(
+      { code: "BAD_REQUEST", message: "Timezone tidak valid." },
+      { status: 400 },
+    );
+  }
+
+  const timezone =
+    body.timezone === undefined ? undefined : normalizeTimeZone(body.timezone);
+
   const convex = getAuthedConvexHttpClient(token);
   if (!convex)
     return Response.json(
@@ -172,7 +183,7 @@ export async function PATCH(req: Request) {
   try {
     await convex.mutation("settings:update", {
       workspaceId,
-      timezone: body.timezone,
+      timezone,
       geofenceEnabled: body.geofenceEnabled,
       geofenceRadiusMeters: body.geofenceRadiusMeters,
       scanCooldownSeconds: body.scanCooldownSeconds,

@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import * as XLSX from "xlsx";
 
+import { normalizeTimeZone } from "../lib/timezones";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
@@ -21,21 +22,13 @@ const WEEKDAY_TO_NUMBER = {
 };
 
 function dateKeyFromTimestamp(ts, timezone) {
+  const safeTimeZone = normalizeTimeZone(timezone);
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
+    timeZone: safeTimeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date(ts));
-}
-
-function normalizeTimezone(timezone) {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
-    return timezone;
-  } catch {
-    return "Asia/Jakarta";
-  }
 }
 
 function formatWorksheetTime(timestamp, timezone) {
@@ -44,7 +37,7 @@ function formatWorksheetTime(timestamp, timezone) {
   }
 
   const parts = new Intl.DateTimeFormat("id-ID", {
-    timeZone: timezone,
+    timeZone: normalizeTimeZone(timezone),
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -91,8 +84,9 @@ function buildWorksheetData(rows, weekKey, timezone) {
 }
 
 function getWeekRangeDateKeys(nowTs, timezone) {
+  const safeTimeZone = normalizeTimeZone(timezone);
   const weekdayLabel = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: safeTimeZone,
     weekday: "short",
   }).format(new Date(nowTs));
   const weekday = WEEKDAY_TO_NUMBER[weekdayLabel] ?? 1;
@@ -101,8 +95,8 @@ function getWeekRangeDateKeys(nowTs, timezone) {
   const sundayOffset = 7 - weekday;
 
   return {
-    mondayKey: dateKeyFromTimestamp(nowTs + mondayOffset * DAY_MS, timezone),
-    sundayKey: dateKeyFromTimestamp(nowTs + sundayOffset * DAY_MS, timezone),
+    mondayKey: dateKeyFromTimestamp(nowTs + mondayOffset * DAY_MS, safeTimeZone),
+    sundayKey: dateKeyFromTimestamp(nowTs + sundayOffset * DAY_MS, safeTimeZone),
   };
 }
 
@@ -128,7 +122,7 @@ export const runWeeklyReport = internalAction({
     const settings = await ctx.runQuery(internal.settings.getGlobalUnsafe, {
       workspaceId: args.workspaceId,
     });
-    const timezone = normalizeTimezone(settings.timezone);
+    const timezone = normalizeTimeZone(settings.timezone);
     const nowTs = Date.now();
     const { mondayKey, sundayKey } = getWeekRangeDateKeys(nowTs, timezone);
     const weekKey = `${mondayKey}_${sundayKey}`;

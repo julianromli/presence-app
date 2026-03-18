@@ -87,12 +87,41 @@ export type AdminAttendancePage = {
   summary: AdminAttendanceSummary;
 };
 
+export type WorkspacePlan = "free" | "pro" | "enterprise";
+
+export type WorkspaceEntitlements = {
+  limits: {
+    maxOwnedWorkspaces: number | null;
+    maxMembersPerWorkspace: number | null;
+    maxDevicesPerWorkspace: number | null;
+  };
+  features: {
+    geofence: boolean;
+    ipWhitelist: boolean;
+    attendanceSchedule: boolean;
+    reportExport: boolean;
+    inviteRotation: boolean;
+    inviteExpiry: boolean;
+  };
+};
+
+export type WorkspaceSubscriptionUsage = {
+  activeMembers: number;
+  activeDevices: number;
+};
+
+export type WorkspaceSubscriptionSummary = WorkspaceEntitlements & {
+  plan: WorkspacePlan;
+  usage: WorkspaceSubscriptionUsage;
+};
+
 export type WorkspaceManagementPayload = {
   workspace: {
     _id: string;
     _creationTime: number;
     slug: string;
     name: string;
+    plan: WorkspacePlan;
     isActive: boolean;
     createdAt: number;
     updatedAt: number;
@@ -112,6 +141,7 @@ export type WorkspaceManagementPayload = {
     activeCount: number;
     activeCountExcludingCurrentUser: number;
   };
+  subscription: WorkspaceSubscriptionSummary;
 };
 
 export type AttendanceScheduleDay =

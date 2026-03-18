@@ -1,6 +1,8 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+import { workspacePlanValidator } from "./plans";
+
 const role = v.union(
   v.literal("superadmin"),
   v.literal("admin"),
@@ -59,11 +61,14 @@ export default defineSchema({
   workspaces: defineTable({
     slug: v.string(),
     name: v.string(),
+    plan: v.optional(workspacePlanValidator),
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
     createdByUserId: v.optional(v.id("users")),
-  }).index("by_slug", ["slug"]),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_created_by_user", ["createdByUserId"]),
 
   workspace_members: defineTable({
     workspaceId: v.id("workspaces"),
@@ -75,6 +80,7 @@ export default defineSchema({
   })
     .index("by_workspace_and_user", ["workspaceId", "userId"])
     .index("by_user_and_workspace", ["userId", "workspaceId"])
+    .index("by_workspace_active", ["workspaceId", "isActive"])
     .index("by_workspace_role_active", ["workspaceId", "role", "isActive"]),
 
   workspace_invite_codes: defineTable({
