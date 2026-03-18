@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -9,13 +9,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import { createAttendanceEditDraft, createEmptyAttendanceEditDraft, type AttendanceEditDraft } from '@/lib/attendance-edit';
-import { deriveAttendanceStatusMeta } from '@/lib/attendance-status';
-import type { AdminAttendanceRow } from '@/types/dashboard';
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  createAttendanceEditDraft,
+  createEmptyAttendanceEditDraft,
+  type AttendanceEditDraft,
+} from "@/lib/attendance-edit";
+import { deriveAttendanceStatusMeta } from "@/lib/attendance-status";
+import type { AdminAttendanceRow } from "@/types/dashboard";
 
-type PanelStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
+type PanelStatus = "idle" | "loading" | "success" | "empty" | "error";
 
 type AttendanceWorkspaceTableProps = {
   rows: AdminAttendanceRow[];
@@ -35,10 +39,10 @@ type AttendanceWorkspaceTableProps = {
 };
 
 function formatTime(value?: number) {
-  if (!value) return '-';
-  return new Date(value).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
+  if (!value) return "-";
+  return new Date(value).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -62,14 +66,24 @@ export function AttendanceWorkspaceTable({
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
         <div>
-          <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">Daftar attendance harian</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">
+            Daftar review absensi
+          </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Tabel utama untuk review kehadiran dan koreksi ringan langsung pada baris yang dibutuhkan.
+            Fokus utama halaman ini. Temukan pengecualian, lalu koreksi langsung
+            pada baris yang relevan.
           </p>
         </div>
         <span className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-semibold tracking-wide text-zinc-600">
           {rows.length} baris terlihat
         </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-100 bg-zinc-50/50 px-6 py-3 text-xs text-zinc-600">
+        <span className="font-medium text-zinc-900">Prioritas review:</span>
+        <span>1. Belum check-in</span>
+        <span>2. Belum check-out</span>
+        <span>3. Koreksi yang perlu audit</span>
       </div>
 
       <Table className="min-w-[960px]">
@@ -80,18 +94,21 @@ export function AttendanceWorkspaceTable({
             <TableHead>Tanggal</TableHead>
             <TableHead>Check-in</TableHead>
             <TableHead>Check-out</TableHead>
-            <TableHead>Edited</TableHead>
+            <TableHead>Status edit</TableHead>
             <TableHead className="w-[320px] text-right">Aksi</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {status === 'loading' ? (
+          {status === "loading" ? (
             <TableRow>
-              <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+              <TableCell
+                colSpan={7}
+                className="h-24 text-center text-slate-500"
+              >
                 Memuat attendance...
               </TableCell>
             </TableRow>
-          ) : status === 'error' ? (
+          ) : status === "error" ? (
             <TableRow>
               <TableCell colSpan={7} className="h-24 text-center text-rose-700">
                 {errorMessage}
@@ -99,10 +116,19 @@ export function AttendanceWorkspaceTable({
             </TableRow>
           ) : rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="h-24 text-center text-slate-500">
-                {hasFilters
-                  ? 'Tidak ada attendance yang cocok dengan filter saat ini.'
-                  : 'Belum ada attendance untuk tanggal yang dipilih.'}
+              <TableCell colSpan={7} className="px-6 py-10 text-center">
+                <div className="mx-auto max-w-md space-y-2">
+                  <p className="text-sm font-medium text-zinc-900">
+                    {hasFilters
+                      ? "Tidak ada data yang cocok dengan filter saat ini."
+                      : "Belum ada absensi pada tanggal ini."}
+                  </p>
+                  <p className="text-sm leading-6 text-zinc-500">
+                    {hasFilters
+                      ? "Coba longgarkan pencarian atau reset filter agar daftar utama terisi kembali."
+                      : "Pilih tanggal lain atau refresh data jika absensi hari ini seharusnya sudah masuk."}
+                  </p>
+                </div>
               </TableCell>
             </TableRow>
           ) : (
@@ -112,22 +138,29 @@ export function AttendanceWorkspaceTable({
               const isActing = rowActionAttendanceId === row._id;
 
               return (
-                <TableRow key={row._id} className={isEditing ? 'bg-zinc-50/70 align-top' : undefined}>
-                  <TableCell className="font-medium text-slate-900">{row.employeeName}</TableCell>
+                <TableRow
+                  key={row._id}
+                  className={isEditing ? "bg-zinc-50/70 align-top" : undefined}
+                >
+                  <TableCell className="font-medium text-slate-900">
+                    {row.employeeName}
+                  </TableCell>
                   <TableCell>
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        statusMeta.tone === 'success'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : statusMeta.tone === 'warning'
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'bg-zinc-100 text-zinc-700'
+                        statusMeta.tone === "success"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : statusMeta.tone === "warning"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-zinc-100 text-zinc-700"
                       }`}
                     >
                       {statusMeta.label}
                     </span>
                   </TableCell>
-                  <TableCell className="tabular-nums text-slate-600">{row.dateKey}</TableCell>
+                  <TableCell className="tabular-nums text-slate-600">
+                    {row.dateKey}
+                  </TableCell>
                   <TableCell className="tabular-nums text-slate-600">
                     {isEditing ? (
                       <Input
@@ -165,10 +198,12 @@ export function AttendanceWorkspaceTable({
                   <TableCell>
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        row.edited ? 'bg-amber-50 text-amber-700' : 'bg-zinc-100 text-zinc-700'
+                        row.edited
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-zinc-100 text-zinc-700"
                       }`}
                     >
-                      {row.edited ? 'Edited' : 'Original'}
+                      {row.edited ? "Dikoreksi" : "Asli"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -221,7 +256,7 @@ export function AttendanceWorkspaceTable({
                           onStartEdit(row);
                         }}
                       >
-                        Edit
+                        Koreksi
                       </Button>
                     )}
                   </TableCell>
@@ -233,8 +268,14 @@ export function AttendanceWorkspaceTable({
       </Table>
 
       {hasNextPage ? (
-        <div className="border-t border-slate-100 p-3">
-          <Button type="button" variant="outline" onClick={onLoadMore} disabled={isLoading} isLoading={isLoading}>
+        <div className="border-t border-slate-100 bg-zinc-50/40 p-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onLoadMore}
+            disabled={isLoading}
+            isLoading={isLoading}
+          >
             Muat lagi
           </Button>
         </div>
