@@ -14,6 +14,21 @@ export type GeofenceSearchResult = {
   longitude: number;
 };
 
+export type GeofenceSearchOptions = {
+  signal?: AbortSignal;
+};
+
+export function createNextGeofenceSearchRequestId(currentRequestId: number) {
+  return currentRequestId + 1;
+}
+
+export function isLatestGeofenceSearchRequest(
+  requestId: number,
+  latestRequestId: number,
+) {
+  return requestId === latestRequestId;
+}
+
 export function mapNominatimResults(
   results: NominatimSearchResult[],
 ): GeofenceSearchResult[] {
@@ -40,6 +55,7 @@ export function mapNominatimResults(
 export async function searchGeofenceLocations(
   query: string,
   fetcher: typeof fetch = fetch,
+  options: GeofenceSearchOptions = {},
 ): Promise<GeofenceSearchResult[]> {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) {
@@ -60,6 +76,7 @@ export async function searchGeofenceLocations(
         Accept: 'application/json',
         'Accept-Language': 'id,en',
       },
+      signal: options.signal,
     },
   );
 

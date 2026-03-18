@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { FormEvent, startTransition, useEffect, useState } from 'react';
+import { FormEvent, startTransition, useEffect, useRef, useState } from 'react';
 
 import {
   buildGeofencePanelState,
@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseApiErrorResponse } from '@/lib/client-error';
 import {
+  createNextGeofenceSearchRequestId,
+  isLatestGeofenceSearchRequest,
   searchGeofenceLocations,
   type GeofenceSearchResult,
 } from '@/lib/geofence-geocoder';
@@ -83,6 +85,8 @@ export function GeofencePanel() {
   const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle');
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<GeofenceSearchResult[]>([]);
+  const searchRequestIdRef = useRef(0);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
 
   const setPanelFromData = (nextData: SettingsPayload) => {
     const panelState = buildGeofencePanelState(nextData);
@@ -136,6 +140,10 @@ export function GeofencePanel() {
     };
 
     void load();
+
+    return () => {
+      searchAbortControllerRef.current?.abort();
+    };
   }, []);
 
   const geofenceValidationErrors = validateGeofenceSettings(data);
@@ -151,17 +159,37 @@ export function GeofencePanel() {
       return;
     }
 
+    searchAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+    const requestId = createNextGeofenceSearchRequestId(searchRequestIdRef.current);
+    searchRequestIdRef.current = requestId;
+
     setSearchStatus('loading');
     setSearchError(null);
 
     try {
-      const results = await searchGeofenceLocations(searchQuery);
+      const results = await searchGeofenceLocations(searchQuery, fetch, {
+        signal: controller.signal,
+      });
+
+      if (!isLatestGeofenceSearchRequest(requestId, searchRequestIdRef.current)) {
+        return;
+      }
 
       startTransition(() => {
         setSearchResults(results);
         setSearchStatus('success');
       });
     } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (!isLatestGeofenceSearchRequest(requestId, searchRequestIdRef.current)) {
+        return;
+      }
+
       setSearchResults([]);
       setSearchStatus('error');
       setSearchError(

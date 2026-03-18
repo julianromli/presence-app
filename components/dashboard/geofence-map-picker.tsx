@@ -56,7 +56,6 @@ export function GeofenceMapPicker({
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const isLoadedRef = useRef(false);
   const handlePointSelect = useEffectEvent(onPointSelect);
 
   useEffect(() => {
@@ -64,26 +63,27 @@ export function GeofenceMapPicker({
       return;
     }
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: MAP_STYLE_URL,
-      center: [viewport.longitude, viewport.latitude],
-      zoom: viewport.zoom,
-      attributionControl: true,
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: MAP_STYLE_URL,
+        center: [viewport.longitude, viewport.latitude],
+        zoom: viewport.zoom,
+        attributionControl: true,
+      });
+    } catch {
+      queueMicrotask(() => {
+        setMapFailed(true);
+      });
+      return;
+    }
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
     const handleLoad = () => {
-      isLoadedRef.current = true;
       setIsLoaded(true);
       map.resize();
-    };
-
-    const handleError = () => {
-      if (!isLoadedRef.current) {
-        setMapFailed(true);
-      }
     };
 
     const handleClick = (event: MapMouseEvent) => {
@@ -94,19 +94,16 @@ export function GeofenceMapPicker({
     };
 
     map.on('load', handleLoad);
-    map.on('error', handleError);
     map.on('click', handleClick);
     mapRef.current = map;
 
     return () => {
       map.off('load', handleLoad);
-      map.off('error', handleError);
       map.off('click', handleClick);
       markerRef.current?.remove();
       markerRef.current = null;
       map.remove();
       mapRef.current = null;
-      isLoadedRef.current = false;
     };
   }, [viewport.latitude, viewport.longitude, viewport.zoom]);
 

@@ -47,11 +47,11 @@ export function validateGeofenceSettings(data: SettingsPayload) {
     return errors;
   }
 
-  if (data.geofenceLat < -90 || data.geofenceLat > 90) {
+  if (!hasFiniteNumber(data.geofenceLat) || data.geofenceLat < -90 || data.geofenceLat > 90) {
     errors.push('Latitude geofence harus berada di antara -90 dan 90.');
   }
 
-  if (data.geofenceLng < -180 || data.geofenceLng > 180) {
+  if (!hasFiniteNumber(data.geofenceLng) || data.geofenceLng < -180 || data.geofenceLng > 180) {
     errors.push('Longitude geofence harus berada di antara -180 dan 180.');
   }
 
@@ -62,7 +62,7 @@ export function buildGeofencePanelState(data: SettingsPayload): GeofencePanelSta
   const selectedPoint = buildSelectedPoint(data.geofenceLat, data.geofenceLng);
 
   return {
-    data: syncGeofencePointToSettings(data, selectedPoint),
+    data,
     selectedPoint,
     viewport: buildGeofenceViewport(selectedPoint),
   };
