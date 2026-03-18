@@ -87,6 +87,6 @@ describe('employee dashboard kpi', () => {
 
   it('falls back safely when timezone is invalid', () => {
     const ts = new Date('2026-03-05T00:30:00.000Z').getTime();
-    expect(() => getMinutesInTimezone(ts, 'Invalid/Timezone')).not.toThrow();
+    expect(getMinutesInTimezone(ts, 'Invalid/Timezone')).toBe(7 * 60 + 30);
   });
 });

@@ -5,6 +5,8 @@ type RoleResult = { error: Response } | { session: { role: string } };
 type SetupOptions = {
   roleResult?: RoleResult;
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+  mutationImpl?: ReturnType<typeof vi.fn>;
+  useActualApiError?: boolean;
 };
 
 function makeWorkspaceContext(options: SetupOptions) {
@@ -64,7 +66,12 @@ async function setupUsersRoute(options: SetupOptions = {}) {
     },
     summary: { total: 0, active: 0, inactive: 0 },
   }));
-  const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
+  const mutation = options.mutationImpl ?? vi.fn(async () => ({ ok: true }));
+  const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
+  const parseUsersPatchBody = vi.fn(() => ({
+    userId: "user_target",
+    isActive: true,
+  }));
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
@@ -74,14 +81,33 @@ async function setupUsersRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull: vi.fn(async () => "convex-token"),
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
+  vi.doMock("@/lib/admin-users", () => ({
+    normalizeUsersListQuery: vi.fn(() => ({
+      q: undefined,
+      role: undefined,
+      isActive: undefined,
+      limit: 10,
+      cursor: null,
+    })),
+    parseUsersPatchBody,
   }));
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error"
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
 
   const routeModule = await import("../app/api/admin/users/route");
-  return { GET: routeModule.GET, mocks: { query } };
+  return { GET: routeModule.GET, PATCH: routeModule.PATCH, mocks: { mutation, parseUsersPatchBody, query } };
 }
 
 describe("admin route workspace policy", () => {
@@ -162,6 +188,43 @@ describe("admin route workspace policy", () => {
         numItems: 10,
         cursor: null,
       },
+    });
+  });
+
+  it("preserves PLAN_LIMIT_REACHED from the admin users PATCH route", async () => {
+    const domainError = {
+      data: {
+        code: "PLAN_LIMIT_REACHED",
+        message: "Jumlah member aktif sudah mencapai batas paket workspace Anda.",
+      },
+    };
+    const { PATCH, mocks } = await setupUsersRoute({
+      mutationImpl: vi.fn(async () => {
+        throw domainError;
+      }),
+      roleResult: { session: { role: "superadmin" } },
+      useActualApiError: true,
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: "user_target", isActive: true }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "PLAN_LIMIT_REACHED",
+      message: "Jumlah member aktif sudah mencapai batas paket workspace Anda.",
+    });
+    expect(mocks.parseUsersPatchBody).toHaveBeenCalled();
+    expect(mocks.mutation).toHaveBeenCalledWith("users:updateAdminManagedFields", {
+      workspaceId: "workspace_123456",
+      userId: "user_target",
+      role: undefined,
+      isActive: true,
     });
   });
 });

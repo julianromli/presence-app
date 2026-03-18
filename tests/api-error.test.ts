@@ -25,6 +25,54 @@ describe('convexErrorResponse', () => {
     });
   });
 
+  it('maps plan limit errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'PLAN_LIMIT_REACHED',
+        'Jumlah member aktif sudah mencapai batas paket workspace Anda.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      message: 'Jumlah member aktif sudah mencapai batas paket workspace Anda.',
+    });
+  });
+
+  it('maps feature availability errors to 403', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'FEATURE_NOT_AVAILABLE',
+        'Ekspor report hanya tersedia untuk paket Pro atau Enterprise.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'FEATURE_NOT_AVAILABLE',
+      message: 'Ekspor report hanya tersedia untuk paket Pro atau Enterprise.',
+    });
+  });
+
+  it('maps invalid workspace plan errors to 400', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'WORKSPACE_PLAN_INVALID',
+        'WORKSPACE_PLAN_INVALID: Unknown workspace plan "starter".',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'WORKSPACE_PLAN_INVALID',
+      message: 'WORKSPACE_PLAN_INVALID: Unknown workspace plan "starter".',
+    });
+  });
+
   it('maps settings-not-initialized errors to 503', async () => {
     const response = convexErrorResponse(
       makeConvexErrorData('SETTINGS_NOT_INITIALIZED', 'Global settings belum diinisialisasi.'),
@@ -51,6 +99,19 @@ describe('convexErrorResponse', () => {
     });
   });
 
+  it('maps device unauthorized errors to 401', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData('DEVICE_UNAUTHORIZED', 'Unauthorized device'),
+      'fallback',
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'DEVICE_UNAUTHORIZED',
+      message: 'Unauthorized device',
+    });
+  });
+
   it('maps geofence configuration errors to 503', async () => {
     const response = convexErrorResponse(
       makeConvexErrorData(
@@ -64,6 +125,38 @@ describe('convexErrorResponse', () => {
     await expect(response.json()).resolves.toMatchObject({
       code: 'GEOFENCE_NOT_CONFIGURED',
       message: 'Geofence kantor belum dikonfigurasi dengan benar. Hubungi admin.',
+    });
+  });
+
+  it('maps workspace delete blocked errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'WORKSPACE_DELETE_BLOCKED',
+        'Kick atau nonaktifkan semua member lain sebelum menghapus workspace.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'WORKSPACE_DELETE_BLOCKED',
+      message: 'Kick atau nonaktifkan semua member lain sebelum menghapus workspace.',
+    });
+  });
+
+  it('maps claimed registration code errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'REGISTRATION_CODE_CLAIMED',
+        'Kode registrasi sudah dipakai.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'REGISTRATION_CODE_CLAIMED',
+      message: 'Kode registrasi sudah dipakai.',
     });
   });
 

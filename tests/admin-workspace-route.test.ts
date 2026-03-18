@@ -24,6 +24,7 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
       _creationTime: 1,
       slug: "absenin-id-hq",
       name: "Absenin.id HQ",
+      plan: "free",
       isActive: true,
       createdAt: 1000,
       updatedAt: 2000,
@@ -41,6 +42,26 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
       totalCount: 1,
       activeCount: 1,
       activeCountExcludingCurrentUser: 0,
+    },
+    subscription: {
+      plan: "free",
+      limits: {
+        maxOwnedWorkspaces: 1,
+        maxMembersPerWorkspace: 5,
+        maxDevicesPerWorkspace: 1,
+      },
+      features: {
+        geofence: false,
+        ipWhitelist: false,
+        attendanceSchedule: false,
+        reportExport: false,
+        inviteRotation: true,
+        inviteExpiry: false,
+      },
+      usage: {
+        activeMembers: 3,
+        activeDevices: 1,
+      },
     },
   }));
   const mutation = vi.fn(async () => ({ ok: true }));
@@ -99,6 +120,26 @@ describe("admin workspace route", () => {
     const payload = await response.json();
     expect(payload.workspace.slug).toBe("absenin-id-hq");
     expect(payload.activeInviteCode.code).toBe("PRESENCE-ABC123-PRESENCE");
+    expect(payload.subscription).toEqual({
+      plan: "free",
+      limits: {
+        maxOwnedWorkspaces: 1,
+        maxMembersPerWorkspace: 5,
+        maxDevicesPerWorkspace: 1,
+      },
+      features: {
+        geofence: false,
+        ipWhitelist: false,
+        attendanceSchedule: false,
+        reportExport: false,
+        inviteRotation: true,
+        inviteExpiry: false,
+      },
+      usage: {
+        activeMembers: 3,
+        activeDevices: 1,
+      },
+    });
   });
 
   it("returns 401 when token missing", async () => {
@@ -195,6 +236,26 @@ describe("admin workspace route", () => {
     expect(response.status).toBe(200);
     expect(mocks.mutation).toHaveBeenCalledWith("workspaces:deleteWorkspace", {
       workspaceId: "workspace_123456",
+    });
+  });
+
+  it("validates invite expiry payload and calls update mutation on POST", async () => {
+    const { POST, mocks } = await setupWorkspaceRoute();
+    const response = await POST(
+      new Request("http://localhost/api/admin/workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "updateInviteExpiry",
+          expiryPreset: "30d",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("workspaces:updateActiveInviteExpiry", {
+      workspaceId: "workspace_123456",
+      expiryPreset: "30d",
     });
   });
 });

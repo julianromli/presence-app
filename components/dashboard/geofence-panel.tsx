@@ -1,10 +1,18 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { parseApiErrorResponse } from '@/lib/client-error';
+import { getTimeZoneOptions, normalizeTimeZone } from '@/lib/timezones';
+import {
+  getGeofencePremiumBannerCopy,
+  useWorkspaceSubscriptionClient,
+} from '@/lib/workspace-subscription-client';
 import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 
 type SettingsPayload = {
@@ -80,7 +88,53 @@ function noticeClass(tone: NoticeTone) {
   }
 }
 
+type GeofenceTimezoneFieldProps = {
+  disabled: boolean;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+export function GeofenceTimezoneField({
+  disabled,
+  value,
+  onChange,
+}: GeofenceTimezoneFieldProps) {
+  const timezoneOptions = getTimeZoneOptions(value);
+
+  return (
+    <label className="space-y-1 sm:col-span-2">
+      <span className="text-sm font-medium text-zinc-700">Timezone</span>
+      <Menu>
+        <MenuTrigger
+          disabled={disabled}
+          render={
+            <Button
+              variant="outline"
+              className="h-10 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+            />
+          }
+        >
+          <span className="truncate">{value}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
+        </MenuTrigger>
+        <MenuPopup align="start" className="w-[var(--anchor-width)] p-0">
+          <div className="max-h-72 overflow-y-auto p-1">
+            <MenuRadioGroup value={value} onValueChange={onChange}>
+              {timezoneOptions.map((timezone) => (
+                <MenuRadioItem key={timezone} value={timezone}>
+                  {timezone}
+                </MenuRadioItem>
+              ))}
+            </MenuRadioGroup>
+          </div>
+        </MenuPopup>
+      </Menu>
+    </label>
+  );
+}
+
 export function GeofencePanel() {
+  const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
   const [data, setData] = useState<SettingsPayload>({
     timezone: 'Asia/Jakarta',
     geofenceEnabled: false,
@@ -112,6 +166,7 @@ export function GeofencePanel() {
       const payload = (await res.json()) as SettingsPayload;
       setData({
         ...payload,
+        timezone: normalizeTimeZone(payload.timezone),
         minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
       });
       setIpText((payload.whitelistIps ?? []).join(', '));
@@ -121,8 +176,56 @@ export function GeofencePanel() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const load = async () => {
+      setInitialLoading(true);
+      const res = await workspaceFetch('/api/admin/settings', { cache: 'no-store' });
+      if (!res.ok) {
+        const parsed = await parseApiErrorResponse(res, 'Gagal memuat data geofence.');
+        if (recoverWorkspaceScopeViolation(parsed.code)) {
+          return;
+        }
+        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
+        setInitialLoading(false);
+        return;
+      }
+
+      const payload = (await res.json()) as SettingsPayload;
+      setData({
+        ...payload,
+        timezone: normalizeTimeZone(payload.timezone),
+        minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
+      });
+      setIpText((payload.whitelistIps ?? []).join(', '));
+      setInitialLoading(false);
+    };
+
+    const handleWorkspaceChanged = () => {
+      void load();
+    };
+    const handleDashboardRefresh = () => {
+      void load();
+    };
+
+    window.addEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
+    window.addEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+
+    return () => {
+      window.removeEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
+      window.removeEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+    };
+  }, []);
+
   const geofenceValidationErrors = getGeofenceValidationErrors(data);
-  const hasBlockingValidationErrors = geofenceValidationErrors.length > 0;
+  const geofencePremiumBanner = getGeofencePremiumBannerCopy(
+    workspaceSubscriptionState.subscription,
+  );
+  const geofencePremiumUnavailable =
+    workspaceSubscriptionState.ready && geofencePremiumBanner !== null;
+  const premiumControlsDisabled =
+    loading || !workspaceSubscriptionState.ready || geofencePremiumUnavailable;
+  const hasBlockingValidationErrors =
+    !geofencePremiumUnavailable && geofenceValidationErrors.length > 0;
   const showsBlockingGeofenceWarning =
     data.geofenceEnabled && geofenceValidationErrors.length > 0;
 
@@ -141,15 +244,20 @@ export function GeofencePanel() {
     setNotice({ tone: 'info', text: 'Menyimpan pengaturan geofence...' });
 
     try {
-      const whitelistIps = ipText
-        .split(',')
-        .map((ip) => ip.trim())
-        .filter(Boolean);
+      const body = geofencePremiumUnavailable
+        ? { timezone: data.timezone }
+        : {
+            ...data,
+            whitelistIps: ipText
+              .split(',')
+              .map((ip) => ip.trim())
+              .filter(Boolean),
+          };
 
       const res = await workspaceFetch('/api/admin/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, whitelistIps }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -183,6 +291,11 @@ export function GeofencePanel() {
         <p className="mt-1 text-sm text-zinc-600">
           Atur area absensi, whitelist jaringan, dan kontrol validasi scan sesuai kebijakan kantor.
         </p>
+        {workspaceSubscriptionState.ready && geofencePremiumBanner ? (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+            {geofencePremiumBanner}
+          </div>
+        ) : null}
         {showsBlockingGeofenceWarning ? (
           <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
             Geofence sedang aktif tetapi konfigurasinya belum valid. Scan karyawan akan ditolak
@@ -200,18 +313,17 @@ export function GeofencePanel() {
         <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">Lokasi geofence</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">Timezone</span>
-              <Input
-                value={data.timezone}
-                onChange={(event) => setData((prev) => ({ ...prev, timezone: event.target.value }))}
-              />
-            </label>
+            <GeofenceTimezoneField
+              value={data.timezone}
+              disabled={loading}
+              onChange={(timezone) => setData((prev) => ({ ...prev, timezone }))}
+            />
             <label className="space-y-1">
               <span className="text-sm font-medium text-zinc-700">Latitude</span>
               <Input
                 type="number"
                 value={data.geofenceLat ?? ''}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -225,6 +337,7 @@ export function GeofencePanel() {
               <Input
                 type="number"
                 value={data.geofenceLng ?? ''}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -239,6 +352,7 @@ export function GeofencePanel() {
                 type="number"
                 min={10}
                 value={data.geofenceRadiusMeters}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -255,6 +369,7 @@ export function GeofencePanel() {
                 type="number"
                 min={1}
                 value={data.minLocationAccuracyMeters}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({
                     ...prev,
@@ -287,6 +402,7 @@ export function GeofencePanel() {
               <input
                 type="checkbox"
                 checked={data.geofenceEnabled}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({ ...prev, geofenceEnabled: event.target.checked }))
                 }
@@ -301,6 +417,7 @@ export function GeofencePanel() {
               <input
                 type="checkbox"
                 checked={data.whitelistEnabled}
+                disabled={premiumControlsDisabled}
                 onChange={(event) =>
                   setData((prev) => ({ ...prev, whitelistEnabled: event.target.checked }))
                 }
@@ -309,7 +426,11 @@ export function GeofencePanel() {
 
             <label className="space-y-1">
               <span className="text-sm font-medium text-zinc-700">Whitelist IP (pisahkan koma)</span>
-              <Input value={ipText} onChange={(event) => setIpText(event.target.value)} />
+              <Input
+                value={ipText}
+                disabled={premiumControlsDisabled}
+                onChange={(event) => setIpText(event.target.value)}
+              />
             </label>
           </div>
         </article>
@@ -318,7 +439,7 @@ export function GeofencePanel() {
       <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
         <Button
           type="submit"
-          disabled={loading || hasBlockingValidationErrors}
+          disabled={loading || !workspaceSubscriptionState.ready || hasBlockingValidationErrors}
           className="min-w-40"
           isLoading={loading}
           loadingText="Menyimpan..."

@@ -7,6 +7,13 @@ import { convexErrorResponse } from "@/lib/api-error";
 import { getPublicConvexHttpClient } from "@/lib/convex-http";
 import { getRequestRateLimitKey, getTrustedClientIp } from "@/lib/request-ip";
 
+type ClaimRegistrationResponse = {
+  deviceId: string;
+  label: string;
+  secret: string;
+  claimedAt: number;
+};
+
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) {
@@ -44,14 +51,17 @@ export async function POST(req: Request) {
   const userAgent = req.headers.get("user-agent") ?? undefined;
 
   try {
-    const response = await convex.mutation("devices:claimRegistrationCode", {
-      workspaceId: workspaceContext.workspace.workspaceId,
-      code,
-      label,
-      ipAddress,
-      userAgent,
-      rateLimitKey: getRequestRateLimitKey(req) ?? undefined,
-    });
+    const response = await convex.mutation<ClaimRegistrationResponse>(
+      "devices:claimRegistrationCode",
+      {
+        workspaceId: workspaceContext.workspace.workspaceId,
+        code,
+        label,
+        ipAddress,
+        userAgent,
+        rateLimitKey: getRequestRateLimitKey(req) ?? undefined,
+      },
+    );
 
     const result = Response.json({
       deviceId: response.deviceId,

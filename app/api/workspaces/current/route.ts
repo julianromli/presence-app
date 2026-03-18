@@ -1,0 +1,49 @@
+import {
+  getConvexTokenOrNull,
+  requireWorkspaceApiContext,
+  requireWorkspaceRoleApiFromDb,
+} from "@/lib/auth";
+import { convexErrorResponse } from "@/lib/api-error";
+import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import type { WorkspaceSubscriptionSummary } from "@/types/dashboard";
+
+const WORKSPACE_ACCESS_ROLES = ["superadmin", "admin", "karyawan", "device-qr"] as const;
+
+type CurrentWorkspacePayload = {
+  workspaceId: string;
+  subscription: WorkspaceSubscriptionSummary;
+};
+
+export async function GET(req: Request) {
+  const workspaceContext = requireWorkspaceApiContext(req);
+  if ("error" in workspaceContext) {
+    return workspaceContext.error;
+  }
+  const workspaceId = workspaceContext.workspace.workspaceId;
+
+  const roleCheck = await requireWorkspaceRoleApiFromDb(
+    WORKSPACE_ACCESS_ROLES,
+    workspaceId,
+  );
+  if ("error" in roleCheck) return roleCheck.error;
+
+  const token = await getConvexTokenOrNull();
+  if (!token) {
+    return Response.json({ code: "UNAUTHENTICATED", message: "Unauthorized" }, { status: 401 });
+  }
+
+  const convex = getAuthedConvexHttpClient(token);
+  if (!convex) {
+    return Response.json({ code: "INTERNAL_ERROR", message: "Convex URL missing" }, { status: 500 });
+  }
+
+  try {
+    const payload = await convex.query<CurrentWorkspacePayload>(
+      "workspaces:currentWorkspaceSummary",
+      { workspaceId },
+    );
+    return Response.json(payload);
+  } catch (error) {
+    return convexErrorResponse(error, "Gagal memuat subscription workspace aktif.");
+  }
+}

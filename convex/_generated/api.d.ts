@@ -21,6 +21,7 @@ import type * as employeeDashboardKpi from "../employeeDashboardKpi.js";
 import type * as helpers from "../helpers.js";
 import type * as legacyDeviceMigration from "../legacyDeviceMigration.js";
 import type * as notifications from "../notifications.js";
+import type * as plans from "../plans.js";
 import type * as qrPolicy from "../qrPolicy.js";
 import type * as qrTokens from "../qrTokens.js";
 import type * as reportIdempotency from "../reportIdempotency.js";
@@ -34,6 +35,7 @@ import type * as usersPolicy from "../usersPolicy.js";
 import type * as workspaceInvitePolicy from "../workspaceInvitePolicy.js";
 import type * as workspaceInviteView from "../workspaceInviteView.js";
 import type * as workspaceMembersPolicy from "../workspaceMembersPolicy.js";
+import type * as workspaceSubscription from "../workspaceSubscription.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -56,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   legacyDeviceMigration: typeof legacyDeviceMigration;
   notifications: typeof notifications;
+  plans: typeof plans;
   qrPolicy: typeof qrPolicy;
   qrTokens: typeof qrTokens;
   reportIdempotency: typeof reportIdempotency;
@@ -69,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   workspaceInvitePolicy: typeof workspaceInvitePolicy;
   workspaceInviteView: typeof workspaceInviteView;
   workspaceMembersPolicy: typeof workspaceMembersPolicy;
+  workspaceSubscription: typeof workspaceSubscription;
   workspaces: typeof workspaces;
 }>;
 

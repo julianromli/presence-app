@@ -122,9 +122,31 @@ export async function POST(req: Request) {
   }
 
   const action = typeof body === "object" && body !== null ? (body as { action?: unknown }).action : undefined;
-  if (action !== "rotateInviteCode" && action !== "deleteWorkspace") {
+  if (
+    action !== "rotateInviteCode" &&
+    action !== "deleteWorkspace" &&
+    action !== "updateInviteExpiry"
+  ) {
     return Response.json(
       { code: "VALIDATION_ERROR", message: "Action tidak valid." },
+      { status: 400 },
+    );
+  }
+
+  const expiryPreset =
+    typeof body === "object" && body !== null
+      ? (body as { expiryPreset?: unknown }).expiryPreset
+      : undefined;
+
+  if (
+    action === "updateInviteExpiry" &&
+    expiryPreset !== "never" &&
+    expiryPreset !== "1d" &&
+    expiryPreset !== "7d" &&
+    expiryPreset !== "30d"
+  ) {
+    return Response.json(
+      { code: "VALIDATION_ERROR", message: "Field expiryPreset wajib berupa preset yang valid." },
       { status: 400 },
     );
   }
@@ -135,6 +157,11 @@ export async function POST(req: Request) {
         ? await convex.mutation("workspaces:deleteWorkspace", {
             workspaceId,
           })
+        : action === "updateInviteExpiry"
+          ? await convex.mutation("workspaces:updateActiveInviteExpiry", {
+              workspaceId,
+              expiryPreset,
+            })
         : await convex.mutation("workspaces:rotateWorkspaceInviteCode", {
             workspaceId,
           });
@@ -145,6 +172,8 @@ export async function POST(req: Request) {
         error,
         action === "deleteWorkspace"
           ? "Gagal menghapus workspace."
+          : action === "updateInviteExpiry"
+            ? "Gagal memperbarui masa berlaku invitation code."
           : "Gagal merotasi invitation code.",
       );
     }
@@ -152,6 +181,8 @@ export async function POST(req: Request) {
       error,
       action === "deleteWorkspace"
         ? "Gagal menghapus workspace."
+        : action === "updateInviteExpiry"
+          ? "Gagal memperbarui masa berlaku invitation code."
         : "Gagal merotasi invitation code.",
     );
   }

@@ -7,6 +7,7 @@ type SetupOptions = {
   mutationImpl?: ReturnType<typeof vi.fn>;
   queryImpl?: ReturnType<typeof vi.fn>;
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+  useActualApiError?: boolean;
 };
 
 function buildWorkspaceContext(options: SetupOptions) {
@@ -30,11 +31,6 @@ function buildCommonMocks(options: SetupOptions) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
-  vi.doMock("@/lib/api-error", () => ({
-    convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
-    ),
-  }));
 
   return { mutation, query, requireWorkspaceRoleApiFromDb };
 }
@@ -42,6 +38,20 @@ function buildCommonMocks(options: SetupOptions) {
 async function setupRegistrationCodesRoute(options: SetupOptions = {}) {
   vi.resetModules();
   const mocks = buildCommonMocks(options);
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
   const routeModule = await import("../app/api/admin/device/registration-codes/route");
   return { GET: routeModule.GET, POST: routeModule.POST, mocks };
 }
@@ -49,6 +59,20 @@ async function setupRegistrationCodesRoute(options: SetupOptions = {}) {
 async function setupDevicesRoute(options: SetupOptions = {}) {
   vi.resetModules();
   const mocks = buildCommonMocks(options);
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
   const routeModule = await import("../app/api/admin/device/devices/route");
   return { GET: routeModule.GET, mocks };
 }
@@ -56,6 +80,20 @@ async function setupDevicesRoute(options: SetupOptions = {}) {
 async function setupDeviceDetailRoute(options: SetupOptions = {}) {
   vi.resetModules();
   const mocks = buildCommonMocks(options);
+  if (options.useActualApiError) {
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+  } else {
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
+        Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      ),
+    }));
+  }
   const routeModule = await import("../app/api/admin/device/devices/[deviceId]/route");
   return { PATCH: routeModule.PATCH, mocks };
 }
@@ -152,6 +190,39 @@ describe("admin device management routes", () => {
       deviceId: "device_123",
       label: "Renamed Device",
       revoke: undefined,
+    });
+  });
+
+  it("preserves PLAN_LIMIT_REACHED from registration code creation", async () => {
+    const domainError = {
+      data: {
+        code: "PLAN_LIMIT_REACHED",
+        message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",
+      },
+    };
+    const { POST, mocks } = await setupRegistrationCodesRoute({
+      mutationImpl: vi.fn(async () => {
+        throw domainError;
+      }),
+      useActualApiError: true,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/admin/device/registration-codes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ttlMs: 300000 }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "PLAN_LIMIT_REACHED",
+      message: "Jumlah device aktif sudah mencapai batas paket workspace Anda.",
+    });
+    expect(mocks.mutation).toHaveBeenCalledWith("devices:createRegistrationCode", {
+      workspaceId: "workspace_123456",
+      ttlMs: 300000,
     });
   });
 
