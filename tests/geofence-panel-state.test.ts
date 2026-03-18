@@ -67,4 +67,21 @@ describe('geofence panel state', () => {
 
     expect(errors).toContainEqual(expect.stringMatching(/wajib diisi/i));
   });
+
+  it('preserves invalid stored coordinates so admins can inspect and repair them', () => {
+    const state = buildGeofencePanelState({
+      timezone: 'Asia/Jakarta',
+      geofenceEnabled: false,
+      geofenceRadiusMeters: 100,
+      minLocationAccuracyMeters: 50,
+      geofenceLat: -91,
+      geofenceLng: 200,
+      whitelistEnabled: false,
+      whitelistIps: [],
+    });
+
+    expect(state.selectedPoint).toBeNull();
+    expect(state.data.geofenceLat).toBe(-91);
+    expect(state.data.geofenceLng).toBe(200);
+  });
 });

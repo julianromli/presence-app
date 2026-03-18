@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  createNextGeofenceSearchRequestId,
+  isLatestGeofenceSearchRequest,
   type NominatimSearchResult,
   mapNominatimResults,
   searchGeofenceLocations,
@@ -83,6 +85,26 @@ describe('geofence geocoder', () => {
 
     await expect(searchGeofenceLocations('Jakarta', fetcher)).rejects.toThrow(
       /gagal mencari lokasi/i,
+    );
+  });
+
+  it('forwards an AbortSignal to the geocoder request and tracks only the latest search id', async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn(async () => Response.json([]));
+
+    const nextRequestId = createNextGeofenceSearchRequestId(3);
+    await searchGeofenceLocations('Jakarta', fetcher, {
+      signal: controller.signal,
+    });
+
+    expect(nextRequestId).toBe(4);
+    expect(isLatestGeofenceSearchRequest(4, nextRequestId)).toBe(true);
+    expect(isLatestGeofenceSearchRequest(3, nextRequestId)).toBe(false);
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('nominatim.openstreetmap.org/search'),
+      expect.objectContaining({
+        signal: controller.signal,
+      }),
     );
   });
 });
