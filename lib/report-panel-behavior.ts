@@ -141,3 +141,88 @@ export function buildActiveAuditFilterBadges({
 
   return badges;
 }
+
+export function buildAttendanceFilterBadges({
+  activeDateKey,
+  employeeName,
+  editedFilter,
+  attendanceStatusFilter,
+}: {
+  activeDateKey: string;
+  employeeName: string;
+  editedFilter: "all" | "true" | "false";
+  attendanceStatusFilter:
+    | "all"
+    | "not-checked-in"
+    | "checked-in"
+    | "incomplete"
+    | "completed";
+}) {
+  const badges = [`Tanggal absensi: ${activeDateKey}`];
+
+  if (employeeName.trim().length > 0) {
+    badges.push(`Nama karyawan: ${employeeName.trim()}`);
+  }
+
+  if (editedFilter === "true") {
+    badges.push("Status edit: sudah diedit");
+  } else if (editedFilter === "false") {
+    badges.push("Status edit: belum diedit");
+  }
+
+  if (attendanceStatusFilter === "not-checked-in") {
+    badges.push("Status attendance: belum check-in");
+  } else if (attendanceStatusFilter === "checked-in") {
+    badges.push("Status attendance: sudah check-in");
+  } else if (attendanceStatusFilter === "incomplete") {
+    badges.push("Status attendance: belum check-out");
+  } else if (attendanceStatusFilter === "completed") {
+    badges.push("Status attendance: lengkap");
+  }
+
+  return badges;
+}
+
+export function formatScanResultFilterLabel(
+  scanResultFilter: "all" | "accepted" | "rejected",
+) {
+  if (scanResultFilter === "accepted") {
+    return "Berhasil";
+  }
+
+  if (scanResultFilter === "rejected") {
+    return "Ditolak";
+  }
+
+  return "Semua";
+}
+
+export function buildScanEventsFilterBadges({
+  activeDateKey,
+  scanResultFilter,
+}: {
+  activeDateKey: string;
+  scanResultFilter: "all" | "accepted" | "rejected";
+}) {
+  const badges = [`Tanggal scan: ${activeDateKey}`];
+
+  if (scanResultFilter !== "all") {
+    badges.push(`Hasil scan: ${formatScanResultFilterLabel(scanResultFilter).toLowerCase()}`);
+  }
+
+  return badges;
+}
+
+export function buildSectionToggleLabel(title: string, open: boolean) {
+  return `${open ? "Sembunyikan" : "Tampilkan"} ${title}`;
+}
+
+export function buildAttendanceEditAuditHint({
+  employeeName,
+  dateKey,
+}: {
+  employeeName: string;
+  dateKey: string;
+}) {
+  return `Perubahan untuk ${employeeName} pada ${dateKey} akan dicatat ke audit log.`;
+}
