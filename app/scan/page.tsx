@@ -1,9 +1,14 @@
+import { currentUser } from '@clerk/nextjs/server';
+
 import { requireWorkspaceRolePageFromDb } from '@/lib/auth';
 
 import { ScanPanel } from './scan-panel';
 
 export default async function ScanPage() {
-  await requireWorkspaceRolePageFromDb(['karyawan']);
+  const [, clerkUser] = await Promise.all([
+    requireWorkspaceRolePageFromDb(['karyawan']),
+    currentUser(),
+  ]);
 
-  return <ScanPanel />;
+  return <ScanPanel firstName={clerkUser?.firstName?.trim() || 'Karyawan'} />;
 }

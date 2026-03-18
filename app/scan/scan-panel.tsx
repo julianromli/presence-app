@@ -55,6 +55,10 @@ type ScanFailureResponse = Partial<ScanResponse> & {
   message?: string;
 };
 
+type ScanPanelProps = {
+  firstName?: string | null;
+};
+
 export function shouldRetryLocation(code: string | undefined) {
   return code === 'GEOFENCE_COORD_REQUIRED' || code === 'GEOFENCE_ACCURACY_REQUIRED';
 }
@@ -122,7 +126,7 @@ export async function submitScanWithLocationRetry({
   return { response, data };
 }
 
-export function ScanPanel() {
+export function ScanPanel({ firstName = 'Karyawan' }: ScanPanelProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastScanRef = useRef<{ token: string; at: number } | null>(null);
@@ -465,7 +469,7 @@ export function ScanPanel() {
             Selamat Pagi,
           </p>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            Halo, Karyawan
+            Halo, {firstName}
           </h1>
           <Button
             render={<Link href="/dashboard" />}

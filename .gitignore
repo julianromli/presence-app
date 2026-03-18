@@ -53,3 +53,6 @@ cloudflared.log
 # Sentry Config File
 .env.sentry-build-plugin
 nul
+
+.docs/superpowers
+.docs/plans
