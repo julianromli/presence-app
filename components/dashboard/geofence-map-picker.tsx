@@ -70,7 +70,7 @@ export function GeofenceMapPicker({
         style: MAP_STYLE_URL,
         center: [viewport.longitude, viewport.latitude],
         zoom: viewport.zoom,
-        attributionControl: true,
+        attributionControl: {},
       });
     } catch {
       queueMicrotask(() => {
@@ -140,9 +140,12 @@ export function GeofenceMapPicker({
         anchor: 'bottom',
       });
 
-      markerRef.current = attachGeofenceMarker(marker, map, selectedPoint, handlePointSelect) as
-        | maplibregl.Marker
-        | null;
+      markerRef.current = attachGeofenceMarker<maplibregl.Map, maplibregl.Marker>(
+        marker,
+        map,
+        selectedPoint,
+        handlePointSelect,
+      );
       return;
     }
 

@@ -8,10 +8,10 @@ export type GeofenceViewport = GeofencePoint & {
 };
 
 export type GeofenceMarkerLike<TMap = unknown> = {
-  addTo: (map: TMap) => GeofenceMarkerLike<TMap>;
+  addTo: (map: TMap) => unknown;
   getLngLat: () => { lat: number; lng: number };
-  on: (event: 'dragend', handler: () => void) => GeofenceMarkerLike<TMap>;
-  setLngLat: (lngLat: [number, number]) => GeofenceMarkerLike<TMap>;
+  on: (event: 'dragend', handler: () => void) => unknown;
+  setLngLat: (lngLat: [number, number]) => unknown;
 };
 
 export type GeofenceSettingsDraft = {
@@ -75,12 +75,15 @@ export function syncGeofencePointToSettings<T extends GeofenceSettingsDraft>(
   };
 }
 
-export function attachGeofenceMarker<TMap>(
-  marker: GeofenceMarkerLike<TMap>,
+export function attachGeofenceMarker<
+  TMap,
+  TMarker extends GeofenceMarkerLike<TMap>,
+>(
+  marker: TMarker,
   map: TMap,
   selectedPoint: GeofencePoint,
   onPointSelect: (point: GeofencePoint) => void,
-) {
+): TMarker {
   marker.on('dragend', () => {
     const nextPoint = marker.getLngLat();
     onPointSelect({
