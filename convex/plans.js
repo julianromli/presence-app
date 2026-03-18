@@ -16,7 +16,7 @@ export const PLAN_CATALOG = {
     features: {
       geofence: false,
       ipWhitelist: false,
-      attendanceSchedule: false,
+      attendanceSchedule: true,
       reportExport: false,
       inviteRotation: true,
       inviteExpiry: false,
