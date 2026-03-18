@@ -3,8 +3,6 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 
-import { ThemeToggle } from '../ui/theme-toggle';
-
 const ITEMS = [
   { label: 'Beranda', href: '/' },
   { label: 'Fitur', href: '/#fitur' },
@@ -53,11 +51,9 @@ export function PublicNavbar() {
               Daftar
             </Button>
           </Link>
-          <ThemeToggle />
         </div>
 
         <div className="flex items-center gap-2 justify-self-end lg:hidden">
-          <ThemeToggle />
           <details className="group relative">
             <summary className="border-input bg-popover text-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-disabled:not-active:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] hover:bg-accent/50 dark:bg-input/32 dark:hover:bg-input/64 relative inline-flex h-8 cursor-pointer list-none items-center justify-center rounded-lg border px-[calc(var(--spacing)_*_2.5_-_1px)] text-sm font-medium outline-none transition-shadow [&::-webkit-details-marker]:hidden">
               Menu
