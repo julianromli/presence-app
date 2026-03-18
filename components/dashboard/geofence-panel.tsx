@@ -1,13 +1,34 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
+import {
+  buildGeofencePanelState,
+  selectGeofencePoint,
+  selectGeofenceSearchResult,
+  validateGeofenceSettings,
+  type SettingsPayload,
+} from '@/components/dashboard/geofence-panel-state';
+import { GeofenceSearchBox } from '@/components/dashboard/geofence-search-box';
+import { GeofenceSearchResults } from '@/components/dashboard/geofence-search-results';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { parseApiErrorResponse } from '@/lib/client-error';
+import {
+  createNextGeofenceSearchRequestId,
+  isLatestGeofenceSearchRequest,
+  searchGeofenceLocations,
+  type GeofenceSearchResult,
+} from '@/lib/geofence-geocoder';
+import {
+  DEFAULT_GEOFENCE_VIEWPORT,
+  type GeofencePoint,
+  type GeofenceViewport,
+} from '@/lib/geofence-map';
 import { getTimeZoneOptions, normalizeTimeZone } from '@/lib/timezones';
 import {
   getGeofencePremiumBannerCopy,
@@ -15,65 +36,24 @@ import {
 } from '@/lib/workspace-subscription-client';
 import { recoverWorkspaceScopeViolation, workspaceFetch } from '@/lib/workspace-client';
 
-type SettingsPayload = {
-  timezone: string;
-  geofenceEnabled: boolean;
-  geofenceRadiusMeters: number;
-  minLocationAccuracyMeters: number;
-  geofenceLat?: number;
-  geofenceLng?: number;
-  whitelistEnabled: boolean;
-  whitelistIps: string[];
-};
-
 type NoticeTone = 'info' | 'success' | 'warning' | 'error';
+type SearchStatus = 'idle' | 'loading' | 'success' | 'error';
 
 type InlineNotice = {
   tone: NoticeTone;
   text: string;
 };
 
-function hasFiniteNumber(value: number | undefined) {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function getGeofenceValidationErrors(data: SettingsPayload) {
-  const errors: string[] = [];
-
-  if (!hasFiniteNumber(data.geofenceRadiusMeters) || data.geofenceRadiusMeters < 10) {
-    errors.push('Radius geofence minimal 10 meter.');
-  }
-
-  if (
-    !hasFiniteNumber(data.minLocationAccuracyMeters) ||
-    data.minLocationAccuracyMeters <= 0
-  ) {
-    errors.push('Batas akurasi GPS harus lebih besar dari 0 meter.');
-  }
-
-  if (!data.geofenceEnabled) {
-    return errors;
-  }
-
-  if (data.geofenceLat === undefined || data.geofenceLng === undefined) {
-    errors.push('Latitude dan longitude wajib diisi saat geofence aktif.');
-    return errors;
-  }
-
-  if (!hasFiniteNumber(data.geofenceLat) || data.geofenceLat < -90 || data.geofenceLat > 90) {
-    errors.push('Latitude geofence harus berada di antara -90 dan 90.');
-  }
-
-  if (
-    !hasFiniteNumber(data.geofenceLng) ||
-    data.geofenceLng < -180 ||
-    data.geofenceLng > 180
-  ) {
-    errors.push('Longitude geofence harus berada di antara -180 dan 180.');
-  }
-
-  return errors;
-}
+const GeofenceMapPicker = dynamic(
+  () =>
+    import('@/components/dashboard/geofence-map-picker').then((mod) => mod.GeofenceMapPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] animate-pulse rounded-xl border border-zinc-200 bg-white" />
+    ),
+  },
+);
 
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
@@ -86,6 +66,10 @@ function noticeClass(tone: NoticeTone) {
     default:
       return 'border-zinc-200 bg-zinc-50 text-zinc-900';
   }
+}
+
+function formatCoordinate(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(6) : '-';
 }
 
 type GeofenceTimezoneFieldProps = {
@@ -102,7 +86,7 @@ export function GeofenceTimezoneField({
   const timezoneOptions = getTimeZoneOptions(value);
 
   return (
-    <label className="space-y-1 sm:col-span-2">
+    <label className="space-y-1">
       <span className="text-sm font-medium text-zinc-700">Timezone</span>
       <Menu>
         <MenuTrigger
@@ -145,36 +129,42 @@ export function GeofencePanel() {
     whitelistEnabled: false,
     whitelistIps: [],
   });
+  const [selectedPoint, setSelectedPoint] = useState<GeofencePoint | null>(null);
+  const [mapViewport, setMapViewport] = useState<GeofenceViewport>(DEFAULT_GEOFENCE_VIEWPORT);
   const [ipText, setIpText] = useState('');
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<GeofenceSearchResult[]>([]);
+  const searchRequestIdRef = useRef(0);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      const res = await workspaceFetch('/api/admin/settings', { cache: 'no-store' });
-      if (!res.ok) {
-        const parsed = await parseApiErrorResponse(res, 'Gagal memuat data geofence.');
-        if (recoverWorkspaceScopeViolation(parsed.code)) {
-          return;
-        }
-        setNotice({ tone: 'error', text: `[${parsed.code}] ${parsed.message}` });
-        setInitialLoading(false);
-        return;
-      }
+  const setPanelFromData = (nextData: SettingsPayload) => {
+    const panelState = buildGeofencePanelState(nextData);
+    setData(panelState.data);
+    setSelectedPoint(panelState.selectedPoint);
+    setMapViewport(panelState.viewport);
+  };
 
-      const payload = (await res.json()) as SettingsPayload;
-      setData({
-        ...payload,
-        timezone: normalizeTimeZone(payload.timezone),
-        minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
-      });
-      setIpText((payload.whitelistIps ?? []).join(', '));
-      setInitialLoading(false);
-    };
+  const updateSelectedPoint = (point: GeofencePoint | null) => {
+    startTransition(() => {
+      const nextState = selectGeofencePoint(
+        {
+          data,
+          selectedPoint,
+          viewport: mapViewport,
+        },
+        point,
+      );
 
-    void load();
-  }, []);
+      setData(nextState.data);
+      setSelectedPoint(nextState.selectedPoint);
+      setMapViewport(nextState.viewport);
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -191,32 +181,37 @@ export function GeofencePanel() {
       }
 
       const payload = (await res.json()) as SettingsPayload;
-      setData({
-        ...payload,
-        timezone: normalizeTimeZone(payload.timezone),
-        minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
+      startTransition(() => {
+        setPanelFromData({
+          ...payload,
+          timezone: normalizeTimeZone(payload.timezone),
+          minLocationAccuracyMeters: payload.minLocationAccuracyMeters ?? 100,
+        });
+        setIpText((payload.whitelistIps ?? []).join(', '));
+        setSearchStatus('idle');
+        setSearchError(null);
+        setSearchResults([]);
+        setInitialLoading(false);
       });
-      setIpText((payload.whitelistIps ?? []).join(', '));
-      setInitialLoading(false);
     };
+
+    void load();
 
     const handleWorkspaceChanged = () => {
       void load();
     };
-    const handleDashboardRefresh = () => {
-      void load();
-    };
 
     window.addEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
-    window.addEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+    window.addEventListener('dashboard:refresh', handleWorkspaceChanged as EventListener);
 
     return () => {
+      searchAbortControllerRef.current?.abort();
       window.removeEventListener('workspace:changed', handleWorkspaceChanged as EventListener);
-      window.removeEventListener('dashboard:refresh', handleDashboardRefresh as EventListener);
+      window.removeEventListener('dashboard:refresh', handleWorkspaceChanged as EventListener);
     };
   }, []);
 
-  const geofenceValidationErrors = getGeofenceValidationErrors(data);
+  const geofenceValidationErrors = validateGeofenceSettings(data);
   const geofencePremiumBanner = getGeofencePremiumBannerCopy(
     workspaceSubscriptionState.subscription,
   );
@@ -228,6 +223,73 @@ export function GeofencePanel() {
     !geofencePremiumUnavailable && geofenceValidationErrors.length > 0;
   const showsBlockingGeofenceWarning =
     data.geofenceEnabled && geofenceValidationErrors.length > 0;
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchStatus('error');
+      setSearchError('Masukkan nama lokasi atau alamat sebelum mencari.');
+      setSearchResults([]);
+      return;
+    }
+
+    searchAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+    const requestId = createNextGeofenceSearchRequestId(searchRequestIdRef.current);
+    searchRequestIdRef.current = requestId;
+
+    setSearchStatus('loading');
+    setSearchError(null);
+
+    try {
+      const results = await searchGeofenceLocations(searchQuery, fetch, {
+        signal: controller.signal,
+      });
+
+      if (!isLatestGeofenceSearchRequest(requestId, searchRequestIdRef.current)) {
+        return;
+      }
+
+      startTransition(() => {
+        setSearchResults(results);
+        setSearchStatus('success');
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (!isLatestGeofenceSearchRequest(requestId, searchRequestIdRef.current)) {
+        return;
+      }
+
+      setSearchResults([]);
+      setSearchStatus('error');
+      setSearchError(
+        error instanceof Error
+          ? error.message
+          : 'Gagal mencari lokasi. Coba lagi beberapa saat.',
+      );
+    }
+  };
+
+  const handleSearchSelect = (result: GeofenceSearchResult) => {
+    startTransition(() => {
+      const nextState = selectGeofenceSearchResult(
+        {
+          data,
+          selectedPoint,
+          viewport: mapViewport,
+        },
+        result,
+      );
+
+      setData(nextState.data);
+      setSelectedPoint(nextState.selectedPoint);
+      setMapViewport(nextState.viewport);
+      setSearchError(null);
+    });
+  };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -244,15 +306,13 @@ export function GeofencePanel() {
     setNotice({ tone: 'info', text: 'Menyimpan pengaturan geofence...' });
 
     try {
+      const whitelistIps = ipText
+        .split(',')
+        .map((ip) => ip.trim())
+        .filter(Boolean);
       const body = geofencePremiumUnavailable
         ? { timezone: data.timezone }
-        : {
-            ...data,
-            whitelistIps: ipText
-              .split(',')
-              .map((ip) => ip.trim())
-              .filter(Boolean),
-          };
+        : { ...data, whitelistIps };
 
       const res = await workspaceFetch('/api/admin/settings', {
         method: 'PATCH',
@@ -309,85 +369,126 @@ export function GeofencePanel() {
         ) : null}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">Lokasi geofence</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <GeofenceTimezoneField
-              value={data.timezone}
-              disabled={loading}
-              onChange={(timezone) => setData((prev) => ({ ...prev, timezone }))}
-            />
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-zinc-700">Latitude</span>
-              <Input
-                type="number"
-                value={data.geofenceLat ?? ''}
-                disabled={premiumControlsDisabled}
-                onChange={(event) =>
-                  setData((prev) => ({
-                    ...prev,
-                    geofenceLat: event.target.value ? Number(event.target.value) : undefined,
-                  }))
-                }
+          <p className="mt-1 text-sm text-zinc-600">
+            Cari lokasi kantor, klik titik di peta, lalu geser marker untuk menempatkan pusat
+            geofence dengan presisi.
+          </p>
+          <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+            <div className="space-y-5">
+              <GeofenceTimezoneField
+                disabled={loading}
+                value={data.timezone}
+                onChange={(timezone) => setData((prev) => ({ ...prev, timezone }))}
               />
-            </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-zinc-700">Longitude</span>
-              <Input
-                type="number"
-                value={data.geofenceLng ?? ''}
-                disabled={premiumControlsDisabled}
-                onChange={(event) =>
-                  setData((prev) => ({
-                    ...prev,
-                    geofenceLng: event.target.value ? Number(event.target.value) : undefined,
-                  }))
-                }
-              />
-            </label>
-            <label className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">Radius Geofence (meter)</span>
-              <Input
-                type="number"
-                min={10}
-                value={data.geofenceRadiusMeters}
-                disabled={premiumControlsDisabled}
-                onChange={(event) =>
-                  setData((prev) => ({
-                    ...prev,
-                    geofenceRadiusMeters: Math.max(10, Number(event.target.value) || 10),
-                  }))
-                }
-              />
-            </label>
-            <label className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">
-                Batas Akurasi GPS Maksimum (meter)
-              </span>
-              <Input
-                type="number"
-                min={1}
-                value={data.minLocationAccuracyMeters}
-                disabled={premiumControlsDisabled}
-                onChange={(event) =>
-                  setData((prev) => ({
-                    ...prev,
-                    minLocationAccuracyMeters: Math.max(1, Number(event.target.value) || 1),
-                  }))
-                }
-              />
-              <p className="text-xs text-zinc-500">
-                Scan ditolak jika ketidakpastian GPS lebih buruk dari batas ini.
-              </p>
-            </label>
-            {geofenceValidationErrors.length > 0 ? (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-900 sm:col-span-2">
-                {geofenceValidationErrors.map((error) => (
-                  <p key={error}>{error}</p>
-                ))}
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-zinc-700">Cari alamat atau gedung</p>
+                  <p className="text-xs text-zinc-500">
+                    Hasil pencarian tidak otomatis menyimpan konfigurasi.
+                  </p>
+                </div>
+                <GeofenceSearchBox
+                  disabled={premiumControlsDisabled}
+                  query={searchQuery}
+                  isSearching={searchStatus === 'loading'}
+                  onQueryChange={setSearchQuery}
+                  onSubmit={() => void handleSearch()}
+                />
+                <GeofenceSearchResults
+                  error={searchError}
+                  results={searchResults}
+                  selectedPoint={selectedPoint}
+                  status={searchStatus}
+                  onSelect={handleSearchSelect}
+                />
               </div>
-            ) : null}
+
+              <div className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+                    Latitude
+                  </p>
+                  <p className="text-sm font-semibold text-zinc-900">
+                    {formatCoordinate(data.geofenceLat)}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+                    Longitude
+                  </p>
+                  <p className="text-sm font-semibold text-zinc-900">
+                    {formatCoordinate(data.geofenceLng)}
+                  </p>
+                </div>
+              </div>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium text-zinc-700">Radius Geofence (meter)</span>
+                <Input
+                  type="number"
+                  min={10}
+                  value={data.geofenceRadiusMeters}
+                  disabled={premiumControlsDisabled}
+                  onChange={(event) =>
+                    setData((prev) => ({
+                      ...prev,
+                      geofenceRadiusMeters: Math.max(10, Number(event.target.value) || 10),
+                    }))
+                  }
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium text-zinc-700">
+                  Batas Akurasi GPS Maksimum (meter)
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.minLocationAccuracyMeters}
+                  disabled={premiumControlsDisabled}
+                  onChange={(event) =>
+                    setData((prev) => ({
+                      ...prev,
+                      minLocationAccuracyMeters: Math.max(1, Number(event.target.value) || 1),
+                    }))
+                  }
+                />
+                <p className="text-xs text-zinc-500">
+                  Scan ditolak jika ketidakpastian GPS lebih buruk dari batas ini.
+                </p>
+              </label>
+
+              {geofenceValidationErrors.length > 0 ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-900">
+                  {geofenceValidationErrors.map((error) => (
+                    <p key={error}>{error}</p>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-3">
+              <GeofenceMapPicker
+                selectedPoint={selectedPoint}
+                viewport={mapViewport}
+                onPointSelect={(point) => {
+                  if (premiumControlsDisabled) {
+                    return;
+                  }
+
+                  updateSelectedPoint(point);
+                }}
+              />
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
+                Gunakan pencarian untuk mendekati area kantor, lalu klik atau geser marker untuk
+                menentukan titik absensi yang paling akurat.
+              </div>
+            </div>
           </div>
         </article>
 
@@ -434,7 +535,7 @@ export function GeofencePanel() {
             </label>
           </div>
         </article>
-      </section>
+      </div>
 
       <div className="sticky bottom-20 z-10 flex items-center justify-end gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:bottom-3">
         <Button

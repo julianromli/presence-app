@@ -24,6 +24,7 @@ type AttendancePageResponse = {
     pageStatus?: "SplitRecommended" | "SplitRequired" | null;
   };
   summary: AttendanceSummary;
+  timezone: string;
 };
 
 type AttendanceSummary = {
@@ -109,6 +110,7 @@ export async function GET(req: Request) {
 
     return Response.json({
       rows: result.rowsPage.page,
+      timezone: result.timezone,
       pageInfo: {
         continueCursor: result.rowsPage.continueCursor,
         isDone: result.rowsPage.isDone,

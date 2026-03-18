@@ -110,6 +110,15 @@ describe("scan panel", () => {
     expect(html).toContain("Dashboard Saya");
   });
 
+  it("renders the provided Clerk username in the greeting", async () => {
+    const { ScanPanel } = await import("../app/scan/scan-panel");
+    const html = renderToStaticMarkup(
+      React.createElement(ScanPanel, { firstName: "faiz.intifada" }),
+    );
+
+    expect(html).toContain("Halo, faiz.intifada");
+  });
+
   it("retries location once when geofence coordinates or accuracy are required", async () => {
     const { submitScanWithLocationRetry } = await import("../app/scan/scan-panel");
     const sendScan = vi

@@ -57,9 +57,15 @@ export function WorkspaceHubDialog({
   const copy = COPY_BY_MODE[mode];
   const isSubmitting = pendingAction === mode;
   const trimmedValue = mode === 'join' ? value.trim().toUpperCase() : value.trim();
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setValue('');
+    }
+    onOpenChange(nextOpen);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog key={mode} open={open} onOpenChange={handleOpenChange}>
       <DialogPopup className="sm:max-w-md">
         <DialogPanel>
           <DialogHeader>
@@ -75,7 +81,7 @@ export function WorkspaceHubDialog({
                 try {
                   const succeeded = await onSubmit(trimmedValue);
                   if (succeeded) {
-                    onOpenChange(false);
+                    handleOpenChange(false);
                   }
                 } catch {
                   // The provider is responsible for surfacing the notice.

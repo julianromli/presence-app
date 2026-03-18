@@ -364,7 +364,7 @@ export function DashboardHeader({ name = 'Faiz Intifada', email = 'faiz@example.
                       <MenuRadioItem
                         key={item.workspace._id}
                         value={item.workspace._id}
-                        className="data-highlighted:bg-zinc-800"
+                        className="text-zinc-200 data-highlighted:bg-zinc-800 data-highlighted:text-zinc-50"
                       >
                         {item.workspace.name}
                       </MenuRadioItem>

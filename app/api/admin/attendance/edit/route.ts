@@ -5,6 +5,10 @@ import {
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import {
+  isValidClockValue,
+  resolveDateKeyClockToTimestamp,
+} from "@/lib/timezone-clock";
 
 export async function PATCH(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
@@ -19,8 +23,11 @@ export async function PATCH(req: Request) {
 
   let body: {
     attendanceId?: string;
+    dateKey?: string;
     checkInAt?: number;
     checkOutAt?: number;
+    checkInTime?: string;
+    checkOutTime?: string;
     reason?: string;
   };
   try {
@@ -75,11 +82,61 @@ export async function PATCH(req: Request) {
     );
 
   try {
+    let checkInAt = body.checkInAt;
+    let checkOutAt = body.checkOutAt;
+
+    const hasClockPayload =
+      body.checkInTime !== undefined || body.checkOutTime !== undefined;
+    if (hasClockPayload) {
+      if (!body.dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateKey)) {
+        return Response.json(
+          { code: "VALIDATION_ERROR", message: "dateKey wajib valid." },
+          { status: 400 },
+        );
+      }
+
+      if (
+        body.checkInTime !== undefined &&
+        body.checkInTime.length > 0 &&
+        !isValidClockValue(body.checkInTime)
+      ) {
+        return Response.json(
+          { code: "VALIDATION_ERROR", message: "checkInTime tidak valid." },
+          { status: 400 },
+        );
+      }
+
+      if (
+        body.checkOutTime !== undefined &&
+        body.checkOutTime.length > 0 &&
+        !isValidClockValue(body.checkOutTime)
+      ) {
+        return Response.json(
+          { code: "VALIDATION_ERROR", message: "checkOutTime tidak valid." },
+          { status: 400 },
+        );
+      }
+
+      const settings = await convex.query<{ timezone?: string }>("settings:get", {
+        workspaceId,
+      });
+      checkInAt = resolveDateKeyClockToTimestamp(
+        body.dateKey,
+        body.checkInTime,
+        settings.timezone,
+      );
+      checkOutAt = resolveDateKeyClockToTimestamp(
+        body.dateKey,
+        body.checkOutTime,
+        settings.timezone,
+      );
+    }
+
     await convex.mutation("attendance:editAttendance", {
       workspaceId,
       attendanceId: body.attendanceId,
-      checkInAt: body.checkInAt,
-      checkOutAt: body.checkOutAt,
+      checkInAt,
+      checkOutAt,
       reason: body.reason,
     });
 

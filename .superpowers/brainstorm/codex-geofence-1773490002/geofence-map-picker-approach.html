@@ -1,0 +1,95 @@
+<h2>Geofence Map Picker</h2>
+<p class="subtitle">Desktop-first admin flow. Search uses submit-based lookup, not live autocomplete, to stay compatible with public Nominatim usage constraints.</p>
+
+<div class="section">
+  <div class="options">
+    <div class="option" data-choice="recommended" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Recommended: Hybrid Picker</h3>
+        <p>Search field + result list + clickable map + draggable marker. Radius and accuracy stay as numeric controls outside the map.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="map-only" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Map First</h3>
+        <p>Click map or drag marker only. Lowest integration cost, but slower when admin does not know the exact area visually.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="search-heavy" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Search Heavy</h3>
+        <p>Search dominates the flow, map is secondary. Fast for typed addresses, but weaker for fine-tuning the actual office entrance point.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Recommended desktop layout</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;min-height:470px;">
+        <div style="border:1px solid #d4d4d8;border-radius:18px;padding:16px;background:#fff;">
+          <div class="label">Search lokasi</div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <input class="mock-input" value="Menara Palma Jakarta" style="flex:1" />
+            <button class="mock-button">Cari</button>
+          </div>
+          <div style="margin-top:14px;border:1px solid #e4e4e7;border-radius:14px;padding:10px 12px;background:#fafafa;">
+            <div style="font-weight:600;font-size:13px;">Hasil pencarian</div>
+            <div style="margin-top:10px;padding:10px;border-radius:12px;background:#111827;color:#fff;">
+              <div style="font-weight:600;font-size:13px;">Menara Palma Tower</div>
+              <div style="font-size:12px;opacity:.8;">Jl. HR Rasuna Said, Jakarta Selatan</div>
+            </div>
+            <div style="margin-top:8px;padding:10px;border-radius:12px;background:#fff;border:1px solid #e4e4e7;">
+              <div style="font-weight:600;font-size:13px;">Palma One</div>
+              <div style="font-size:12px;color:#52525b;">Kuningan, Jakarta Selatan</div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;border:1px solid #e4e4e7;border-radius:14px;padding:12px;background:#fff;">
+            <div class="label">Titik geofence</div>
+            <div style="margin-top:8px;font-size:13px;">Lat: <strong>-6.2088</strong></div>
+            <div style="margin-top:4px;font-size:13px;">Lng: <strong>106.8219</strong></div>
+            <div style="margin-top:12px;height:1px;background:#e4e4e7;"></div>
+            <div style="margin-top:12px;font-size:13px;">Radius geofence</div>
+            <input class="mock-input" value="100 meter" style="margin-top:6px" />
+            <div style="margin-top:12px;font-size:13px;">Batas akurasi GPS</div>
+            <input class="mock-input" value="50 meter" style="margin-top:6px" />
+          </div>
+        </div>
+
+        <div style="border:1px solid #d4d4d8;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%);position:relative;">
+          <div style="position:absolute;inset:0;background:
+            linear-gradient(90deg, rgba(100,116,139,.12) 1px, transparent 1px) 0 0/72px 72px,
+            linear-gradient(rgba(100,116,139,.12) 1px, transparent 1px) 0 0/72px 72px;">
+          </div>
+          <div style="position:absolute;inset:18px 18px auto 18px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="background:rgba(255,255,255,.92);border:1px solid #d4d4d8;border-radius:999px;padding:8px 12px;font-size:12px;">OpenStreetMap style</div>
+            <div style="background:rgba(255,255,255,.92);border:1px solid #d4d4d8;border-radius:14px;padding:6px 8px;font-size:12px;">Click map to set point</div>
+          </div>
+          <div style="position:absolute;left:18%;top:23%;width:120px;height:56px;border-radius:999px;background:rgba(34,197,94,.08);transform:rotate(-18deg);"></div>
+          <div style="position:absolute;left:58%;top:18%;width:140px;height:64px;border-radius:999px;background:rgba(59,130,246,.08);transform:rotate(12deg);"></div>
+          <div style="position:absolute;left:26%;top:52%;width:180px;height:80px;border-radius:999px;background:rgba(249,115,22,.07);transform:rotate(8deg);"></div>
+          <div style="position:absolute;left:57%;top:54%;width:160px;height:72px;border-radius:999px;background:rgba(168,85,247,.06);transform:rotate(-10deg);"></div>
+
+          <div style="position:absolute;left:50%;top:51%;transform:translate(-50%,-50%);width:120px;height:120px;border:2px dashed rgba(17,24,39,.38);border-radius:999px;background:rgba(37,99,235,.10);"></div>
+          <div style="position:absolute;left:50%;top:51%;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;">
+            <div style="width:18px;height:18px;border-radius:999px;background:#111827;border:4px solid #fff;box-shadow:0 12px 28px rgba(15,23,42,.22);"></div>
+            <div style="width:2px;height:18px;background:#111827;"></div>
+          </div>
+
+          <div style="position:absolute;left:16px;bottom:16px;background:rgba(255,255,255,.94);border:1px solid #d4d4d8;border-radius:16px;padding:10px 12px;max-width:250px;">
+            <div style="font-size:12px;font-weight:700;">Interaksi</div>
+            <div style="margin-top:6px;font-size:12px;color:#52525b;">1. Search dan pilih hasil</div>
+            <div style="font-size:12px;color:#52525b;">2. Klik map bila perlu</div>
+            <div style="font-size:12px;color:#52525b;">3. Drag marker untuk presisi akhir</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -167,6 +167,8 @@ describe("convex reports node actions", () => {
       expect.objectContaining({
         "Minggu Ke-": "2026-03-02_2026-03-08",
         "Nama Karyawan": "Ali",
+        "Jam Datang": "05:13:20 WIB",
+        "Jam Pulang": "05:19:20 WIB",
       }),
     ]);
     expect(store).toHaveBeenCalledTimes(1);
@@ -181,6 +183,64 @@ describe("convex reports node actions", () => {
         attempts: 1,
       }),
     );
+  });
+
+  it("writes a placeholder worksheet row when the selected week has no attendance rows", async () => {
+    const { runWeeklyReport } = await import("../convex/reportsNode");
+    const runMutation = vi.fn(async (reference: string) => {
+      if (reference === "internal:settings.ensureGlobalInternal") {
+        return null;
+      }
+      if (reference === "internal:reports.beginWeeklyReport") {
+        return {
+          reportId: "report_123",
+          runGeneration: true,
+          status: "pending",
+          startedAt: 1_000,
+          attempts: 1,
+        };
+      }
+      if (reference === "internal:reports.markWeeklyReport") {
+        return null;
+      }
+      throw new Error(`Unexpected runMutation call: ${reference}`);
+    });
+    const runQuery = vi.fn(async (reference: string) => {
+      if (reference === "internal:settings.getGlobalUnsafe") {
+        return { timezone: "Asia/Jakarta" };
+      }
+      if (reference === "internal:attendance.listByDateRangeUnsafe") {
+        return [];
+      }
+      throw new Error(`Unexpected runQuery call: ${reference}`);
+    });
+
+    await runWeeklyReport.handler(
+      {
+        runMutation,
+        runQuery,
+        storage: {
+          store: vi.fn(async () => "storage_123"),
+          getUrl: vi.fn(async () => "https://files.example.com/report.xlsx"),
+        },
+      } as never,
+      {
+        triggerSource: "manual",
+        triggeredBy: "user_admin" as never,
+        workspaceId: "workspace_123456" as never,
+      },
+    );
+
+    expect(jsonToSheet).toHaveBeenCalledWith([
+      {
+        "Minggu Ke-": "2026-03-02_2026-03-08",
+        "Nama Karyawan": "Tidak ada data attendance pada minggu ini",
+        "Jam Datang": "-",
+        "Jam Pulang": "-",
+        "Tanggal Kehadiran": "-",
+        "Edited atau Tidak": "-",
+      },
+    ]);
   });
 
   it("marks the report failed when generation throws", async () => {

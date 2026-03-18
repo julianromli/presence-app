@@ -39,11 +39,27 @@ import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
 import { getLocalDateKey } from "@/lib/date-key";
 import {
+  buildActiveAuditFilterBadges,
+  buildAttendanceSectionCountLabel,
+  buildAttendanceSearchParams,
+  buildScanEventsSectionCountLabel,
+  buildScanEventsSearchParams,
+  refreshAttendanceAuditSections,
+} from "@/lib/report-panel-behavior";
+import { formatClockInTimeZone, isValidClockValue } from "@/lib/timezone-clock";
+import { cn } from "@/lib/utils";
+import {
   getReportExportUpgradeCopy,
   isReportExportDisabled,
   useWorkspaceSubscriptionClient,
 } from "@/lib/workspace-subscription-client";
-import { cn } from "@/lib/utils";
+import {
+  formatWeeklyReportFileMeta,
+  formatWeeklyReportSourceLabel,
+  formatWeeklyReportStatusLabel,
+  getWeeklyReportStatusTone,
+  getWeeklyReportTimestampMeta,
+} from "@/lib/weekly-report-presentation";
 import { recoverWorkspaceScopeViolation, workspaceFetch } from "@/lib/workspace-client";
 
 type AttendanceRow = {
@@ -69,6 +85,7 @@ type WeeklyReportRow = {
   durationMs?: number;
   startedAt?: number;
   finishedAt?: number;
+  byteLength?: number;
 };
 
 type WeeklyTriggerResponse = {
@@ -86,6 +103,7 @@ type AttendanceSummary = {
 
 type AttendanceListResponse = {
   rows: AttendanceRow[];
+  timezone: string;
   pageInfo: {
     continueCursor: string;
     isDone: boolean;
@@ -99,6 +117,9 @@ type LoadAttendanceOptions = {
   append: boolean;
   cursor: string | null;
   searchQueryOverride?: string;
+  dateKeyOverride?: string;
+  editedFilterOverride?: "all" | "true" | "false";
+  attendanceStatusFilterOverride?: AttendanceStatusFilter;
 };
 
 type LoadReportOptions = {
@@ -144,6 +165,13 @@ type AttendanceEditDraft = {
 };
 
 type SectionKey = "attendance" | "scanEvents" | "weekly";
+type AttendanceStatusFilter =
+  | "all"
+  | "not-checked-in"
+  | "checked-in"
+  | "incomplete"
+  | "completed";
+type ScanResultFilter = "all" | "accepted" | "rejected";
 
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
@@ -205,7 +233,9 @@ export function ReportPanel() {
   const searchParams = useSearchParams();
   const headerQuery = (searchParams.get("q") ?? "").trim();
   const workspaceSubscriptionState = useWorkspaceSubscriptionClient();
-  const [dateKey, setDateKey] = useState(() => getLocalDateKey());
+  const initialDateKey = getLocalDateKey();
+  const [draftDateKey, setDraftDateKey] = useState(initialDateKey);
+  const [activeDateKey, setActiveDateKey] = useState(initialDateKey);
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary>({
     total: 0,
@@ -217,6 +247,10 @@ export function ReportPanel() {
   const [editedFilter, setEditedFilter] = useState<"all" | "true" | "false">(
     "all",
   );
+  const [attendanceStatusFilter, setAttendanceStatusFilter] =
+    useState<AttendanceStatusFilter>("all");
+  const [scanResultFilter, setScanResultFilter] =
+    useState<ScanResultFilter>("all");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLastPage, setIsLastPage] = useState(true);
   const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
@@ -249,14 +283,17 @@ export function ReportPanel() {
     useState<ReportToolbarPendingState>({});
   const hasLoadedInitial = useRef(false);
   const prevHeaderQueryRef = useRef(headerQuery);
+  const [workspaceTimezone, setWorkspaceTimezone] = useState("Asia/Jakarta");
   const [sectionOpen, setSectionOpen] = useState<Record<SectionKey, boolean>>({
     attendance: true,
     scanEvents: true,
-    weekly: false,
+    weekly: true,
   });
 
   const hasAttendanceFilter =
-    employeeName.trim().length > 0 || editedFilter !== "all";
+    employeeName.trim().length > 0 ||
+    editedFilter !== "all" ||
+    attendanceStatusFilter !== "all";
   const reportExportDisabled = isReportExportDisabled(
     workspaceSubscriptionState.subscription,
   );
@@ -285,31 +322,27 @@ export function ReportPanel() {
   );
 
   const buildAttendanceParams = useCallback(
-    (cursor: string | null, searchQueryOverride?: string) => {
-      const params = new URLSearchParams({
-        dateKey,
-        limit: "25",
-      });
-
-      if (cursor) {
-        params.set("cursor", cursor);
-      }
-
+    (
+      cursor: string | null,
+      searchQueryOverride?: string,
+      dateKeyOverride?: string,
+      editedFilterOverride?: "all" | "true" | "false",
+      attendanceStatusFilterOverride?: AttendanceStatusFilter,
+    ) => {
       const query =
         searchQueryOverride === undefined
           ? employeeName.trim()
           : searchQueryOverride.trim();
-      if (query.length > 0) {
-        params.set("q", query);
-      }
-
-      if (editedFilter !== "all") {
-        params.set("edited", editedFilter);
-      }
-
-      return params.toString();
+      return buildAttendanceSearchParams({
+        dateKey: dateKeyOverride ?? activeDateKey,
+        employeeName: query,
+        editedFilter: editedFilterOverride ?? editedFilter,
+        attendanceStatusFilter:
+          attendanceStatusFilterOverride ?? attendanceStatusFilter,
+        cursor,
+      });
     },
-    [dateKey, editedFilter, employeeName],
+    [activeDateKey, attendanceStatusFilter, editedFilter, employeeName],
   );
 
   const loadAttendance = useCallback(
@@ -325,6 +358,9 @@ export function ReportPanel() {
           `/api/admin/attendance?${buildAttendanceParams(
             opts.cursor,
             opts.searchQueryOverride,
+            opts.dateKeyOverride,
+            opts.editedFilterOverride,
+            opts.attendanceStatusFilterOverride,
           )}`,
           {
             cache: "no-store",
@@ -357,6 +393,7 @@ export function ReportPanel() {
           return nextRows;
         });
         setSummary(data.summary);
+        setWorkspaceTimezone(data.timezone);
         setNextCursor(
           data.pageInfo.isDone ? null : data.pageInfo.continueCursor,
         );
@@ -408,41 +445,57 @@ export function ReportPanel() {
     setReportsError(null);
   }, []);
 
-  const loadScanEvents = useCallback(async () => {
-    setScanEventsStatus("loading");
-    setScanEventsError(null);
-    const res = await workspaceFetch(
-      `/api/admin/attendance/scan-events?dateKey=${encodeURIComponent(dateKey)}&limit=50`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) {
-      const error = await parseApiErrorResponse(
-        res,
-        "Gagal memuat scan events.",
+  const loadScanEvents = useCallback(
+    async ({
+      dateKeyOverride,
+      scanResultFilterOverride,
+    }: {
+      dateKeyOverride?: string;
+      scanResultFilterOverride?: ScanResultFilter;
+    } = {}) => {
+      const targetDateKey = dateKeyOverride ?? activeDateKey;
+      const targetScanResultFilter =
+        scanResultFilterOverride ?? scanResultFilter;
+
+      setScanEventsStatus("loading");
+      setScanEventsError(null);
+      const res = await workspaceFetch(
+        `/api/admin/attendance/scan-events?${buildScanEventsSearchParams({
+          dateKey: targetDateKey,
+          scanResultFilter: targetScanResultFilter,
+        })}`,
+        { cache: "no-store" },
       );
-      if (recoverWorkspaceScopeViolation(error.code)) {
-        setScanEventsStatus("idle");
-        setScanEventsError(null);
+      if (!res.ok) {
+        const error = await parseApiErrorResponse(
+          res,
+          "Gagal memuat scan events.",
+        );
+        if (recoverWorkspaceScopeViolation(error.code)) {
+          setScanEventsStatus("idle");
+          setScanEventsError(null);
+          return;
+        }
+        setScanEvents([]);
+        setScanEventSummary({
+          total: 0,
+          accepted: 0,
+          rejected: 0,
+          byReason: [],
+        });
+        setScanEventsError(error);
+        setScanEventsStatus("error");
         return;
       }
-      setScanEvents([]);
-      setScanEventSummary({
-        total: 0,
-        accepted: 0,
-        rejected: 0,
-        byReason: [],
-      });
-      setScanEventsError(error);
-      setScanEventsStatus("error");
-      return;
-    }
 
-    const data = (await res.json()) as ScanEventsResponse;
-    setScanEvents(data.rows);
-    setScanEventSummary(data.summary);
-    setScanEventsError(null);
-    setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
-  }, [dateKey]);
+      const data = (await res.json()) as ScanEventsResponse;
+      setScanEvents(data.rows);
+      setScanEventSummary(data.summary);
+      setScanEventsError(null);
+      setScanEventsStatus(data.rows.length === 0 ? "empty" : "success");
+    },
+    [activeDateKey, scanResultFilter],
+  );
 
   const triggerWeeklyReport = async () => {
     await runToolbarAction("trigger-weekly", async () => {
@@ -487,25 +540,7 @@ export function ReportPanel() {
   };
 
   const formatTimeInput = (value?: number) => {
-    if (value === undefined) return "";
-    const date = new Date(value);
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${hours}:${minutes}`;
-  };
-
-  const buildTimestampFromDateKeyAndTime = (baseDateKey: string, hhmm: string) => {
-    if (!hhmm) return undefined;
-    const [hoursRaw, minutesRaw] = hhmm.split(":");
-    const hours = Number(hoursRaw);
-    const minutes = Number(minutesRaw);
-    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
-      return undefined;
-    }
-
-    const date = new Date(`${baseDateKey}T00:00:00`);
-    date.setHours(hours, minutes, 0, 0);
-    return date.getTime();
+    return formatClockInTimeZone(value, workspaceTimezone);
   };
 
   const startEditRow = (row: AttendanceRow) => {
@@ -536,19 +571,23 @@ export function ReportPanel() {
       };
     }
 
-    const checkInAt = buildTimestampFromDateKeyAndTime(
-      row.dateKey,
-      editDraft.checkInTime,
-    );
-    const checkOutAt = buildTimestampFromDateKeyAndTime(
-      row.dateKey,
-      editDraft.checkOutTime,
-    );
+    const checkInTime = editDraft.checkInTime.trim();
+    const checkOutTime = editDraft.checkOutTime.trim();
 
     if (
-      checkInAt !== undefined &&
-      checkOutAt !== undefined &&
-      checkOutAt < checkInAt
+      (checkInTime.length > 0 && !isValidClockValue(checkInTime)) ||
+      (checkOutTime.length > 0 && !isValidClockValue(checkOutTime))
+    ) {
+      return {
+        ok: false as const,
+        message: "[VALIDATION_ERROR] Format jam attendance tidak valid.",
+      };
+    }
+
+    if (
+      checkInTime.length > 0 &&
+      checkOutTime.length > 0 &&
+      checkOutTime < checkInTime
     ) {
       return {
         ok: false as const,
@@ -560,9 +599,10 @@ export function ReportPanel() {
       ok: true as const,
       payload: {
         attendanceId: row._id,
-        checkInAt,
-        checkOutAt,
-        reason: editDraft.reason,
+        dateKey: row.dateKey,
+        checkInTime: checkInTime.length > 0 ? checkInTime : undefined,
+        checkOutTime: checkOutTime.length > 0 ? checkOutTime : undefined,
+        reason: editDraft.reason.trim(),
       },
     };
   };
@@ -626,14 +666,27 @@ export function ReportPanel() {
 
   const submitDate = async (e: FormEvent) => {
     e.preventDefault();
+    const nextDateKey = draftDateKey;
     await runToolbarAction("submit-attendance", async () => {
-      await loadAttendance({ append: false, cursor: null });
+      setActiveDateKey(nextDateKey);
+      await refreshAttendanceAuditSections({
+        loadAttendance: () =>
+          loadAttendance({
+            append: false,
+            cursor: null,
+            dateKeyOverride: nextDateKey,
+          }),
+        loadScanEvents: () => loadScanEvents({ dateKeyOverride: nextDateKey }),
+      });
     });
   };
 
   const handleRefreshAttendance = async (action: "refresh-attendance" | "retry-attendance" = "refresh-attendance") => {
     await runToolbarAction(action, async () => {
-      await loadAttendance({ append: false, cursor: null });
+      await refreshAttendanceAuditSections({
+        loadAttendance: () => loadAttendance({ append: false, cursor: null }),
+        loadScanEvents: () => loadScanEvents(),
+      });
     });
   };
 
@@ -649,13 +702,33 @@ export function ReportPanel() {
     });
   };
 
+  const resetFilters = async () => {
+    setEmployeeName(headerQuery);
+    setEditedFilter("all");
+    setAttendanceStatusFilter("all");
+    setScanResultFilter("all");
+    await runToolbarAction("refresh-attendance", async () => {
+      await refreshAttendanceAuditSections({
+        loadAttendance: () =>
+          loadAttendance({
+            append: false,
+            cursor: null,
+            searchQueryOverride: headerQuery,
+            editedFilterOverride: "all",
+            attendanceStatusFilterOverride: "all",
+          }),
+        loadScanEvents: () => loadScanEvents({ scanResultFilterOverride: "all" }),
+      });
+    });
+  };
+
   useEffect(() => {
     if (hasLoadedInitial.current) return;
     hasLoadedInitial.current = true;
-    void loadAttendance({ append: false, cursor: null });
+    void loadAttendance({ append: false, cursor: null, dateKeyOverride: activeDateKey });
     void loadReports();
-    void loadScanEvents();
-  }, [loadAttendance, loadReports, loadScanEvents]);
+    void loadScanEvents({ dateKeyOverride: activeDateKey });
+  }, [activeDateKey, loadAttendance, loadReports, loadScanEvents]);
 
   useEffect(() => {
     if (prevHeaderQueryRef.current === headerQuery) return;
@@ -665,21 +738,22 @@ export function ReportPanel() {
       append: false,
       cursor: null,
       searchQueryOverride: headerQuery,
+      dateKeyOverride: activeDateKey,
     });
-  }, [headerQuery, loadAttendance]);
+  }, [activeDateKey, headerQuery, loadAttendance]);
 
   useEffect(() => {
-    const refreshReportPanel = () => {
-      void loadAttendance({ append: false, cursor: null });
+    const handleRefresh = () => {
+      void loadAttendance({ append: false, cursor: null, dateKeyOverride: activeDateKey });
       void loadReports({ silent: true });
-      void loadScanEvents();
+      void loadScanEvents({ dateKeyOverride: activeDateKey });
     };
 
-    window.addEventListener("dashboard:refresh", refreshReportPanel as EventListener);
+    window.addEventListener("dashboard:refresh", handleRefresh as EventListener);
     return () => {
-      window.removeEventListener("dashboard:refresh", refreshReportPanel as EventListener);
+      window.removeEventListener("dashboard:refresh", handleRefresh as EventListener);
     };
-  }, [loadAttendance, loadReports, loadScanEvents]);
+  }, [activeDateKey, loadAttendance, loadReports, loadScanEvents]);
 
   useEffect(() => {
     if (!reports.some((report) => report.status === "pending")) {
@@ -744,7 +818,10 @@ export function ReportPanel() {
       </section>
 
       <section className="sticky top-3 z-10 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
-        <form onSubmit={submitDate} className="grid gap-3 md:grid-cols-[1fr_1fr_180px_auto_auto] md:items-end">
+        <form
+          onSubmit={submitDate}
+          className="grid gap-3 md:grid-cols-2 md:items-end xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_180px_auto_auto_auto]"
+        >
           <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-600">Tanggal (dateKey)</label>
             <Popover>
@@ -754,20 +831,20 @@ export function ReportPanel() {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal h-10 border-zinc-200 bg-white px-3 text-sm",
-                      !dateKey && "text-zinc-500"
+                      !draftDateKey && "text-zinc-500"
                     )}
                   />
                 }
               >
                 <CalendarIcon className="mr-2 h-4 w-4 opacity-70" />
-                {dateKey ? format(new Date(dateKey + "T00:00:00"), "dd MMM yyyy") : <span>Pilih tanggal</span>}
+                {draftDateKey ? format(new Date(draftDateKey + "T00:00:00"), "dd MMM yyyy") : <span>Pilih tanggal</span>}
               </PopoverTrigger>
               <PopoverPopup className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={dateKey ? new Date(dateKey + "T00:00:00") : undefined}
+                  selected={draftDateKey ? new Date(draftDateKey + "T00:00:00") : undefined}
                   onSelect={(date) => {
-                    if (date) setDateKey(format(date, "yyyy-MM-dd"));
+                    if (date) setDraftDateKey(format(date, "yyyy-MM-dd"));
                   }}
                   initialFocus
                 />
@@ -814,6 +891,74 @@ export function ReportPanel() {
               </MenuPopup>
             </Menu>
           </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Status attendance</label>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    className="h-10 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+                  />
+                }
+              >
+                {attendanceStatusFilter === "all"
+                  ? "Semua"
+                  : attendanceStatusFilter === "not-checked-in"
+                    ? "Belum check-in"
+                    : attendanceStatusFilter === "checked-in"
+                      ? "Sudah check-in"
+                      : attendanceStatusFilter === "incomplete"
+                        ? "Belum check-out"
+                        : "Lengkap"}
+                <ChevronDown className="h-4 w-4 opacity-70" />
+              </MenuTrigger>
+              <MenuPopup align="start" className="w-[var(--anchor-width)]">
+                <MenuRadioGroup
+                  value={attendanceStatusFilter}
+                  onValueChange={(value) =>
+                    setAttendanceStatusFilter(value as AttendanceStatusFilter)
+                  }
+                >
+                  <MenuRadioItem value="all">Semua</MenuRadioItem>
+                  <MenuRadioItem value="not-checked-in">Belum check-in</MenuRadioItem>
+                  <MenuRadioItem value="checked-in">Sudah check-in</MenuRadioItem>
+                  <MenuRadioItem value="incomplete">Belum check-out</MenuRadioItem>
+                  <MenuRadioItem value="completed">Lengkap</MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Result scan</label>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    className="h-10 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
+                  />
+                }
+              >
+                {scanResultFilter === "all"
+                  ? "Semua"
+                  : scanResultFilter}
+                <ChevronDown className="h-4 w-4 opacity-70" />
+              </MenuTrigger>
+              <MenuPopup align="start" className="w-[var(--anchor-width)]">
+                <MenuRadioGroup
+                  value={scanResultFilter}
+                  onValueChange={(value) =>
+                    setScanResultFilter(value as ScanResultFilter)
+                  }
+                >
+                  <MenuRadioItem value="all">Semua</MenuRadioItem>
+                  <MenuRadioItem value="accepted">accepted</MenuRadioItem>
+                  <MenuRadioItem value="rejected">rejected</MenuRadioItem>
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
+          </div>
           <Button
             type="submit"
             disabled={isLoadingAttendance}
@@ -837,7 +982,31 @@ export function ReportPanel() {
           >
             Refresh
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void resetFilters()}
+          >
+            Reset Filter
+          </Button>
         </form>
+
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {buildActiveAuditFilterBadges({
+            activeDateKey,
+            employeeName,
+            editedFilter,
+            attendanceStatusFilter,
+            scanResultFilter,
+          }).map((badge) => (
+            <span
+              key={badge}
+              className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-zinc-700"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
@@ -895,8 +1064,11 @@ export function ReportPanel() {
             "Data attendance",
             hasAttendanceFilter
               ? "Menampilkan hasil berdasarkan filter aktif."
-              : "Data absensi berdasarkan tanggal terpilih.",
-            `${rows.length} baris`,
+              : `Data absensi untuk ${activeDateKey}.`,
+            buildAttendanceSectionCountLabel({
+              loadedCount: rows.length,
+              totalCount: summary.total,
+            }),
           )}
         </CollapsibleTrigger>
         <CollapsiblePanel>
@@ -972,7 +1144,9 @@ export function ReportPanel() {
                           className="h-8 w-32"
                         />
                       ) : row.checkInAt ? (
-                        new Date(row.checkInAt).toLocaleTimeString("id-ID")
+                        new Date(row.checkInAt).toLocaleTimeString("id-ID", {
+                          timeZone: workspaceTimezone,
+                        })
                       ) : (
                         "-"
                       )}
@@ -991,7 +1165,9 @@ export function ReportPanel() {
                           className="h-8 w-32"
                         />
                       ) : row.checkOutAt ? (
-                        new Date(row.checkOutAt).toLocaleTimeString("id-ID")
+                        new Date(row.checkOutAt).toLocaleTimeString("id-ID", {
+                          timeZone: workspaceTimezone,
+                        })
                       ) : (
                         "-"
                       )}
@@ -1081,8 +1257,11 @@ export function ReportPanel() {
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
             "Scan events",
-            `Breakdown reason untuk ${dateKey}.`,
-            `${scanEvents.length} event`,
+            `Breakdown reason untuk ${activeDateKey}.`,
+            buildScanEventsSectionCountLabel({
+              loadedCount: scanEvents.length,
+              totalCount: scanEventSummary.total,
+            }),
           )}
         </CollapsibleTrigger>
         <CollapsiblePanel>
@@ -1150,7 +1329,9 @@ export function ReportPanel() {
                 scanEvents.map((row) => (
                   <TableRow key={row._id}>
                     <TableCell className="tabular-nums">
-                      {new Date(row.scannedAt).toLocaleTimeString("id-ID")}
+                      {new Date(row.scannedAt).toLocaleTimeString("id-ID", {
+                        timeZone: workspaceTimezone,
+                      })}
                     </TableCell>
                     <TableCell>
                       {row.actorName}
@@ -1186,35 +1367,36 @@ export function ReportPanel() {
         <CollapsibleTrigger className="w-full text-left">
           {sectionTitle(
             "Riwayat report mingguan",
-            "Daftar report ter-generate dari trigger manual atau cron.",
+            "Status generate, file output, dan error terbaru untuk audit mingguan.",
             `${reports.length} report`,
           )}
         </CollapsibleTrigger>
         <CollapsiblePanel>
-          <Table className="min-w-[760px]">
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Week Key</TableHead>
                 <TableHead>Range</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>File</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Attempt</TableHead>
                 <TableHead>Durasi</TableHead>
+                <TableHead>Waktu</TableHead>
                 <TableHead>Error</TableHead>
-                <TableHead>Generated At</TableHead>
                 <TableHead>Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {reportsStatus === "loading" && reports.length === 0 ? (
                 <TableRow>
-                  <TableCell className="text-zinc-500" colSpan={9}>
+                  <TableCell className="text-zinc-500" colSpan={10}>
                     Memuat riwayat report mingguan...
                   </TableCell>
                 </TableRow>
               ) : reportsStatus === "error" && reportsError ? (
                 <TableRow>
-                  <TableCell colSpan={9}>
+                  <TableCell colSpan={10}>
                     <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                       <span>
                         [{reportsError.code}] {reportsError.message}
@@ -1236,47 +1418,74 @@ export function ReportPanel() {
                 </TableRow>
               ) : reports.length === 0 ? (
                 <TableRow>
-                  <TableCell className="text-zinc-500" colSpan={9}>
+                  <TableCell className="text-zinc-500" colSpan={10}>
                     Belum ada report mingguan.
                   </TableCell>
                 </TableRow>
               ) : (
-                reports.map((report) => (
-                  <TableRow key={report._id}>
-                    <TableCell className="tabular-nums">{report.weekKey}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {report.startDate} s/d {report.endDate}
-                    </TableCell>
-                    <TableCell>{report.status}</TableCell>
-                    <TableCell>{report.triggerSource ?? "-"}</TableCell>
-                    <TableCell className="tabular-nums">{report.attempts ?? 1}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {report.durationMs !== undefined
-                        ? `${Math.max(0, Math.round(report.durationMs / 1000))} detik`
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="max-w-[320px] truncate">
-                      {report.status === "failed"
-                        ? (report.errorMessage ?? "-")
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {report.generatedAt
-                        ? new Date(report.generatedAt).toLocaleString("id-ID")
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={report.status !== "success" || reportExportUnavailable}
-                        onClick={() => downloadReport(report._id)}
+                reports.map((report) => {
+                  const statusTone = getWeeklyReportStatusTone(report.status);
+                  const fileMeta = formatWeeklyReportFileMeta(report);
+                  const timestampMeta = getWeeklyReportTimestampMeta(report);
+
+                  return (
+                    <TableRow key={report._id}>
+                      <TableCell className="tabular-nums">{report.weekKey}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {report.startDate} s/d {report.endDate}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full border px-2 py-1 text-xs font-medium",
+                            statusTone === "success"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                              : statusTone === "danger"
+                                ? "border-rose-200 bg-rose-50 text-rose-900"
+                                : "border-amber-200 bg-amber-50 text-amber-900",
+                          )}
+                        >
+                          {formatWeeklyReportStatusLabel(report.status)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="min-w-[220px]">
+                        <div className="font-medium text-zinc-900">{fileMeta.primary}</div>
+                        <div className="text-xs text-zinc-500">{fileMeta.secondary}</div>
+                      </TableCell>
+                      <TableCell>{formatWeeklyReportSourceLabel(report.triggerSource)}</TableCell>
+                      <TableCell className="tabular-nums">{report.attempts ?? 1}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {report.durationMs !== undefined
+                          ? `${Math.max(0, Math.round(report.durationMs / 1000))} detik`
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        <div className="font-medium text-zinc-900">{timestampMeta.value}</div>
+                        <div className="text-xs text-zinc-500">{timestampMeta.label}</div>
+                      </TableCell>
+                      <TableCell
+                        className="max-w-[320px] whitespace-normal break-words text-sm text-zinc-600"
+                        title={report.status === "failed" ? report.errorMessage ?? "-" : undefined}
                       >
-                        Unduh
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                        {report.status === "failed" ? (report.errorMessage ?? "-") : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={report.status !== "success" || reportExportUnavailable}
+                          onClick={() => downloadReport(report._id)}
+                        >
+                          {report.status === "success"
+                            ? "Unduh"
+                            : report.status === "pending"
+                              ? "Diproses"
+                              : "Tidak siap"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
