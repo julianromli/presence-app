@@ -15,6 +15,7 @@ import {
 import { GeofenceSearchBox } from '@/components/dashboard/geofence-search-box';
 import { GeofenceSearchResults } from '@/components/dashboard/geofence-search-results';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import { parseApiErrorResponse } from '@/lib/client-error';
@@ -500,12 +501,11 @@ export function GeofencePanel() {
                 <p className="text-sm font-medium text-zinc-800">Aktifkan Geofence</p>
                 <p className="text-xs text-zinc-500">Scan harus berada dalam radius kantor.</p>
               </div>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={data.geofenceEnabled}
                 disabled={premiumControlsDisabled}
-                onChange={(event) =>
-                  setData((prev) => ({ ...prev, geofenceEnabled: event.target.checked }))
+                onCheckedChange={(checked) =>
+                  setData((prev) => ({ ...prev, geofenceEnabled: checked === true }))
                 }
               />
             </label>
@@ -515,12 +515,11 @@ export function GeofencePanel() {
                 <p className="text-sm font-medium text-zinc-800">Aktifkan IP Whitelist</p>
                 <p className="text-xs text-zinc-500">Hanya IP kantor yang diizinkan untuk scan.</p>
               </div>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={data.whitelistEnabled}
                 disabled={premiumControlsDisabled}
-                onChange={(event) =>
-                  setData((prev) => ({ ...prev, whitelistEnabled: event.target.checked }))
+                onCheckedChange={(checked) =>
+                  setData((prev) => ({ ...prev, whitelistEnabled: checked === true }))
                 }
               />
             </label>

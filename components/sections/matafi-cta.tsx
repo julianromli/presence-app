@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { Reveal } from '@/components/ui/reveal';
 import { Button } from '@/components/ui/button';
 
 const MetafiCta = () => {
@@ -15,33 +16,39 @@ const MetafiCta = () => {
       <div className="bg-tagline pointer-events-none absolute top-0 left-1/2 h-full w-[500px] -translate-x-1/2" />
 
       <div className="relative container px-0 py-16 text-center sm:py-20 md:px-6 md:py-28">
-        <h2 className="text-primary-foreground mx-auto max-w-5xl text-4xl leading-tight font-medium text-balance sm:text-5xl md:text-6xl">
-          Siap memulai absensi
-          <br className="hidden sm:block" /> yang lebih disiplin?
-        </h2>
+        <Reveal delay={0.06}>
+          <h2 className="text-primary-foreground mx-auto max-w-5xl text-4xl leading-tight font-medium text-balance sm:text-5xl md:text-6xl">
+            Siap memulai absensi
+            <br className="hidden sm:block" /> yang lebih disiplin?
+          </h2>
+        </Reveal>
 
-        <p className="text-primary-foreground/80 mx-auto mt-4 max-w-2xl text-base font-normal sm:text-lg">
-          Jalankan Absenin.id dalam hitungan menit dan pantau kehadiran tim secara real-time.
-        </p>
+        <Reveal delay={0.14}>
+          <p className="text-primary-foreground/80 mx-auto mt-4 max-w-2xl text-base font-normal sm:text-lg">
+            Jalankan Absenin.id dalam hitungan menit dan pantau kehadiran tim secara real-time.
+          </p>
+        </Reveal>
 
-        <div className="mt-8 flex flex-col flex-wrap items-center justify-center gap-4 sm:flex-row">
-          {/* Primary button */}
-          <Button
-            render={<Link href="/sign-up" />}
-            className="bg-primary-foreground text-tagline hover:bg-primary-foreground/90 h-12 w-full rounded-[12px] sm:w-auto"
-          >
-            Daftar sekarang
-          </Button>
+        <Reveal delay={0.22}>
+          <div className="mt-8 flex flex-col flex-wrap items-center justify-center gap-4 sm:flex-row">
+            {/* Primary button */}
+            <Button
+              render={<Link href="/sign-up" />}
+              className="bg-primary-foreground text-tagline hover:bg-primary-foreground/90 h-12 w-full rounded-[12px] sm:w-auto"
+            >
+              Daftar sekarang
+            </Button>
 
-          {/* Transparent button */}
-          <Button
-            render={<Link href="/#fitur" />}
-            variant="ghost"
-            className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 h-12 w-full rounded-[12px] border bg-transparent sm:w-auto"
-          >
-            Lihat fitur
-          </Button>
-        </div>
+            {/* Transparent button */}
+            <Button
+              render={<Link href="/#fitur" />}
+              variant="ghost"
+              className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 h-12 w-full rounded-[12px] border bg-transparent sm:w-auto"
+            >
+              Lihat fitur
+            </Button>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

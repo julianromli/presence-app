@@ -1,5 +1,7 @@
 import Image from 'next/image';
 
+import { Reveal } from '@/components/ui/reveal';
+
 import AnimationCheckout from '../ui/animation-checkout';
 import AnimationInvoicing from '../ui/animation-invoicing';
 import AnimationPaymentLink from '../ui/animation-payment-link';
@@ -52,7 +54,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
   const isPayment = feature.image.includes('payment-link');
 
   return (
-    <div className="bg-card border-border-light relative flex flex-col rounded-[16px] border p-6 text-left shadow-[0_2px_8px_-1px_rgba(13,13,18,0.04)]">
+    <div className="motion-surface bg-card border-border-light group relative flex h-full flex-col rounded-[16px] border p-6 text-left shadow-[0_2px_8px_-1px_rgba(13,13,18,0.04)]">
       <h3 className="text-foreground text-lg font-medium sm:text-xl">
         {feature.title}
       </h3>
@@ -61,7 +63,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
       </p>
 
       <div className="relative mt-6 w-full overflow-hidden rounded-[12px]">
-        <div className="bg-accent relative h-[220px] w-full sm:h-[260px] md:h-[300px]">
+        <div className="bg-accent relative h-[220px] w-full transition-transform duration-500 ease-[var(--ease-out-expo)] group-hover:scale-[1.015] sm:h-[260px] md:h-[300px]">
           {isRecurring ? (
             <AnimationRecurringBilling
               className="absolute inset-0"
@@ -105,35 +107,41 @@ const MetafiFeatures = () => {
   return (
     <section id="fitur" className="bg-background px-6 lg:px-0">
       <div className="container px-0 py-16 sm:py-20 md:px-6 md:py-28">
-        <p className="text-tagline mb-4 text-center text-sm sm:text-base">
-          Fitur utama
-        </p>
+        <Reveal delay={0.03}>
+          <p className="text-tagline mb-4 text-center text-sm sm:text-base">
+            Fitur utama
+          </p>
+        </Reveal>
 
-        <h2 className="text-foreground mx-auto max-w-3xl text-center text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-          Semua alat penting untuk operasional absensi harian
-        </h2>
+        <Reveal delay={0.1}>
+          <h2 className="text-foreground mx-auto max-w-3xl text-center text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
+            Semua alat penting untuk operasional absensi harian
+          </h2>
+        </Reveal>
 
-        <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-base sm:text-lg">
-          Mulai dari scan QR, pengelolaan role, sampai pelaporan rutin. Satu
-          sistem yang ringkas untuk tim HR dan operasional.
-        </p>
+        <Reveal delay={0.16}>
+          <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-base sm:text-lg">
+            Mulai dari scan QR, pengelolaan role, sampai pelaporan rutin. Satu
+            sistem yang ringkas untuk tim HR dan operasional.
+          </p>
+        </Reveal>
 
         <div className="mt-12 flex flex-col gap-6 md:mt-14 md:gap-8 lg:flex-row">
-          <div className="lg:flex-1">
+          <Reveal className="lg:flex-1" delay={0.2}>
             <FeatureCard feature={f1} />
-          </div>
-          <div className="lg:w-[500px]">
+          </Reveal>
+          <Reveal className="lg:w-[500px]" delay={0.28}>
             <FeatureCard feature={f2} />
-          </div>
+          </Reveal>
         </div>
 
         <div className="mt-6 flex flex-col gap-6 md:mt-8 md:gap-8 lg:flex-row">
-          <div className="lg:w-[500px]">
+          <Reveal className="lg:w-[500px]" delay={0.12}>
             <FeatureCard feature={f3} />
-          </div>
-          <div className="lg:flex-1">
+          </Reveal>
+          <Reveal className="lg:flex-1" delay={0.2}>
             <FeatureCard feature={f4} />
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>
