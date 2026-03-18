@@ -1,0 +1,79 @@
+<h2>Developer Console `/dev`</h2>
+<p class="subtitle">Pilih struktur control room yang paling cocok untuk mengelola seluruh workspace, user, dan plan secara global.</p>
+
+<div class="cards">
+  <div class="card" data-choice="mission-control" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Mission Control</div>
+        <div class="mockup-body">
+          <div class="mock-nav">/dev overview | workspaces | users | plans | audit</div>
+          <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin-top:10px;">
+            <div class="placeholder" style="height:88px;">Global KPIs + alerts</div>
+            <div class="placeholder" style="height:88px;">Risk queue</div>
+            <div class="placeholder" style="height:88px;">Recent mutations</div>
+          </div>
+          <div style="display:grid;grid-template-columns:220px 1fr 300px;gap:10px;margin-top:10px;">
+            <div class="mock-sidebar" style="min-height:220px;">Navigator + saved filters</div>
+            <div class="mock-content" style="min-height:220px;">Main data grid + detail drawers</div>
+            <div class="placeholder" style="min-height:220px;">Context panel + destructive actions</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Mission Control</h3>
+      <p>Overview kuat, cepat pindah dari sinyal masalah ke aksi perbaikan. Cocok untuk internal control room.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sectioned-suite" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Sectioned Admin Suite</div>
+        <div class="mockup-body">
+          <div class="mock-nav">/dev | tabs: Overview / Workspaces / Users / Plans</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+            <div class="placeholder" style="height:110px;">Tab summary cards</div>
+            <div class="placeholder" style="height:110px;">Activity feed</div>
+          </div>
+          <div class="mock-content" style="min-height:240px;margin-top:10px;">One section at a time, larger focused workspace</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Sectioned Suite</h3>
+      <p>Paling sederhana dan paling cepat dibangun. Risiko visual overload rendah, tapi perpindahan konteks lebih banyak.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="workspace-explorer" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Workspace Explorer</div>
+        <div class="mockup-body">
+          <div class="mock-nav">Search all workspaces | quick commands | status filters</div>
+          <div style="display:grid;grid-template-columns:260px 1fr;gap:10px;margin-top:10px;">
+            <div class="mock-sidebar" style="min-height:260px;">Workspace list + health badges</div>
+            <div>
+              <div class="placeholder" style="height:96px;">Selected workspace snapshot</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                <div class="mock-content" style="min-height:154px;">Users + invites + devices</div>
+                <div class="placeholder" style="min-height:154px;">Plan + history + risky actions</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Workspace Explorer</h3>
+      <p>Paling enak untuk investigasi tenant-by-tenant. Kurang ideal kalau Anda sering butuh melihat pola global dulu.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Rekomendasi Saya</h3>
+  <p><strong>A. Mission Control</strong> paling pas untuk kebutuhan Anda karena `/dev` akan dipakai sebagai control room internal dengan akses mutasi penuh. Pola ini menjaga overview global tetap di atas, tapi masih cepat masuk ke detail workspace dan user tanpa terasa seperti sekadar halaman admin bertab biasa.</p>
+</div>

@@ -470,6 +470,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           secondsUntilRefresh={secondsUntilRefresh}
           session={panelState.session}
           tokenIssuedAt={tokenIssuedAt}
+          workspaceId={resolvedWorkspaceId}
         />
       ) : (
         <DeviceBootstrapForm
@@ -486,6 +487,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
               : handleValidateCode
           }
           step={panelState.step === "name-device" ? "name-device" : "enter-code"}
+          workspaceId={resolvedWorkspaceId}
         />
       )}
     </div>
