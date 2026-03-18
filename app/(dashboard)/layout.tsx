@@ -1,6 +1,11 @@
+import type { Metadata } from 'next';
+
 import { DashboardLayout as DashboardShellLayout } from '@/components/dashboard/layout';
 import { requireWorkspaceOnboardingPage, requireWorkspaceRolePageFromDb } from '@/lib/auth';
+import { NOINDEX_METADATA } from '@/lib/seo';
 import { redirect } from 'next/navigation';
+
+export const metadata: Metadata = NOINDEX_METADATA;
 
 // Retained as a compatibility shim because Next/Turbopack may still reference this layout.
 export default async function DashboardLayout({

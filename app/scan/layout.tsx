@@ -1,4 +1,8 @@
-import { Viewport } from 'next';
+import type { Metadata, Viewport } from 'next';
+
+import { NOINDEX_METADATA } from '@/lib/seo';
+
+export const metadata: Metadata = NOINDEX_METADATA;
 
 export const viewport: Viewport = {
     themeColor: '#000000',

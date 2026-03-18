@@ -409,6 +409,30 @@ export const currentWorkspaceSummary = query({
   },
 });
 
+export const deviceWorkspacePreview = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      workspaceId: v.id("workspaces"),
+      name: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      return null;
+    }
+
+    return {
+      workspaceId: workspace._id,
+      name: workspace.name,
+    };
+  },
+});
+
 export const workspaceManagementDetail = query({
   args: {
     workspaceId: v.id("workspaces"),

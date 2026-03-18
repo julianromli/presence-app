@@ -55,6 +55,11 @@ type DeviceQrTokenResponse = {
   serverTime: number;
 };
 
+type DeviceWorkspacePreview = {
+  workspaceId: string;
+  name: string;
+};
+
 const DEVICE_HEARTBEAT_INTERVAL_MS = 20_000;
 const DEVICE_QR_RETRY_DELAY_MS = 5_000;
 
@@ -88,6 +93,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
   const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState<string | null>(() =>
     initialWorkspaceId ?? getActiveWorkspaceIdFromBrowser(),
   );
+  const [resolvedWorkspaceName, setResolvedWorkspaceName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!initialWorkspaceId) {
@@ -97,6 +103,50 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     setResolvedWorkspaceId(initialWorkspaceId);
     setActiveWorkspaceIdInBrowser(initialWorkspaceId);
   }, [initialWorkspaceId]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadWorkspaceName = async () => {
+      if (!resolvedWorkspaceId) {
+        setResolvedWorkspaceName(null);
+        return;
+      }
+
+      try {
+        const response = await workspaceFetch("/api/device/workspace", {
+          cache: "no-store",
+          headers: {
+            ...buildDeviceRequestHeaders({
+              workspaceId: resolvedWorkspaceId,
+            }),
+          },
+        });
+
+        if (!response.ok) {
+          if (active) {
+            setResolvedWorkspaceName(null);
+          }
+          return;
+        }
+
+        const payload = (await response.json()) as DeviceWorkspacePreview;
+        if (active) {
+          setResolvedWorkspaceName(payload.name);
+        }
+      } catch {
+        if (active) {
+          setResolvedWorkspaceName(null);
+        }
+      }
+    };
+
+    void loadWorkspaceName();
+
+    return () => {
+      active = false;
+    };
+  }, [resolvedWorkspaceId]);
 
   useEffect(() => {
     let active = true;
@@ -470,6 +520,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           secondsUntilRefresh={secondsUntilRefresh}
           session={panelState.session}
           tokenIssuedAt={tokenIssuedAt}
+          workspaceId={resolvedWorkspaceName ?? resolvedWorkspaceId}
         />
       ) : (
         <DeviceBootstrapForm
@@ -486,6 +537,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
               : handleValidateCode
           }
           step={panelState.step === "name-device" ? "name-device" : "enter-code"}
+          workspaceId={resolvedWorkspaceName ?? resolvedWorkspaceId}
         />
       )}
     </div>

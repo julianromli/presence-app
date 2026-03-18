@@ -15,6 +15,7 @@ type DeviceActivePanelProps = {
   secondsUntilRefresh: number | null;
   session: DeviceSession;
   tokenIssuedAt: number | null;
+  workspaceId: string | null;
 };
 
 export function DeviceActivePanel({
@@ -25,6 +26,7 @@ export function DeviceActivePanel({
   secondsUntilRefresh,
   session,
   tokenIssuedAt,
+  workspaceId,
 }: DeviceActivePanelProps) {
   const model = buildDeviceActivePanelModel({
     isRestoring,
@@ -34,35 +36,81 @@ export function DeviceActivePanel({
     secondsUntilRefresh,
     tokenIssuedAt,
   });
+  const isAttentionState = Boolean(runtimeErrorMessage);
+  const isLiveState = model.hasLiveQr;
+  const readinessLabel = isLiveState
+    ? "Device siap dipakai"
+    : isAttentionState
+      ? "Perlu perhatian sebelum dipakai"
+      : "Menyiapkan device";
+  const workspaceLabel = workspaceId ?? "Belum terdeteksi";
+  const instructionLabel = isLiveState
+    ? "Biarkan browser tetap aktif di halaman ini agar QR terus bisa dipindai."
+    : "Tunggu sampai QR tampil. Jika pairing diminta ulang, gunakan code baru.";
 
   return (
-    <Card className="mx-auto w-full max-w-3xl overflow-hidden border-zinc-200/70 bg-white/95 shadow-lg shadow-zinc-200/40 backdrop-blur">
-      <CardHeader className="border-b border-zinc-200/70 bg-linear-to-br from-emerald-50 via-white to-sky-50 text-left">
-        <p className="text-tagline text-xs font-semibold tracking-[0.24em] text-emerald-700 uppercase">
-          Active Device
-        </p>
-        <CardTitle className="text-3xl font-semibold text-zinc-950">
-          {session.label}
-        </CardTitle>
-        <CardDescription className="max-w-2xl text-sm text-zinc-600">
-          Device ini sudah terpasang permanen di browser saat ini. Sesi device dipulihkan lewat
-          cookie browser yang divalidasi ulang pada setiap request runtime.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase">
-                Runtime QR
-              </p>
-              <p className="mt-2 text-lg font-semibold text-zinc-950">{model.statusLabel}</p>
-            </div>
-            <div className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700">
-              {model.refreshLabel}
+    <Card className="mx-auto w-full max-w-4xl overflow-hidden border-zinc-200/80 bg-white shadow-lg shadow-zinc-200/25">
+      <CardHeader className="space-y-4 text-left">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-semibold tracking-[0.2em] text-zinc-600 uppercase">
+            Device aktif
+          </span>
+          <span
+            className={[
+              "inline-flex rounded-full px-3 py-1 text-[11px] font-semibold tracking-[0.16em] uppercase",
+              isLiveState
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : isAttentionState
+                  ? "border border-amber-200 bg-amber-50 text-amber-700"
+                  : "border border-zinc-200 bg-white text-zinc-600",
+            ].join(" ")}
+          >
+            {readinessLabel}
+          </span>
+        </div>
+        <div className="space-y-2">
+          <CardTitle className="text-[2rem] font-semibold tracking-[-0.03em] text-zinc-950">
+            {session.label}
+          </CardTitle>
+          <CardDescription className="max-w-2xl text-sm leading-6 text-zinc-600">
+            {isLiveState
+              ? "QR presensi sudah tampil dan siap dipakai."
+              : "Halaman ini sedang menyiapkan atau memulihkan QR presensi."}
+          </CardDescription>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[minmax(15rem,1fr)_auto_auto] md:items-start">
+          <div className="min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">
+              Workspace tujuan
+            </p>
+            <div className="mt-1 overflow-x-auto pb-1">
+              <p className="min-w-max font-mono text-sm text-zinc-900">{workspaceLabel}</p>
             </div>
           </div>
-          <div className="mt-4 flex min-h-80 items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 p-4">
+          <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">
+              Refresh QR
+            </p>
+            <p className="mt-1 text-sm font-medium text-zinc-900">{model.refreshLabel}</p>
+          </div>
+          <div className="rounded-2xl bg-zinc-50 px-4 py-3">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">
+              Status
+            </p>
+            <p className="mt-1 text-sm font-medium text-zinc-900">{model.statusLabel}</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-6 pt-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="space-y-4">
+          <div
+            className={[
+              "flex min-h-80 items-center justify-center rounded-[1.75rem] border p-5",
+              isAttentionState
+                ? "border-amber-200 bg-amber-50/60"
+                : "border-dashed border-zinc-200 bg-zinc-50",
+            ].join(" ")}
+          >
             {model.hasLiveQr && qrCodeDataUrl ? (
               <Image
                 alt={model.qrImageAlt}
@@ -73,49 +121,48 @@ export function DeviceActivePanel({
                 height={360}
               />
             ) : (
-              <div className="max-w-xs text-center text-sm text-zinc-600">{model.runtimeMessage}</div>
+              <div className="max-w-sm text-center text-sm leading-6 text-zinc-700">
+                {model.runtimeMessage}
+              </div>
             )}
           </div>
-          <p className="mt-4 text-sm text-zinc-600">{model.runtimeMessage}</p>
+          <div
+            className={[
+              "rounded-2xl px-4 py-3 text-sm leading-6",
+              isAttentionState
+                ? "border border-amber-200 bg-amber-50 text-amber-800"
+                : "bg-zinc-50 text-zinc-600",
+            ].join(" ")}
+          >
+            {instructionLabel}
+          </div>
         </div>
 
-        <div className="grid gap-4">
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-            <p className="text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase">
-              Status
+        <div className="rounded-[1.5rem] border border-zinc-200 bg-white px-4 py-3">
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">
+              Detail device
             </p>
-            <p className="mt-2 text-lg font-semibold text-zinc-950">
-              {model.statusLabel}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-            <p className="text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase">
-              Device ID
-            </p>
-            <p className="mt-2 break-all font-mono text-sm text-zinc-800">{session.deviceId}</p>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-            <p className="text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase">
-              Claimed At
-            </p>
-            <p className="mt-2 text-sm font-medium text-zinc-800">
-              {new Date(session.claimedAt).toLocaleString("id-ID")}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-            <p className="text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase">
-              Token Issued
-            </p>
-            <p className="mt-2 text-sm font-medium text-zinc-800">
-              {tokenIssuedAt
-                ? new Date(tokenIssuedAt).toLocaleString("id-ID")
-                : "Menunggu token pertama"}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/70 px-4 py-5 text-sm text-zinc-600">
-            Heartbeat dan rotasi QR sekarang berjalan memakai kredensial device permanen. Jika
-            jaringan sempat gagal, panel akan retry tanpa menghapus pairing lokal kecuali device
-            sudah tidak valid.
+            <dl className="space-y-3 text-sm">
+              <div className="border-b border-zinc-100 pb-3">
+                <dt className="text-zinc-500">Device ID</dt>
+                <dd className="mt-1 break-all font-mono text-zinc-900">{session.deviceId}</dd>
+              </div>
+              <div className="border-b border-zinc-100 pb-3">
+                <dt className="text-zinc-500">Claimed at</dt>
+                <dd className="mt-1 font-medium text-zinc-900">
+                  {new Date(session.claimedAt).toLocaleString("id-ID")}
+                </dd>
+              </div>
+              <div className="pb-1">
+                <dt className="text-zinc-500">Token issued</dt>
+                <dd className="mt-1 font-medium text-zinc-900">
+                  {tokenIssuedAt
+                    ? new Date(tokenIssuedAt).toLocaleString("id-ID")
+                    : "Menunggu token pertama"}
+                </dd>
+              </div>
+            </dl>
           </div>
         </div>
       </CardContent>

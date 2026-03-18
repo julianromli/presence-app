@@ -42,9 +42,6 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
-  alternates: {
-    canonical: '/',
-  },
   icons: {
     icon: [
       {
