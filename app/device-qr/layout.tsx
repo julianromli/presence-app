@@ -1,12 +1,11 @@
 import type { Metadata } from 'next';
 
-import { AppClerkProvider } from '@/components/providers/app-clerk-provider';
 import { NOINDEX_METADATA } from '@/lib/seo';
 
 export const metadata: Metadata = NOINDEX_METADATA;
 
-export default function AuthLayout({
+export default function DeviceQrLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <AppClerkProvider>{children}</AppClerkProvider>;
+  return children;
 }
