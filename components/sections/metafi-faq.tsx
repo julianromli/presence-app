@@ -1,3 +1,5 @@
+import { Reveal } from '@/components/ui/reveal';
+
 type QA = { question: string; answer: string };
 
 const FAQS: QA[] = [
@@ -27,41 +29,56 @@ export default function MetafiFaq() {
   return (
     <section id="faq" className="bg-background px-6 lg:px-0">
       <div className="container px-0 py-16 sm:py-20 md:px-6 lg:py-28">
-        <p className="text-tagline mb-4 text-center text-sm leading-tight font-normal sm:text-base">
-          FAQ
-        </p>
+        <Reveal delay={0.03}>
+          <p className="text-tagline mb-4 text-center text-sm leading-tight font-normal sm:text-base">
+            FAQ
+          </p>
+        </Reveal>
 
-        <h2 className="text-foreground mx-auto mb-4 max-w-3xl text-center text-3xl leading-tight font-medium tracking-tight sm:text-4xl md:text-5xl">
-          Pertanyaan yang sering ditanyakan
-        </h2>
+        <Reveal delay={0.1}>
+          <h2 className="text-foreground mx-auto mb-4 max-w-3xl text-center text-3xl leading-tight font-medium tracking-tight sm:text-4xl md:text-5xl">
+            Pertanyaan yang sering ditanyakan
+          </h2>
+        </Reveal>
 
-        <p className="text-muted-foreground mx-auto max-w-2xl text-center text-base font-normal sm:text-lg">
-          Ringkasan singkat untuk membantu tim Anda memahami cara kerja Absenin.id
-          sebelum mulai implementasi.
-        </p>
+        <Reveal delay={0.16}>
+          <p className="text-muted-foreground mx-auto max-w-2xl text-center text-base font-normal sm:text-lg">
+            Ringkasan singkat untuk membantu tim Anda memahami cara kerja Absenin.id
+            sebelum mulai implementasi.
+          </p>
+        </Reveal>
 
         <div className="mx-auto mt-10 flex max-w-3xl flex-col gap-4 sm:mt-14">
           {FAQS.map((qa, i) => (
-            <details
-              key={`item-${i + 1}`}
-              className="group bg-card border-border rounded-[16px] border px-4 py-2 shadow-[0_2px_8px_-1px_rgba(13,13,18,0.04)] sm:px-6 sm:py-4"
+            <Reveal
+              key={`reveal-item-${i + 1}`}
+              delay={0.2 + i * 0.05}
+              distance={18}
             >
-              <summary className="text-foreground flex cursor-pointer list-none items-center justify-between gap-4 py-1 text-left text-xl leading-tight font-medium sm:py-2 sm:text-2xl [&::-webkit-details-marker]:hidden">
-                <span className="pr-2">{qa.question}</span>
-                <span className="border-border text-muted-foreground group-open:border-tagline group-open:bg-tagline/10 group-open:text-tagline flex size-6 items-center justify-center rounded-[6px] border text-base leading-none">
-                  <span className="group-open:hidden" aria-hidden>
-                    +
+              <details
+                className="group bg-card border-border rounded-[16px] border px-4 py-2 shadow-[0_2px_8px_-1px_rgba(13,13,18,0.04)] sm:px-6 sm:py-4"
+              >
+                <summary className="text-foreground flex cursor-pointer list-none items-center justify-between gap-4 py-1 text-left text-xl leading-tight font-medium transition-colors duration-300 ease-[var(--ease-out-quint)] sm:py-2 sm:text-2xl [&::-webkit-details-marker]:hidden">
+                  <span className="pr-2">{qa.question}</span>
+                  <span className="border-border text-muted-foreground group-open:border-tagline group-open:bg-tagline/10 group-open:text-tagline flex size-6 items-center justify-center rounded-[6px] border text-base leading-none transition-[transform,color,border-color,background-color] duration-300 ease-[var(--ease-out-quint)] group-open:rotate-180">
+                    <span className="group-open:hidden" aria-hidden>
+                      +
+                    </span>
+                    <span className="hidden group-open:inline" aria-hidden>
+                      -
+                    </span>
                   </span>
-                  <span className="hidden group-open:inline" aria-hidden>
-                    -
-                  </span>
-                </span>
-              </summary>
+                </summary>
 
-              <div className="text-muted-foreground mt-2 text-sm font-normal whitespace-pre-wrap sm:text-base">
-                {qa.answer}
-              </div>
-            </details>
+                <div className="motion-content-reveal">
+                  <div>
+                    <div className="text-muted-foreground mt-2 text-sm font-normal whitespace-pre-wrap sm:text-base">
+                      {qa.answer}
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </Reveal>
           ))}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { Reveal, RevealItem } from '@/components/ui/reveal';
 import { Button } from '@/components/ui/button';
 
 type Integration = {
@@ -50,9 +51,9 @@ const INTEGRATIONS: Integration[] = [
 
 function IntegrationCard({ item }: { item: Integration }) {
   return (
-    <li className="bg-accent relative rounded-[16px] p-6 pb-8">
+    <div className="motion-surface bg-accent group relative h-full rounded-[16px] p-6 pb-8">
       <div className="pointer-events-none absolute -top-8 left-1/2 flex -translate-x-1/2 items-center justify-center">
-        <div className="flex items-center justify-center rounded-full">
+        <div className="flex items-center justify-center rounded-full transition-transform duration-500 ease-[var(--ease-out-expo)] group-hover:-translate-y-1">
           <Image
             src={item.icon}
             alt={`${item.name} logo`}
@@ -70,7 +71,7 @@ function IntegrationCard({ item }: { item: Integration }) {
           {item.description}
         </p>
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -78,31 +79,45 @@ const MetafiIntegrations = () => {
   return (
     <section id="integrasi" className="bg-background px-6 lg:px-0">
       <div className="container px-0 py-16 text-center sm:py-20 md:px-6 md:py-28">
-        <p className="text-tagline mb-4 text-sm leading-tight sm:text-base">
-          Integrasi
-        </p>
+        <Reveal delay={0.03}>
+          <p className="text-tagline mb-4 text-sm leading-tight sm:text-base">
+            Integrasi
+          </p>
+        </Reveal>
 
-        <h2 className="text-foreground mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-          Absenin.id siap terhubung
-          <br className="hidden sm:block" /> ke alur kerja tim Anda
-        </h2>
+        <Reveal delay={0.1}>
+          <h2 className="text-foreground mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
+            Absenin.id siap terhubung
+            <br className="hidden sm:block" /> ke alur kerja tim Anda
+          </h2>
+        </Reveal>
 
         <ul className="mt-10 grid gap-12 sm:grid-cols-2 sm:gap-6 md:mt-20 md:gap-8 lg:grid-cols-3 [@media(min-width:1024px)]:[&>li:nth-child(n+4)]:mt-8">
-          {INTEGRATIONS.map((item) => (
-            <IntegrationCard key={item.name} item={item} />
+          {INTEGRATIONS.map((item, index) => (
+            <RevealItem
+              key={item.name}
+              delay={0.16 + index * 0.05}
+              distance={24}
+            >
+              <IntegrationCard item={item} />
+            </RevealItem>
           ))}
         </ul>
 
-        <p className="text-muted-foreground text-md text-md mx-auto mt-10 max-w-3xl font-normal md:mt-20">
-          Integrasi ini membantu tim HR dan operasional menjaga data tetap
-          konsisten dari proses scan sampai laporan akhir.
-        </p>
+        <Reveal delay={0.22}>
+          <p className="text-muted-foreground text-md text-md mx-auto mt-10 max-w-3xl font-normal md:mt-20">
+            Integrasi ini membantu tim HR dan operasional menjaga data tetap
+            konsisten dari proses scan sampai laporan akhir.
+          </p>
+        </Reveal>
 
-        <div className="mt-6 flex justify-center">
-          <Button className="w-full sm:w-auto" render={<Link href="/sign-up" />}>
-            Mulai sekarang
-          </Button>
-        </div>
+        <Reveal delay={0.28}>
+          <div className="mt-6 flex justify-center">
+            <Button className="w-full sm:w-auto" render={<Link href="/sign-up" />}>
+              Mulai sekarang
+            </Button>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

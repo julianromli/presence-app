@@ -42,6 +42,10 @@
   --success: oklch(0.79 0.12 179.5); /* #40C4AA */
   --grid-border: var(--border); /* oklch(0.924 0.003 255.9) */
   --grid-hover: oklch(0.97 0 89.88 / 0.7);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-lift: 0 26px 70px -34px rgba(13, 13, 18, 0.28);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -95,6 +99,7 @@
   --shadow-light: 0 2px 8px -1px rgba(0, 0, 0, 0.3);
   --grid-border: var(--border-light); /* oklch(0.42 0.01 265) */
   --grid-hover: oklch(0.92 0.02 255 / 0.1);
+  --shadow-lift: 0 30px 80px -36px rgba(0, 0, 0, 0.42);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -305,6 +310,36 @@
     box-shadow: var(--shadow-light);
   }
 
+  .motion-surface {
+    transition-property: transform, box-shadow, border-color, background-color, opacity;
+    transition-duration: 280ms;
+    transition-timing-function: var(--ease-out-quint);
+    will-change: transform;
+  }
+
+  .motion-surface:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .motion-content-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows 320ms var(--ease-out-quint),
+      opacity 220ms var(--ease-out-expo);
+  }
+
+  .motion-content-reveal > * {
+    overflow: hidden;
+  }
+
+  .group[open] .motion-content-reveal {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
   .animate-accordion-down {
     animation: accordion-down 200ms ease-out;
   }
@@ -327,4 +362,23 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .motion-surface {
+    transition-duration: 0.01ms;
+  }
+
+  .motion-surface:hover {
+    transform: none;
+    box-shadow: var(--shadow-light);
+  }
+
+  .motion-content-reveal {
+    transition-duration: 0.01ms;
+  }
 }

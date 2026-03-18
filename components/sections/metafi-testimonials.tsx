@@ -1,5 +1,7 @@
 import Image from 'next/image';
 
+import { Reveal, RevealItem } from '@/components/ui/reveal';
+
 type Testimonial = {
   quote: string;
   name: string;
@@ -96,7 +98,7 @@ const TESTIMONIALS: Testimonial[] = [
 
 function Card({ t }: { t: Testimonial }) {
   return (
-    <li className="bg-card flex flex-col justify-between rounded-[16px] p-6">
+    <div className="motion-surface bg-card flex h-full flex-col justify-between rounded-[16px] border border-white/70 p-6">
       <p className="text-foreground text-base leading-relaxed font-normal md:text-base">
         {t.quote}
       </p>
@@ -117,7 +119,7 @@ function Card({ t }: { t: Testimonial }) {
           </div>
         </div>
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -128,40 +130,56 @@ export default function MetafiTestimonials() {
   return (
     <section id="testimoni" className="bg-accent px-6 lg:px-0">
       <div className="container px-0 py-16 sm:py-20 md:px-6 md:py-28">
-        <p className="text-tagline mb-4 text-center text-sm leading-tight font-normal sm:text-base">
-          Cerita pelanggan
-        </p>
+        <Reveal delay={0.03}>
+          <p className="text-tagline mb-4 text-center text-sm leading-tight font-normal sm:text-base">
+            Cerita pelanggan
+          </p>
+        </Reveal>
 
-        <h2 className="text-foreground mx-auto max-w-4xl text-center text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-          Dipakai tim yang butuh
-          <br className="hidden sm:block" /> proses absensi yang rapi
-        </h2>
+        <Reveal delay={0.1}>
+          <h2 className="text-foreground mx-auto max-w-4xl text-center text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
+            Dipakai tim yang butuh
+            <br className="hidden sm:block" /> proses absensi yang rapi
+          </h2>
+        </Reveal>
 
-        <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-base font-normal sm:text-lg">
-          Umpan balik dari tim operasional dan HR yang menjalankan Absenin.id setiap hari.
-        </p>
+        <Reveal delay={0.16}>
+          <p className="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-base font-normal sm:text-lg">
+            Umpan balik dari tim operasional dan HR yang menjalankan Absenin.id setiap hari.
+          </p>
+        </Reveal>
 
         <div className="relative mt-10 md:mt-14">
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {featuredTestimonials.map((t, i) => (
-              <Card key={i} t={t} />
+              <RevealItem key={i} delay={0.18 + i * 0.04} distance={18}>
+                <Card t={t} />
+              </RevealItem>
             ))}
           </ul>
         </div>
 
         {additionalTestimonials.length > 0 ? (
           <details className="group mt-8">
-            <summary className="border-input bg-popover text-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-disabled:not-active:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] hover:bg-accent/50 dark:bg-input/32 dark:hover:bg-input/64 relative mx-auto inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border px-[calc(var(--spacing)_*_3_-_1px)] text-sm font-medium outline-none transition-shadow [&::-webkit-details-marker]:hidden">
+            <summary className="border-input bg-popover text-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-disabled:not-active:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] hover:bg-accent/50 dark:bg-input/32 dark:hover:bg-input/64 relative mx-auto inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border px-[calc(var(--spacing)_*_3_-_1px)] text-sm font-medium outline-none transition-[transform,box-shadow,background-color] duration-300 ease-[var(--ease-out-quint)] group-open:-translate-y-0.5 [&::-webkit-details-marker]:hidden">
               <span className="group-open:hidden">Lihat semua cerita</span>
               <span className="hidden group-open:inline">Sembunyikan cerita tambahan</span>
             </summary>
 
-            <div className="mt-6">
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {additionalTestimonials.map((t, i) => (
-                  <Card key={`extra-${i}`} t={t} />
-                ))}
-              </ul>
+            <div className="motion-content-reveal mt-6">
+              <div>
+                <ul className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {additionalTestimonials.map((t, i) => (
+                    <RevealItem
+                      key={`extra-${i}`}
+                      delay={0.04 + i * 0.04}
+                      distance={16}
+                    >
+                      <Card t={t} />
+                    </RevealItem>
+                  ))}
+                </ul>
+              </div>
             </div>
           </details>
         ) : null}

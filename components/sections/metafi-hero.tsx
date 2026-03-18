@@ -1,11 +1,12 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 
+import { Reveal } from "@/components/ui/reveal";
 import { Button } from "@/components/ui/button";
 function MarketingDashboardPreview() {
   return (
     <div className="grid gap-4 rounded-t-[16px] border border-white/70 bg-white/85 p-4 shadow-[0_20px_60px_-20px_rgba(24,24,27,0.16)] backdrop-blur-xl md:grid-cols-[220px_1fr] md:p-5">
-      <div className="rounded-[14px] border border-zinc-200 bg-zinc-50 p-4">
+      <div className="motion-surface rounded-[14px] border border-zinc-200 bg-zinc-50 p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
           Dashboard snapshot
         </p>
@@ -20,12 +21,12 @@ function MarketingDashboardPreview() {
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
+        <div className="motion-surface mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
           <p className="text-xs font-medium tracking-[0.14em] text-zinc-500 uppercase">
             Sinkronisasi
           </p>
           <div className="mt-3 flex items-center gap-2">
-            <span className="size-2 rounded-full bg-emerald-500" />
+            <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_6px_rgba(16,185,129,0.12)]" />
             <p className="text-sm text-zinc-700">Realtime 2.4 detik lalu</p>
           </div>
         </div>
@@ -40,7 +41,7 @@ function MarketingDashboardPreview() {
           ].map(([label, value]) => (
             <article
               key={label}
-              className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+              className="motion-surface rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
             >
               <p className="text-xs text-zinc-500">{label}</p>
               <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">
@@ -51,7 +52,7 @@ function MarketingDashboardPreview() {
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1.25fr_0.95fr]">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <div className="motion-surface rounded-2xl border border-zinc-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-zinc-800">
                 Tren kehadiran
@@ -73,7 +74,7 @@ function MarketingDashboardPreview() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+          <div className="motion-surface rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-zinc-800">
                 Aktivitas terbaru
@@ -89,7 +90,7 @@ function MarketingDashboardPreview() {
               ].map(([name, action, time]) => (
                 <div
                   key={`${name}-${time}`}
-                  className="rounded-xl border border-zinc-200 bg-white px-3 py-2"
+                  className="rounded-xl border border-zinc-200 bg-white px-3 py-2 transition-transform duration-300 ease-[var(--ease-out-quint)] hover:-translate-y-0.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-zinc-900">
@@ -134,35 +135,51 @@ export default function MetafiHero() {
 
       <div className="relative container px-0 md:px-6">
         <div className="mx-auto grid max-w-4xl gap-6 py-14 text-center sm:py-16 md:gap-8 md:pt-24 md:pb-20">
-          <h1 className="text-foreground text-4xl leading-tight font-medium tracking-tight text-balance sm:text-5xl md:text-[68px]">
-            Absensi QR yang cepat untuk tim yang terus bergerak
-          </h1>
-          <p className="text-muted-foreground md:text-md mx-auto max-w-2xl text-base sm:text-lg">
-            Absenin.id membantu kantor mencatat check-in dan check-out
-            real-time, menjaga keamanan akses berbasis role, dan menyiapkan
-            laporan mingguan tanpa proses manual.
-          </p>
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
-            <Button
-              render={<Link href="/sign-up" />}
-              className="w-full sm:w-auto"
-              aria-label="Daftar sekarang"
-            >
-              Daftar sekarang
-            </Button>
-            <Button
-              render={<Link href="/#fitur" />}
-              variant="outline"
-              className="w-full sm:w-auto"
-              aria-label="Lihat fitur"
-            >
-              Lihat fitur
-            </Button>
-          </div>
+          <Reveal delay={0.05}>
+            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-zinc-700 shadow-[0_16px_40px_-28px_rgba(24,24,27,0.24)] backdrop-blur">
+              <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_6px_rgba(16,185,129,0.12)]" />
+              Audit-ready attendance in real time
+            </div>
+          </Reveal>
+          <Reveal delay={0.12}>
+            <h1 className="text-foreground text-4xl leading-tight font-medium tracking-tight text-balance sm:text-5xl md:text-[68px]">
+              Absensi QR yang cepat untuk tim yang terus bergerak
+            </h1>
+          </Reveal>
+          <Reveal delay={0.2}>
+            <p className="text-muted-foreground md:text-md mx-auto max-w-2xl text-base sm:text-lg">
+              Absenin.id membantu kantor mencatat check-in dan check-out
+              real-time, menjaga keamanan akses berbasis role, dan menyiapkan
+              laporan mingguan tanpa proses manual.
+            </p>
+          </Reveal>
+          <Reveal delay={0.28}>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
+              <Button
+                render={<Link href="/sign-up" />}
+                className="w-full sm:w-auto"
+                aria-label="Daftar sekarang"
+              >
+                Daftar sekarang
+              </Button>
+              <Button
+                render={<Link href="/#fitur" />}
+                variant="outline"
+                className="w-full sm:w-auto"
+                aria-label="Lihat fitur"
+              >
+                Lihat fitur
+              </Button>
+            </div>
+          </Reveal>
         </div>
-        <div className="mx-auto w-full max-w-[994px] rounded-t-[16px] bg-white/10 shadow-[0_15px_80px_-1px_rgba(8,9,10,0.08)] backdrop-blur-[20px]">
+        <Reveal
+          className="mx-auto w-full max-w-[994px] rounded-t-[16px] bg-white/10 shadow-[0_15px_80px_-1px_rgba(8,9,10,0.08)] backdrop-blur-[20px]"
+          delay={0.36}
+          distance={42}
+        >
           <MarketingDashboardPreview />
-        </div>
+        </Reveal>
       </div>
     </section>
   );
