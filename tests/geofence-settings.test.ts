@@ -119,8 +119,8 @@ describe('geofence settings validation', () => {
   });
 
   it('falls back to Asia/Jakarta when a legacy timezone value is invalid', () => {
-    const ts = new Date('2026-03-05T00:30:00.000Z').getTime();
+    const ts = new Date('2026-03-05T17:00:00.000Z').getTime();
 
-    expect(buildDateKey(ts, 'Invalid/Timezone')).toBe('2026-03-05');
+    expect(buildDateKey(ts, 'Invalid/Timezone')).toBe('2026-03-06');
   });
 });

@@ -294,8 +294,9 @@ export function hasValidGeofenceConfiguration(settings) {
   );
 }
 
-export function assertValidGeofenceSettings(settings) {
-  if (!isValidTimeZone(settings.timezone)) {
+export function assertValidGeofenceSettings(settings, options = {}) {
+  const { skipTimezoneValidation = false } = options;
+  if (!skipTimezoneValidation && !isValidTimeZone(settings.timezone)) {
     throw new ConvexError({
       code: 'VALIDATION_ERROR',
       message: 'Timezone tidak valid.',

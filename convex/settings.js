@@ -139,6 +139,7 @@ export const update = mutation({
       whitelistIps: args.whitelistIps ?? current.whitelistIps,
       attendanceSchedule,
     };
+    const timezoneTouched = args.timezone !== undefined;
 
     const geofencePremiumFieldsTouched =
       args.geofenceRadiusMeters !== undefined ||
@@ -152,8 +153,11 @@ export const update = mutation({
       args.whitelistEnabled !== undefined || whitelistValuesTouched;
     const isPureGeofenceDisable =
       args.geofenceEnabled === false && !geofencePremiumFieldsTouched;
-    const isPureWhitelistDisable =
-      args.whitelistEnabled === false && !whitelistValuesTouched;
+    const isClearingWhitelist =
+      args.whitelistEnabled === false &&
+      whitelistValuesTouched &&
+      Array.isArray(args.whitelistIps) &&
+      args.whitelistIps.length === 0;
 
     if (
       touchesGeofenceSettings &&
@@ -169,7 +173,7 @@ export const update = mutation({
 
     if (
       touchesWhitelistSettings &&
-      !isPureWhitelistDisable &&
+      !isClearingWhitelist &&
       (nextSettings.whitelistEnabled === true || whitelistValuesTouched)
     ) {
       assertWorkspaceFeatureEnabled({
@@ -187,7 +191,9 @@ export const update = mutation({
       });
     }
 
-    assertValidGeofenceSettings(nextSettings);
+    assertValidGeofenceSettings(nextSettings, {
+      skipTimezoneValidation: !timezoneTouched,
+    });
 
     await ctx.db.patch(current._id, {
       ...nextSettings,

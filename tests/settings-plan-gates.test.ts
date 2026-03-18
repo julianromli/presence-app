@@ -229,6 +229,30 @@ describe("settings premium plan gates", () => {
     );
   });
 
+  it("allows unrelated updates when a legacy timezone remains invalid", async () => {
+    const { update } = await import("../convex/settings");
+    const ctx = buildCtx("free");
+    ensureGlobalSettingsForMutation.mockResolvedValue({
+      ...buildCurrentSettings(),
+      timezone: "Invalid/Timezone",
+    });
+
+    await expect(
+      update.handler(ctx as never, {
+        workspaceId: "workspace_123456" as never,
+        scanCooldownSeconds: 60,
+      }),
+    ).resolves.toBeNull();
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      "settings_123",
+      expect.objectContaining({
+        scanCooldownSeconds: 60,
+        timezone: "Invalid/Timezone",
+      }),
+    );
+  });
+
   it("blocks whitelist updates when the saved settings still have whitelist enabled", async () => {
     const { update } = await import("../convex/settings");
     const ctx = buildCtx("free");
@@ -317,6 +341,32 @@ describe("settings premium plan gates", () => {
       "settings_123",
       expect.objectContaining({
         whitelistEnabled: false,
+      }),
+    );
+  });
+
+  it("allows disabling whitelist while clearing IPs on free plans", async () => {
+    const { update } = await import("../convex/settings");
+    const ctx = buildCtx("free");
+    ensureGlobalSettingsForMutation.mockResolvedValue({
+      ...buildCurrentSettings(),
+      whitelistEnabled: true,
+      whitelistIps: ["203.0.113.1"],
+    });
+
+    await expect(
+      update.handler(ctx as never, {
+        workspaceId: "workspace_123456" as never,
+        whitelistEnabled: false,
+        whitelistIps: [],
+      }),
+    ).resolves.toBeNull();
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      "settings_123",
+      expect.objectContaining({
+        whitelistEnabled: false,
+        whitelistIps: [],
       }),
     );
   });
