@@ -1,8 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,16 +105,94 @@ function DeviceStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]",
+        "inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
         tone === "success"
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          ? "border-emerald-200 bg-emerald-50/80 text-emerald-800"
           : tone === "danger"
-            ? "border-rose-200 bg-rose-50 text-rose-800"
+            ? "border-rose-200 bg-rose-50/80 text-rose-800"
             : "border-zinc-200 bg-zinc-50 text-zinc-700",
       )}
     >
       {children}
     </span>
+  );
+}
+
+function SummaryStatCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium text-zinc-500">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums text-zinc-950">
+        {value}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-zinc-500">{detail}</p>
+    </div>
+  );
+}
+
+function InlineNotice({
+  children,
+  tone = "default",
+}: {
+  children: string;
+  tone?: "default" | "warning";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-4 py-3 text-sm",
+        tone === "warning"
+          ? "border-amber-200 bg-amber-50 text-amber-900"
+          : "border-zinc-200 bg-zinc-50 text-zinc-700",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function EmptyState({ children }: { children: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-sm leading-6 text-zinc-600">
+      {children}
+    </div>
+  );
+}
+
+function SectionHeading({
+  title,
+  description,
+  meta,
+  align = "start",
+}: {
+  title: string;
+  description: string;
+  meta?: ReactNode;
+  align?: "start" | "center";
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3 border-b border-zinc-100 pb-4 sm:flex-row sm:justify-between",
+        align === "center" ? "sm:items-center" : "sm:items-start",
+      )}
+    >
+      <div>
+        <h3 className="text-base font-semibold tracking-tight text-zinc-950">
+          {title}
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-zinc-500">{description}</p>
+      </div>
+      {meta ? meta : null}
+    </div>
   );
 }
 
@@ -503,7 +583,7 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-16">
       <ConfirmationDialog
         open={Boolean(confirmRevokeDevice)}
         title={confirmRevokeDevice ? buildDeviceRevokeConfirmation(confirmRevokeDevice.label).title : ""}
@@ -532,424 +612,413 @@ export function DeviceManagementPanel({ role }: DeviceManagementPanelProps) {
         }}
       />
 
-      <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_45%),linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] p-5 shadow-sm md:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">
-              Superadmin control center
-            </p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
-              Kelola device QR permanen tanpa keluar dari dashboard
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Buat registration code baru, pantau status online perangkat, ubah label,
-              dan cabut device yang sudah tidak dipakai pada workspace aktif.
-            </p>
-          </div>
+      <Card className="overflow-hidden border-zinc-200 shadow-sm">
+        <CardHeader className="gap-5 border-b border-zinc-100 bg-zinc-50/70 p-5 md:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="max-w-2xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <DeviceStatusBadge tone="success">superadmin</DeviceStatusBadge>
+                <span className="text-xs text-zinc-500">
+                  Workspace aktif memengaruhi code dan device yang tampil.
+                </span>
+              </div>
+              <CardTitle className="mt-3 text-xl font-semibold tracking-tight text-zinc-950 md:text-2xl">
+                Kelola device QR permanen dari satu workspace aktif
+              </CardTitle>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Buat registration code baru, pantau status online perangkat, ubah
+                label, dan cabut device yang sudah tidak dipakai tanpa berpindah
+                alur kerja.
+              </p>
+            </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              disabled={generateCodeDisabled}
-              isLoading={toolbarAction === "generate"}
-              onClick={() => void generateCode()}
-            >
-              Generate code
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              isLoading={toolbarAction === "refresh"}
-              onClick={() => void refresh()}
-            >
-              Refresh
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={generateCodeDisabled}
+                isLoading={toolbarAction === "generate"}
+                onClick={() => void generateCode()}
+              >
+                Generate code
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                isLoading={toolbarAction === "refresh"}
+                onClick={() => void refresh()}
+              >
+                Refresh
+              </Button>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
-            <p className="text-xs font-medium text-zinc-500">Device aktif</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-              {devicesSummary.activeCount}
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              dari {devicesSummary.totalCount} device permanen
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
-            <p className="text-xs font-medium text-zinc-500">Sedang online</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-              {devicesSummary.onlineCount}
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              perangkat terdeteksi aktif sekarang
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
-            <p className="text-xs font-medium text-zinc-500">Registration code aktif</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-              {codesSummary.activeCount}
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              dari {codesSummary.totalCount} code yang tercatat
-            </p>
-          </div>
-        </div>
-      </section>
+        </CardHeader>
+        <CardContent className="grid gap-3 p-5 md:grid-cols-3 md:p-6">
+          <SummaryStatCard
+            label="Device aktif"
+            value={devicesSummary.activeCount}
+            detail={`dari ${devicesSummary.totalCount} device permanen`}
+          />
+          <SummaryStatCard
+            label="Sedang online"
+            value={devicesSummary.onlineCount}
+            detail="perangkat terdeteksi aktif sekarang"
+          />
+          <SummaryStatCard
+            label="Registration code aktif"
+            value={codesSummary.activeCount}
+            detail={`dari ${codesSummary.totalCount} code yang tercatat`}
+          />
+        </CardContent>
+      </Card>
 
       {notice ? (
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
-          {notice}
-        </div>
+        <InlineNotice>{notice}</InlineNotice>
       ) : null}
       {workspaceSubscriptionState.ready && deviceLimitNotice ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {deviceLimitNotice}
-        </div>
+        <InlineNotice tone="warning">{deviceLimitNotice}</InlineNotice>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold tracking-tight text-zinc-950">
-                Registration code terbaru
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                Gunakan code aktif terbaru untuk pairing device QR baru.
-              </p>
-            </div>
-            <DeviceStatusBadge tone={latestRegistrationCode?.status === "pending" ? "success" : "neutral"}>
-              {latestRegistrationCode?.status ?? "belum ada"}
-            </DeviceStatusBadge>
-          </div>
-
-          <div className="mt-4">
-            {registrationCodesStatus === "loading" ? (
-              <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-7 w-48" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-20 w-full rounded-xl" />
-              </div>
-            ) : registrationCodesStatus === "error" && registrationCodesError ? (
-              <DataBlockError
-                message={registrationCodesError}
-                actionLabel="Muat ulang registration code"
-                isPending={toolbarAction === "refresh"}
-                onAction={() => void loadRegistrationCodes(true)}
-              />
-            ) : (
-              <>
-                <LatestRegistrationCodeCard
-                  generatedCode={generatedCode}
-                  registrationCodes={registrationCodes}
-                  setupUrl={setupUrl}
-                />
-                {generatedCode ? (
-                  <Button
-                    className="mt-3"
-                    size="sm"
-                    variant="outline"
-                    isLoading={toolbarAction === "copy"}
-                    onClick={() => void copyGeneratedCode()}
-                  >
-                    Copy latest code
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold tracking-tight text-zinc-950">
-                Riwayat registration code
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                Pantau code yang masih aktif, sudah diklaim, atau sudah expired.
-              </p>
-            </div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
-              {codesSummary.totalCount} code
-            </p>
-          </div>
-
-          <div className="mt-4">
-            {registrationCodesStatus === "loading" ? (
-              <RegistrationCodeListSkeleton />
-            ) : registrationCodesStatus === "error" && registrationCodesError ? (
-              <DataBlockError
-                message={registrationCodesError}
-                actionLabel="Coba lagi"
-                isPending={toolbarAction === "refresh"}
-                onAction={() => void loadRegistrationCodes(true)}
-              />
-            ) : registrationCodes.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
-                Belum ada registration code aktif untuk workspace ini. Mulai dengan membuat registration code lalu pair device pertama.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {registrationCodes.map((row) => (
-                  <div
-                    key={row.codeId}
-                    className="rounded-2xl border border-zinc-200 px-4 py-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <DeviceStatusBadge
-                          tone={row.status === "pending" ? "success" : "neutral"}
-                        >
-                          {row.status}
-                        </DeviceStatusBadge>
-                        <p className="font-mono text-xs text-zinc-500">{row.codeId}</p>
-                      </div>
-                      <p className="text-xs text-zinc-500">
-                        Dibuat {formatDateTime(row.createdAt)}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 text-sm text-zinc-600 sm:grid-cols-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                          Expired
-                        </p>
-                        <p className="mt-1 text-zinc-900">{formatDateTime(row.expiresAt)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                          Claimed At
-                        </p>
-                        <p className="mt-1 text-zinc-900">{formatDateTime(row.claimedAt)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                          Claimed By
-                        </p>
-                        <p className="mt-1 break-all text-zinc-900">
-                          {row.claimedByDeviceId ?? "-"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
-
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-zinc-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-base font-semibold tracking-tight text-zinc-950">
-              Daftar device
-            </h3>
-            <p className="mt-1 text-sm text-zinc-500">
-              Monitor status online device permanen dan lakukan rename atau revoke bila diperlukan.
-            </p>
-          </div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
-            {devicesSummary.totalCount} device
-          </p>
-        </div>
-
-        <div className="mt-5">
-          {devicesStatus === "loading" ? (
-            <DeviceListSkeleton />
-          ) : devicesStatus === "error" && devicesError ? (
-            <DataBlockError
-              message={devicesError}
-              actionLabel="Muat ulang device"
-              isPending={toolbarAction === "refresh"}
-              onAction={() => void loadDevices(true)}
+        <Card className="border-zinc-200 shadow-sm">
+          <CardContent className="p-5">
+            <SectionHeading
+              title="Registration code terbaru"
+              description="Gunakan code aktif terbaru untuk pairing device QR baru."
+              meta={
+                <DeviceStatusBadge
+                  tone={latestRegistrationCode?.status === "pending" ? "success" : "neutral"}
+                >
+                  {latestRegistrationCode?.status ?? "belum ada"}
+                </DeviceStatusBadge>
+              }
             />
-          ) : devices.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
-              Belum ada device permanen. Generate registration code baru lalu pair device pertama untuk workspace ini.
+
+            <div className="mt-4">
+              {registrationCodesStatus === "loading" ? (
+                <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-7 w-48" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-20 w-full rounded-xl" />
+                </div>
+              ) : registrationCodesStatus === "error" && registrationCodesError ? (
+                <DataBlockError
+                  message={registrationCodesError}
+                  actionLabel="Muat ulang registration code"
+                  isPending={toolbarAction === "refresh"}
+                  onAction={() => void loadRegistrationCodes(true)}
+                />
+              ) : (
+                <>
+                  <LatestRegistrationCodeCard
+                    generatedCode={generatedCode}
+                    registrationCodes={registrationCodes}
+                    setupUrl={setupUrl}
+                  />
+                  {generatedCode ? (
+                    <Button
+                      className="mt-3"
+                      size="sm"
+                      variant="outline"
+                      isLoading={toolbarAction === "copy"}
+                      onClick={() => void copyGeneratedCode()}
+                    >
+                      Copy latest code
+                    </Button>
+                  ) : null}
+                </>
+              )}
             </div>
-          ) : (
-            <>
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Label</TableHead>
-                      <TableHead>Lifecycle</TableHead>
-                      <TableHead>Online</TableHead>
-                      <TableHead>Last Seen</TableHead>
-                      <TableHead>Claimed At</TableHead>
-                      <TableHead>Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {devices.map((row) => (
-                      <TableRow key={row.deviceId}>
-                        <TableCell className="align-top">
-                          {renameDeviceId === row.deviceId ? (
-                            <div className="space-y-2">
-                              <Input
-                                value={renameDraft}
-                                onChange={(event) => setRenameDraft(event.target.value)}
-                              />
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  size="sm"
-                                  isLoading={isDeviceActionPending(row.deviceId, submittingRenameId)}
-                                  onClick={() => void submitRename(row.deviceId)}
-                                >
-                                  Simpan
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={stopRename}
-                                >
-                                  Batal
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div>
-                              <p className="font-medium text-zinc-950">{row.label}</p>
-                              <p className="mt-1 text-xs text-zinc-500">{row.deviceId}</p>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DeviceStatusBadge tone={row.status === "active" ? "success" : "danger"}>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-200 shadow-sm">
+          <CardContent className="p-5">
+            <SectionHeading
+              title="Riwayat registration code"
+              description="Pantau code yang masih aktif, sudah diklaim, atau sudah expired."
+              meta={
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
+                  {codesSummary.totalCount} code
+                </p>
+              }
+              align="center"
+            />
+
+            <div className="mt-4">
+              {registrationCodesStatus === "loading" ? (
+                <RegistrationCodeListSkeleton />
+              ) : registrationCodesStatus === "error" && registrationCodesError ? (
+                <DataBlockError
+                  message={registrationCodesError}
+                  actionLabel="Coba lagi"
+                  isPending={toolbarAction === "refresh"}
+                  onAction={() => void loadRegistrationCodes(true)}
+                />
+              ) : registrationCodes.length === 0 ? (
+                <EmptyState>
+                  Belum ada registration code aktif untuk workspace ini. Mulai
+                  dengan membuat registration code lalu pair device pertama.
+                </EmptyState>
+              ) : (
+                <div className="space-y-3">
+                  {registrationCodes.map((row) => (
+                    <div
+                      key={row.codeId}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50/40 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <DeviceStatusBadge
+                            tone={row.status === "pending" ? "success" : "neutral"}
+                          >
                             {row.status}
                           </DeviceStatusBadge>
-                        </TableCell>
-                        <TableCell>
+                          <p className="font-mono text-xs text-zinc-500">{row.codeId}</p>
+                        </div>
+                        <p className="text-xs text-zinc-500">
+                          Dibuat {formatDateTime(row.createdAt)}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 text-sm text-zinc-600 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                            Expired
+                          </p>
+                          <p className="mt-1 text-zinc-900">{formatDateTime(row.expiresAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                            Claimed At
+                          </p>
+                          <p className="mt-1 text-zinc-900">{formatDateTime(row.claimedAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                            Claimed By
+                          </p>
+                          <p className="mt-1 break-all text-zinc-900">
+                            {row.claimedByDeviceId ?? "-"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-zinc-200 shadow-sm">
+        <CardContent className="p-5">
+          <SectionHeading
+            title="Daftar device"
+            description="Monitor status online device permanen dan lakukan rename atau revoke bila diperlukan."
+            meta={
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
+                {devicesSummary.totalCount} device
+              </p>
+            }
+            align="center"
+          />
+
+          <div className="mt-5">
+            {devicesStatus === "loading" ? (
+              <DeviceListSkeleton />
+            ) : devicesStatus === "error" && devicesError ? (
+              <DataBlockError
+                message={devicesError}
+                actionLabel="Muat ulang device"
+                isPending={toolbarAction === "refresh"}
+                onAction={() => void loadDevices(true)}
+              />
+            ) : devices.length === 0 ? (
+              <EmptyState>
+                Belum ada device permanen. Generate registration code baru lalu
+                pair device pertama untuk workspace ini.
+              </EmptyState>
+            ) : (
+              <>
+                <div className="hidden overflow-hidden rounded-xl border border-zinc-200 md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-zinc-50/80 hover:bg-zinc-50/80">
+                        <TableHead className="pl-4">Label</TableHead>
+                        <TableHead>Lifecycle</TableHead>
+                        <TableHead>Online</TableHead>
+                        <TableHead>Last Seen</TableHead>
+                        <TableHead>Claimed At</TableHead>
+                        <TableHead className="pr-4">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {devices.map((row) => (
+                        <TableRow key={row.deviceId}>
+                          <TableCell className="align-top pl-4">
+                            {renameDeviceId === row.deviceId ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={renameDraft}
+                                  onChange={(event) => setRenameDraft(event.target.value)}
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    isLoading={isDeviceActionPending(row.deviceId, submittingRenameId)}
+                                    onClick={() => void submitRename(row.deviceId)}
+                                  >
+                                    Simpan
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={stopRename}
+                                  >
+                                    Batal
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="font-medium leading-6 text-zinc-950">{row.label}</p>
+                                <p className="mt-1 text-xs text-zinc-500">{row.deviceId}</p>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <DeviceStatusBadge tone={row.status === "active" ? "success" : "danger"}>
+                              {row.status}
+                            </DeviceStatusBadge>
+                          </TableCell>
+                          <TableCell>
+                            <DeviceStatusBadge tone={row.online ? "success" : "neutral"}>
+                              {row.online ? "online" : "offline"}
+                            </DeviceStatusBadge>
+                          </TableCell>
+                          <TableCell className="whitespace-normal text-sm leading-6 text-zinc-600">
+                            {formatDateTime(row.lastSeenAt)}
+                          </TableCell>
+                          <TableCell className="whitespace-normal text-sm leading-6 text-zinc-600">
+                            {formatDateTime(row.claimedAt)}
+                          </TableCell>
+                          <TableCell className="pr-4">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startRename(row.deviceId, row.label)}
+                              >
+                                Rename
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive-outline"
+                                onClick={() =>
+                                  setConfirmRevokeDevice({
+                                    deviceId: row.deviceId,
+                                    label: row.label,
+                                  })
+                                }
+                              >
+                                Revoke
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="space-y-3 md:hidden">
+                  {devices.map((row) => (
+                    <div
+                      key={row.deviceId}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-zinc-950">{row.label}</p>
+                          <p className="mt-1 text-xs text-zinc-500">{row.deviceId}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
                           <DeviceStatusBadge tone={row.online ? "success" : "neutral"}>
                             {row.online ? "online" : "offline"}
                           </DeviceStatusBadge>
-                        </TableCell>
-                        <TableCell className="text-sm text-zinc-600">
-                          {formatDateTime(row.lastSeenAt)}
-                        </TableCell>
-                        <TableCell className="text-sm text-zinc-600">
-                          {formatDateTime(row.claimedAt)}
-                        </TableCell>
-                        <TableCell>
+                          <DeviceStatusBadge tone={row.status === "active" ? "success" : "danger"}>
+                            {row.status}
+                          </DeviceStatusBadge>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                            Last Seen
+                          </p>
+                          <p className="mt-1 text-zinc-900">{formatDateTime(row.lastSeenAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                            Claimed At
+                          </p>
+                          <p className="mt-1 text-zinc-900">{formatDateTime(row.claimedAt)}</p>
+                        </div>
+                      </div>
+
+                      {renameDeviceId === row.deviceId ? (
+                        <div className="mt-4 space-y-2">
+                          <Input
+                            value={renameDraft}
+                            onChange={(event) => setRenameDraft(event.target.value)}
+                          />
                           <div className="flex flex-wrap gap-2">
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => startRename(row.deviceId, row.label)}
+                              isLoading={isDeviceActionPending(row.deviceId, submittingRenameId)}
+                              onClick={() => void submitRename(row.deviceId)}
                             >
-                              Rename
+                              Simpan
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive-outline"
-                              onClick={() =>
-                                setConfirmRevokeDevice({
-                                  deviceId: row.deviceId,
-                                  label: row.label,
-                                })
-                              }
-                            >
-                              Revoke
+                            <Button size="sm" variant="outline" onClick={stopRename}>
+                              Batal
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="space-y-3 md:hidden">
-                {devices.map((row) => (
-                  <div
-                    key={row.deviceId}
-                    className="rounded-2xl border border-zinc-200 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-zinc-950">{row.label}</p>
-                        <p className="mt-1 text-xs text-zinc-500">{row.deviceId}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <DeviceStatusBadge tone={row.online ? "success" : "neutral"}>
-                          {row.online ? "online" : "offline"}
-                        </DeviceStatusBadge>
-                        <DeviceStatusBadge tone={row.status === "active" ? "success" : "danger"}>
-                          {row.status}
-                        </DeviceStatusBadge>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                          Last Seen
-                        </p>
-                        <p className="mt-1 text-zinc-900">{formatDateTime(row.lastSeenAt)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                          Claimed At
-                        </p>
-                        <p className="mt-1 text-zinc-900">{formatDateTime(row.claimedAt)}</p>
-                      </div>
-                    </div>
-
-                    {renameDeviceId === row.deviceId ? (
-                      <div className="mt-4 space-y-2">
-                        <Input
-                          value={renameDraft}
-                          onChange={(event) => setRenameDraft(event.target.value)}
-                        />
-                        <div className="flex flex-wrap gap-2">
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex flex-wrap gap-2">
                           <Button
                             size="sm"
-                            isLoading={isDeviceActionPending(row.deviceId, submittingRenameId)}
-                            onClick={() => void submitRename(row.deviceId)}
+                            variant="outline"
+                            onClick={() => startRename(row.deviceId, row.label)}
                           >
-                            Simpan
+                            Rename
                           </Button>
-                          <Button size="sm" variant="outline" onClick={stopRename}>
-                            Batal
+                          <Button
+                            size="sm"
+                            variant="destructive-outline"
+                            onClick={() =>
+                              setConfirmRevokeDevice({
+                                deviceId: row.deviceId,
+                                label: row.label,
+                              })
+                            }
+                          >
+                            Revoke
                           </Button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startRename(row.deviceId, row.label)}
-                        >
-                          Rename
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive-outline"
-                          onClick={() =>
-                            setConfirmRevokeDevice({
-                              deviceId: row.deviceId,
-                              label: row.label,
-                            })
-                          }
-                        >
-                          Revoke
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
