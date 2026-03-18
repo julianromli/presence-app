@@ -9,6 +9,7 @@ import {
   buildDateKey,
   distanceMeters,
   ensureGlobalSettingsForMutation,
+  getGlobalSettingsOrThrow,
   hasValidGeofenceConfiguration,
   ipAllowed,
   requireWorkspaceRole,
@@ -109,6 +110,7 @@ const paginatedAttendanceValidator = paginationResultValidator(
 const paginatedAttendanceResponseValidator = v.object({
   rowsPage: paginatedAttendanceValidator,
   summary: attendanceSummaryValidator,
+  timezone: v.string(),
 });
 
 async function enrichRowsWithEmployeeName(ctx, rows) {
@@ -548,6 +550,7 @@ export const listByDatePaginated = query({
   returns: paginatedAttendanceResponseValidator,
   handler: async (ctx, args) => {
     await requireWorkspaceRole(ctx, args.workspaceId, ["admin", "superadmin"]);
+    const settings = await getGlobalSettingsOrThrow(ctx, args.workspaceId);
 
     const attendanceQuery =
       args.edited === undefined
@@ -582,6 +585,7 @@ export const listByDatePaginated = query({
       return {
         rowsPage: paginateFilteredAttendance(filteredRows, args.paginationOpts),
         summary: summarizeAttendanceRows(filteredRows),
+        timezone: settings.timezone,
       };
     }
 
@@ -603,6 +607,7 @@ export const listByDatePaginated = query({
         page: await enrichRowsWithEmployeeName(ctx, rowsPage.page),
       },
       summary: summarizeAttendanceRows(summaryRows),
+      timezone: settings.timezone,
     };
   },
 });
@@ -787,7 +792,7 @@ export const listScanEventsByDate = query({
         q.eq("workspaceId", args.workspaceId).eq("dateKey", args.dateKey),
       )
       .order("desc")
-      .take(500);
+      .collect();
 
     const filtered =
       args.status === undefined

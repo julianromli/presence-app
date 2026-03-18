@@ -139,11 +139,13 @@ export const markWeeklyReport = internalMutation({
       triggeredBy: args.triggeredBy,
       lastTriggeredAt: args.lastTriggeredAt,
       attempts: args.attempts,
-      generatedAt:
-        args.status === "pending"
-          ? existing?.generatedAt
-          : (args.finishedAt ?? Date.now()),
     };
+
+    if (args.status === "pending") {
+      patch.generatedAt = existing?.generatedAt;
+    } else if (args.status === "success") {
+      patch.generatedAt = args.finishedAt ?? Date.now();
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);

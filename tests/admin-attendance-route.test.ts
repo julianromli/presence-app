@@ -35,6 +35,7 @@ async function setupRoute(options: SetupOptions = {}) {
       checkedOut: 0,
       edited: 0,
     },
+    timezone: "Asia/Jakarta",
   }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
 
@@ -120,6 +121,7 @@ describe("admin attendance route", () => {
         splitCursor: null,
         pageStatus: null,
       },
+      timezone: "Asia/Jakarta",
       summary: {
         total: 1,
         checkedIn: 1,

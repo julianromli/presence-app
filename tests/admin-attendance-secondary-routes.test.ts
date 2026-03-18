@@ -102,8 +102,16 @@ async function setupEditRoute(options: RouteSetupOptions = {}) {
   const getConvexTokenOrNull = vi.fn(async () =>
     options.convexToken === undefined ? "convex-token" : options.convexToken,
   );
+  const query =
+    options.queryImpl ??
+    vi.fn(async (reference: string) => {
+      if (reference === "settings:get") {
+        return { timezone: "Asia/Jakarta" };
+      }
+      throw new Error(`Unexpected query call: ${reference}`);
+    });
   const mutation = options.mutationImpl ?? vi.fn(async () => null);
-  const getAuthedConvexHttpClient = vi.fn(() => ({ mutation }));
+  const getAuthedConvexHttpClient = vi.fn(() => ({ mutation, query }));
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -118,7 +126,7 @@ async function setupEditRoute(options: RouteSetupOptions = {}) {
   }));
 
   const routeModule = await import("../app/api/admin/attendance/edit/route");
-  return { PATCH: routeModule.PATCH, mocks: { mutation } };
+  return { PATCH: routeModule.PATCH, mocks: { mutation, query } };
 }
 
 describe("admin attendance secondary routes", () => {
@@ -195,7 +203,7 @@ describe("admin attendance secondary routes", () => {
     });
   });
 
-  it("edit route rejects invalid numeric payloads before mutation", async () => {
+  it("edit route rejects invalid clock payloads before mutation", async () => {
     const { PATCH, mocks } = await setupEditRoute();
 
     const response = await PATCH(
@@ -204,8 +212,9 @@ describe("admin attendance secondary routes", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           attendanceId: "attendance_123",
+          dateKey: "2026-03-05",
           reason: "manual correction",
-          checkInAt: "bad-value",
+          checkInTime: "bad-value",
         }),
       }),
     );
@@ -213,12 +222,12 @@ describe("admin attendance secondary routes", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       code: "VALIDATION_ERROR",
-      message: "checkInAt tidak valid.",
+      message: "checkInTime tidak valid.",
     });
     expect(mocks.mutation).not.toHaveBeenCalled();
   });
 
-  it("edit route forwards validated payload to convex", async () => {
+  it("edit route resolves workspace-local clock values before forwarding to convex", async () => {
     const { PATCH, mocks } = await setupEditRoute();
 
     const response = await PATCH(
@@ -227,20 +236,24 @@ describe("admin attendance secondary routes", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           attendanceId: "attendance_123",
+          dateKey: "2026-03-05",
           reason: "manual correction",
-          checkInAt: 1_700_000_000_000,
-          checkOutAt: 1_700_000_360_000,
+          checkInTime: "08:00",
+          checkOutTime: "17:00",
         }),
       }),
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.query).toHaveBeenCalledWith("settings:get", {
+      workspaceId: "workspace_123456",
+    });
     expect(mocks.mutation).toHaveBeenCalledWith("attendance:editAttendance", {
       workspaceId: "workspace_123456",
       attendanceId: "attendance_123",
-      checkInAt: 1_700_000_000_000,
-      checkOutAt: 1_700_000_360_000,
+      checkInAt: 1_772_672_400_000,
+      checkOutAt: 1_772_704_800_000,
       reason: "manual correction",
     });
   });

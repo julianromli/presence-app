@@ -186,4 +186,46 @@ describe("convex reports queries and mutations", () => {
       }),
     );
   });
+
+  it("does not stamp generatedAt when a failed report is inserted", async () => {
+    const { markWeeklyReport } = await import("../convex/reports");
+    const insert = vi.fn(async () => "report_123");
+    const unique = vi.fn(async () => null);
+    const ctx = {
+      db: {
+        insert,
+        patch: vi.fn(),
+        query: vi.fn(() => ({
+          withIndex: vi.fn(() => ({
+            unique,
+          })),
+        })),
+      },
+    };
+
+    await markWeeklyReport.handler(ctx as never, {
+      weekKey: "2026-03-02_2026-03-08",
+      startDate: "2026-03-02",
+      endDate: "2026-03-08",
+      status: "failed",
+      fileUrl: undefined,
+      storageId: undefined,
+      fileName: undefined,
+      mimeType: undefined,
+      byteLength: undefined,
+      errorMessage: "boom",
+      startedAt: 100,
+      finishedAt: 300,
+      durationMs: 200,
+      triggerSource: "manual",
+      triggeredBy: "user_admin" as never,
+      workspaceId: "workspace_123456" as never,
+      lastTriggeredAt: 300,
+      attempts: 1,
+    });
+
+    const insertedReport = insert.mock.calls[0]?.[1];
+    expect(insertedReport.status).toBe("failed");
+    expect(Object.prototype.hasOwnProperty.call(insertedReport, "generatedAt")).toBe(false);
+  });
 });

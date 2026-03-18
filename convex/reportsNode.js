@@ -9,6 +9,7 @@ import { internalAction } from "./_generated/server";
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const EMPTY_WEEKLY_REPORT_MESSAGE = "Tidak ada data attendance pada minggu ini";
 const WEEKDAY_TO_NUMBER = {
   Mon: 1,
   Tue: 2,
@@ -35,6 +36,58 @@ function normalizeTimezone(timezone) {
   } catch {
     return "Asia/Jakarta";
   }
+}
+
+function formatWorksheetTime(timestamp, timezone) {
+  if (timestamp === undefined) {
+    return "-";
+  }
+
+  const parts = new Intl.DateTimeFormat("id-ID", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZoneName: "short",
+  }).formatToParts(new Date(timestamp));
+
+  const hour = parts.find((part) => part.type === "hour")?.value;
+  const minute = parts.find((part) => part.type === "minute")?.value;
+  const second = parts.find((part) => part.type === "second")?.value;
+  const timezoneName = parts.find((part) => part.type === "timeZoneName")?.value;
+
+  if (!hour || !minute || !second) {
+    return "-";
+  }
+
+  return [`${hour}:${minute}:${second}`, timezoneName]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildWorksheetData(rows, weekKey, timezone) {
+  if (rows.length === 0) {
+    return [
+      {
+        "Minggu Ke-": weekKey,
+        "Nama Karyawan": EMPTY_WEEKLY_REPORT_MESSAGE,
+        "Jam Datang": "-",
+        "Jam Pulang": "-",
+        "Tanggal Kehadiran": "-",
+        "Edited atau Tidak": "-",
+      },
+    ];
+  }
+
+  return rows.map((row) => ({
+    "Minggu Ke-": weekKey,
+    "Nama Karyawan": row.employeeName,
+    "Jam Datang": formatWorksheetTime(row.checkInAt, timezone),
+    "Jam Pulang": formatWorksheetTime(row.checkOutAt, timezone),
+    "Tanggal Kehadiran": row.dateKey,
+    "Edited atau Tidak": row.edited ? "Edited" : "Tidak",
+  }));
 }
 
 function getWeekRangeDateKeys(nowTs, timezone) {
@@ -105,18 +158,7 @@ export const runWeeklyReport = internalAction({
         },
       );
 
-      const worksheetData = rows.map((row) => ({
-        "Minggu Ke-": weekKey,
-        "Nama Karyawan": row.employeeName,
-        "Jam Datang": row.checkInAt
-          ? new Date(row.checkInAt).toISOString()
-          : "-",
-        "Jam Pulang": row.checkOutAt
-          ? new Date(row.checkOutAt).toISOString()
-          : "-",
-        "Tanggal Kehadiran": row.dateKey,
-        "Edited atau Tidak": row.edited ? "Edited" : "Tidak",
-      }));
+      const worksheetData = buildWorksheetData(rows, weekKey, timezone);
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(worksheetData);
