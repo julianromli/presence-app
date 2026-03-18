@@ -87,6 +87,22 @@ const INVITE_EXPIRY_OPTIONS = [
 type InviteExpiryOptionValue = (typeof INVITE_EXPIRY_OPTIONS)[number]['value'];
 type InviteExpirySelectValue = InviteExpiryOptionValue | '';
 
+function formatWorkspaceDateTime(value?: number) {
+  if (!value) {
+    return '-';
+  }
+
+  return new Date(value).toLocaleString('id-ID');
+}
+
+function getRoleLabel(role: AdminUserRow['role'] | UsersPanelFilters['role']) {
+  if (role === 'superadmin') return 'Superadmin';
+  if (role === 'admin') return 'Admin';
+  if (role === 'karyawan') return 'Karyawan';
+  if (role === 'device-qr') return 'Device QR';
+  return 'Semua';
+}
+
 function noticeClass(tone: NoticeTone) {
   switch (tone) {
     case 'success':
@@ -374,7 +390,6 @@ export function WorkspacePanel() {
           error instanceof Error && error.message
             ? error.message
             : 'Terjadi kesalahan tidak terduga saat memproses perubahan workspace.';
-        console.error('workspace mutation failed', error);
         setNotice({ tone: 'error', text: `[UNEXPECTED_ERROR] ${message}` });
       } finally {
         workspaceMutationLockRef.current = false;
@@ -470,7 +485,6 @@ export function WorkspacePanel() {
         error instanceof Error && error.message
           ? error.message
           : 'Terjadi kesalahan tidak terduga saat memperbarui masa berlaku invitation code.';
-      console.error('invite expiry update failed', error);
       setInviteExpiryValue(previousValue);
       setNotice({ tone: 'error', text: `[UNEXPECTED_ERROR] ${message}` });
     } finally {
@@ -614,8 +628,8 @@ export function WorkspacePanel() {
   if (loadingWorkspace && !workspaceData) {
     return (
       <div className="space-y-4">
-        <div className="h-36 animate-pulse rounded-xl border border-zinc-200 bg-white" />
-        <div className="h-60 animate-pulse rounded-xl border border-zinc-200 bg-white" />
+        <div className="h-36 animate-pulse rounded-xl border border-zinc-200 bg-white motion-reduce:animate-none" />
+        <div className="h-60 animate-pulse rounded-xl border border-zinc-200 bg-white motion-reduce:animate-none" />
       </div>
     );
   }
@@ -635,7 +649,7 @@ export function WorkspacePanel() {
     workspaceData?.activeInviteCode?.expiresAt !== undefined && inviteExpiryValue === '';
   const inviteExpiryLabel =
     workspaceData?.activeInviteCode?.expiresAt !== undefined
-      ? new Date(workspaceData.activeInviteCode.expiresAt).toLocaleString('id-ID')
+      ? formatWorkspaceDateTime(workspaceData.activeInviteCode.expiresAt)
       : 'Tidak kedaluwarsa';
   const subscription = workspaceSubscriptionState.ready
     ? workspaceSubscriptionState.subscription
@@ -658,9 +672,11 @@ export function WorkspacePanel() {
   const attendanceScheduleSaveDisabled =
     !workspaceSubscriptionState.ready || isAttendanceScheduleSaveDisabled(subscription);
   const attendanceScheduleUpgradeCopy = getAttendanceScheduleUpgradeCopy(subscription);
+  const trimmedRenameValue = renameValue.trim();
+  const renameUnchanged = trimmedRenameValue === (workspaceData?.workspace.name ?? '');
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20 motion-reduce:animate-none">
       <ConfirmationDialog
         open={deleteConfirmationOpen && Boolean(deleteConfirmation)}
         title={deleteConfirmation?.title ?? ''}
@@ -680,7 +696,11 @@ export function WorkspacePanel() {
       />
 
       {notice ? (
-        <div className={`rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}>
+        <div
+          aria-live={notice.tone === 'error' ? 'assertive' : 'polite'}
+          className={`rounded-lg border px-3 py-2.5 text-sm ${noticeClass(notice.tone)}`}
+          role={notice.tone === 'error' ? 'alert' : 'status'}
+        >
           {notice.text}
         </div>
       ) : null}
@@ -690,56 +710,62 @@ export function WorkspacePanel() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-zinc-600">
               <Key weight="regular" className="h-4 w-4" />
-              <h2 className="text-base font-semibold text-zinc-900">Invitation Code</h2>
+              <h2 className="text-base font-semibold text-zinc-900">Kode Undangan</h2>
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900"
+            <Button
               onClick={() => setInviteVisible((prev) => !prev)}
+              size="xs"
+              variant="ghost"
             >
-              {inviteVisible ? <EyeSlash weight="regular" className="h-4 w-4" /> : <Eye weight="regular" className="h-4 w-4" />}
-              {inviteVisible ? 'Hide' : 'Reveal'}
-            </button>
+              {inviteVisible ? (
+                <EyeSlash weight="regular" className="h-4 w-4" />
+              ) : (
+                <Eye weight="regular" className="h-4 w-4" />
+              )}
+              {inviteVisible ? 'Sembunyikan' : 'Tampilkan'}
+            </Button>
           </div>
-          <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
-            <p className="font-mono text-sm text-zinc-900">
+          <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3">
+            <p className="break-all font-mono text-sm text-zinc-900">
               {inviteVisible ? workspaceData?.activeInviteCode?.code ?? '-' : maskedCode}
             </p>
             <p className="mt-1 text-xs text-zinc-500">
-              Last rotated:{' '}
-              {workspaceData?.activeInviteCode?.lastRotatedAt
-                ? new Date(workspaceData.activeInviteCode.lastRotatedAt).toLocaleString('id-ID')
-                : '-'}
+              Terakhir diputar: {formatWorkspaceDateTime(workspaceData?.activeInviteCode?.lastRotatedAt)}
             </p>
             <p className="mt-1 text-xs text-zinc-500">Kedaluwarsa: {inviteExpiryLabel}</p>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button
               type="button"
+              aria-label="Salin kode undangan"
+              disabled={!workspaceData?.activeInviteCode?.code}
+              isLoading={copyingInviteCode}
+              loadingText="Menyalin..."
+              onClick={() => void copyInviteCode()}
               variant="outline"
               size="sm"
-              onClick={() => void copyInviteCode()}
-              isLoading={copyingInviteCode}
             >
               {!copyingInviteCode ? <Copy weight="regular" className="mr-1 h-4 w-4" /> : null}
-              Copy
+              Salin
             </Button>
             <Button
               type="button"
+              disabled={workspaceMutationBusy}
+              onClick={() => void handleRotateInviteCode()}
+              isLoading={actionLoadingState.rotateInviteCode}
+              loadingText="Memutar..."
               variant="outline"
               size="sm"
-              onClick={() => void handleRotateInviteCode()}
-              disabled={workspaceMutationBusy}
-              isLoading={actionLoadingState.rotateInviteCode}
             >
               {!actionLoadingState.rotateInviteCode ? (
                 <ArrowsClockwise weight="regular" className="mr-1 h-4 w-4" />
               ) : null}
-              Rotate
+              Putar Ulang
             </Button>
-            <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700">
+            <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 transition-colors focus-within:border-zinc-300 focus-within:ring-2 focus-within:ring-zinc-950/5">
               <span className="whitespace-nowrap">Kedaluwarsa</span>
               <select
+                aria-label="Preset masa berlaku kode undangan"
                 className="min-w-[148px] bg-transparent text-xs text-zinc-900 outline-none disabled:cursor-not-allowed disabled:text-zinc-400"
                 value={inviteExpiryValue}
                 disabled={!inviteExpiryEnabled || !workspaceData?.activeInviteCode || workspaceMutationBusy}
@@ -774,17 +800,17 @@ export function WorkspacePanel() {
         <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-zinc-600">
             <PencilSimple weight="regular" className="h-4 w-4" />
-            <h2 className="text-base font-semibold text-zinc-900">Workspace Profile</h2>
+            <h2 className="text-base font-semibold text-zinc-900">Profil Workspace</h2>
           </div>
           <div className="mt-4 space-y-3">
             <label className="space-y-1">
-              <span className="text-sm font-medium text-zinc-700">Workspace name</span>
+              <span className="text-sm font-medium text-zinc-700">Nama workspace</span>
               <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} />
             </label>
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600">
               {planBadgeText ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span>Plan:</span>
+                  <span>Paket:</span>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
                     {planBadgeText}
                   </span>
@@ -802,19 +828,20 @@ export function WorkspacePanel() {
                   <span className="font-semibold text-zinc-900">{deviceUsageCopy}</span>
                 </p>
               ) : null}
-              <p>Slug: <span className="font-mono text-zinc-900">{workspaceData?.workspace.slug ?? '-'}</span></p>
+              <p className="break-all">
+                Slug:{' '}
+                <span className="font-mono text-zinc-900">{workspaceData?.workspace.slug ?? '-'}</span>
+              </p>
               <p className="mt-1">
-                Created:{' '}
-                {workspaceData?.workspace.createdAt
-                  ? new Date(workspaceData.workspace.createdAt).toLocaleString('id-ID')
-                  : '-'}
+                Dibuat: {formatWorkspaceDateTime(workspaceData?.workspace.createdAt)}
               </p>
             </div>
             <Button
               type="button"
               onClick={() => void handleRename()}
-              disabled={renameValue.trim().length < 3 || workspaceMutationBusy}
+              disabled={trimmedRenameValue.length < 3 || renameUnchanged || workspaceMutationBusy}
               isLoading={actionLoadingState.renameWorkspace}
+              loadingText="Menyimpan..."
             >
               Simpan Nama Workspace
             </Button>
@@ -847,7 +874,7 @@ export function WorkspacePanel() {
         </div>
 
         {loadingSettings ? (
-          <div className="mt-4 h-56 animate-pulse rounded-xl border border-zinc-200 bg-zinc-50" />
+          <div className="mt-4 h-56 animate-pulse rounded-xl border border-zinc-200 bg-zinc-50 motion-reduce:animate-none" />
         ) : (
           <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
             <Table>
@@ -898,18 +925,18 @@ export function WorkspacePanel() {
       <section className="rounded-xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-rose-950">Danger Zone</h2>
+            <h2 className="text-base font-semibold text-rose-950">Zona Risiko</h2>
             <p className="mt-1 text-sm text-rose-900/80">
               Workspace hanya bisa dihapus setelah semua member lain sudah di-kick atau dinonaktifkan.
             </p>
           </div>
           <Button
             type="button"
-            variant="outline"
-            className="border-rose-300 text-rose-900 hover:bg-rose-100"
+            variant="destructive-outline"
             disabled={deleteBlocked || workspaceMutationBusy}
             onClick={requestDeleteWorkspace}
             isLoading={actionLoadingState.deleteWorkspace}
+            loadingText="Menghapus..."
           >
             Hapus Workspace
           </Button>
@@ -932,12 +959,11 @@ export function WorkspacePanel() {
         </p>
       </section>
 
-
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-zinc-600">
             <ShieldCheck weight="regular" className="h-4 w-4" />
-            <h2 className="text-base font-semibold text-zinc-900">Member Management</h2>
+            <h2 className="text-base font-semibold text-zinc-900">Manajemen Member</h2>
           </div>
           <p className="text-xs text-zinc-500">
             Total {summary.total} · Aktif {summary.active} · Non-aktif {summary.inactive}
@@ -975,15 +1001,7 @@ export function WorkspacePanel() {
                   />
                 }
               >
-                {filters.role === 'all'
-                  ? 'Semua'
-                  : filters.role === 'superadmin'
-                    ? 'Superadmin'
-                    : filters.role === 'admin'
-                      ? 'Admin'
-                      : filters.role === 'karyawan'
-                        ? 'Karyawan'
-                        : 'Device QR'}
+                {getRoleLabel(filters.role)}
                 <CaretDown weight="regular" className="h-4 w-4 text-zinc-500" />
               </MenuTrigger>
               <MenuPopup align="start" className="w-[var(--anchor-width)]">
@@ -1031,7 +1049,12 @@ export function WorkspacePanel() {
             </Menu>
           </label>
           <div className="flex items-end gap-2">
-            <Button type="submit" disabled={loadingMembers} isLoading={membersAction === 'apply'}>
+            <Button
+              type="submit"
+              disabled={loadingMembers}
+              isLoading={membersAction === 'apply'}
+              loadingText="Menerapkan..."
+            >
               Terapkan
             </Button>
             <Button
@@ -1039,6 +1062,7 @@ export function WorkspacePanel() {
               variant="outline"
               disabled={loadingMembers}
               isLoading={membersAction === 'reset'}
+              loadingText="Mereset..."
               onClick={() => {
                 setFilters(DEFAULT_USERS_FILTERS);
                 setAppliedFilters(DEFAULT_USERS_FILTERS);
@@ -1053,7 +1077,7 @@ export function WorkspacePanel() {
           </div>
         </form>
 
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-white">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 bg-white">
           <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
@@ -1080,8 +1104,12 @@ export function WorkspacePanel() {
               ) : (
                 rows.map((row) => (
                   <TableRow key={row._id}>
-                    <TableCell className="font-medium text-zinc-900">{row.name}</TableCell>
-                    <TableCell className="text-zinc-600">{row.email}</TableCell>
+                    <TableCell className="max-w-[200px] truncate font-medium text-zinc-900" title={row.name}>
+                      {row.name}
+                    </TableCell>
+                    <TableCell className="max-w-[260px] truncate text-zinc-600" title={row.email}>
+                      {row.email}
+                    </TableCell>
                     <TableCell>
                       <Menu>
                         <MenuTrigger
@@ -1093,7 +1121,7 @@ export function WorkspacePanel() {
                           }
                           disabled={isWorkspaceMemberActionPending(row._id, memberPendingState)}
                         >
-                          {row.role}
+                          {getRoleLabel(row.role)}
                           <CaretDown weight="regular" className="h-3.5 w-3.5 text-zinc-500" />
                         </MenuTrigger>
                         <MenuPopup align="start" className="min-w-[120px]">
@@ -1144,6 +1172,7 @@ export function WorkspacePanel() {
               variant="outline"
               disabled={loadingMembers || !nextCursor}
               isLoading={membersAction === 'load-more'}
+              loadingText="Memuat..."
               onClick={() => {
                 setMembersAction('load-more');
                 void loadMembers({ append: true, cursor: nextCursor, activeFilters: appliedFilters }).finally(() =>
