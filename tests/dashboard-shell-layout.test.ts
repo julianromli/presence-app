@@ -26,6 +26,10 @@ describe('dashboard shell layout', () => {
       TallyPopupTrigger: () =>
         React.createElement('button', { 'data-testid': 'tally-popup-trigger' }),
     }));
+    vi.doMock('@/components/dashboard/workspace-restricted-gate', () => ({
+      WorkspaceRestrictedGate: () =>
+        React.createElement('div', { 'data-testid': 'workspace-restricted-gate' }),
+    }));
     vi.doMock('next/script', () => ({
       default: ({
         id,
@@ -54,6 +58,7 @@ describe('dashboard shell layout', () => {
     expect(html).toContain('data-testid="mobile-bottom-nav"');
     expect(html).toContain('data-testid="page-content"');
     expect(html).toContain('data-testid="tally-popup-trigger"');
+    expect(html).toContain('data-testid="workspace-restricted-gate"');
     expect(html).toContain('id="tally-widget"');
     expect(html).toContain('src="https://tally.so/widgets/embed.js"');
   });

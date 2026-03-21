@@ -8,7 +8,14 @@ type SetupOptions = {
   queryImpl?: ReturnType<typeof vi.fn>;
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
   useActualApiError?: boolean;
+  restrictionResponse?: Response | null;
+  restrictionHandler?: (action: string) => Response | null;
 };
+
+function expectResponse(value: Response | undefined) {
+  expect(value).toBeDefined();
+  return value as Response;
+}
 
 function buildWorkspaceContext(options: SetupOptions) {
   return vi.fn(() =>
@@ -24,6 +31,9 @@ function buildCommonMocks(options: SetupOptions) {
   const mutation = options.mutationImpl ?? vi.fn(async () => ({ ok: true }));
   const query = options.queryImpl ?? vi.fn(async () => []);
   const getAuthedConvexHttpClient = vi.fn(() => ({ mutation, query }));
+  const enforceWorkspaceRestriction = vi.fn(async (_convex, _workspaceId, _role, action: string) =>
+    options.restrictionHandler?.(action) ?? options.restrictionResponse ?? null,
+  );
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: buildWorkspaceContext(options),
@@ -31,6 +41,9 @@ function buildCommonMocks(options: SetupOptions) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
 
   return { mutation, query, requireWorkspaceRoleApiFromDb };
 }
@@ -112,12 +125,14 @@ describe("admin device management routes", () => {
       roleResult: { error: denied },
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/admin/device/registration-codes", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      }),
+    const response = expectResponse(
+      await POST(
+        new Request("http://localhost/api/admin/device/registration-codes", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        }),
+      ),
     );
 
     expect(response.status).toBe(403);
@@ -140,25 +155,29 @@ describe("admin device management routes", () => {
       roleResult: { error: denied },
     });
 
-    const listResponse = await GET(
-      new Request("http://localhost/api/admin/device/devices", {
-        method: "GET",
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
+    const listResponse = expectResponse(
+      await GET(
+        new Request("http://localhost/api/admin/device/devices", {
+          method: "GET",
+          headers: { "x-workspace-id": "workspace_123456" },
+        }),
+      ),
     );
     expect(listResponse.status).toBe(403);
     expect(listMocks.query).not.toHaveBeenCalled();
 
-    const patchResponse = await PATCH(
-      new Request("http://localhost/api/admin/device/devices/device_123", {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({ label: "Renamed Device" }),
-      }),
-      { params: Promise.resolve({ deviceId: "device_123" }) },
+    const patchResponse = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/device/devices/device_123", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({ label: "Renamed Device" }),
+        }),
+        { params: Promise.resolve({ deviceId: "device_123" }) },
+      ),
     );
     expect(patchResponse.status).toBe(403);
     expect(patchMocks.mutation).not.toHaveBeenCalled();
@@ -172,16 +191,18 @@ describe("admin device management routes", () => {
     }));
     const { PATCH } = await setupDeviceDetailRoute({ mutationImpl: mutation });
 
-    const response = await PATCH(
-      new Request("http://localhost/api/admin/device/devices/device_123", {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({ label: "Renamed Device" }),
-      }),
-      { params: Promise.resolve({ deviceId: "device_123" }) },
+    const response = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/device/devices/device_123", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({ label: "Renamed Device" }),
+        }),
+        { params: Promise.resolve({ deviceId: "device_123" }) },
+      ),
     );
 
     expect(response.status).toBe(200);
@@ -207,12 +228,14 @@ describe("admin device management routes", () => {
       useActualApiError: true,
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/admin/device/registration-codes", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ttlMs: 300000 }),
-      }),
+    const response = expectResponse(
+      await POST(
+        new Request("http://localhost/api/admin/device/registration-codes", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ttlMs: 300000 }),
+        }),
+      ),
     );
 
     expect(response.status).toBe(409);
@@ -226,6 +249,38 @@ describe("admin device management routes", () => {
     });
   });
 
+  it("blocks registration code creation when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { POST, mocks } = await setupRegistrationCodesRoute({
+      restrictionResponse: restricted,
+    });
+
+    const response = expectResponse(
+      await POST(
+        new Request("http://localhost/api/admin/device/registration-codes", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ttlMs: 300000 }),
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+  });
+
   it("revoke changes device status and blocks future auth", async () => {
     const mutation = vi.fn(async () => ({
       deviceId: "device_123",
@@ -234,16 +289,18 @@ describe("admin device management routes", () => {
     }));
     const { PATCH } = await setupDeviceDetailRoute({ mutationImpl: mutation });
 
-    const response = await PATCH(
-      new Request("http://localhost/api/admin/device/devices/device_123", {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({ revoke: true }),
-      }),
-      { params: Promise.resolve({ deviceId: "device_123" }) },
+    const response = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/device/devices/device_123", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({ revoke: true }),
+        }),
+        { params: Promise.resolve({ deviceId: "device_123" }) },
+      ),
     );
 
     expect(response.status).toBe(200);
@@ -257,6 +314,66 @@ describe("admin device management routes", () => {
       deviceId: "device_123",
       label: "Front Desk Tablet",
       status: "revoked",
+    });
+  });
+
+  it("blocks device rename during restriction but still allows revoke", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const mutation = vi.fn(async () => ({
+      deviceId: "device_123",
+      label: "Front Desk Tablet",
+      status: "revoked",
+    }));
+    const { PATCH } = await setupDeviceDetailRoute({
+      mutationImpl: mutation,
+      restrictionHandler: (action: string) =>
+        action === "dashboard_overview" ? restricted : null,
+    });
+
+    const blockedResponse = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/device/devices/device_123", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({ label: "Renamed Device" }),
+        }),
+        { params: Promise.resolve({ deviceId: "device_123" }) },
+      ),
+    );
+
+    expect(blockedResponse.status).toBe(409);
+    expect(mutation).not.toHaveBeenCalled();
+
+    const allowedResponse = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/device/devices/device_123", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({ revoke: true }),
+        }),
+        { params: Promise.resolve({ deviceId: "device_123" }) },
+      ),
+    );
+
+    expect(allowedResponse.status).toBe(200);
+    expect(mutation).toHaveBeenCalledWith("devices:updateDevice", {
+      workspaceId: "workspace_123456",
+      deviceId: "device_123",
+      label: undefined,
+      revoke: true,
     });
   });
 });

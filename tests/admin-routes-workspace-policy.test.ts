@@ -7,7 +7,14 @@ type SetupOptions = {
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
   mutationImpl?: ReturnType<typeof vi.fn>;
   useActualApiError?: boolean;
+  restrictionResponse?: Response | null;
+  restrictionHandler?: (action: string) => Response | null;
 };
+
+function expectResponse(value: Response | undefined) {
+  expect(value).toBeDefined();
+  return value as Response;
+}
 
 function makeWorkspaceContext(options: SetupOptions) {
   if (options.workspaceContext) {
@@ -26,6 +33,9 @@ async function setupReportsRoute(options: SetupOptions = {}) {
     skipped: false,
   }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query, action }));
+  const enforceWorkspaceRestriction = vi.fn(async (_convex, _workspaceId, _role, action: string) =>
+    options.restrictionHandler?.(action) ?? options.restrictionResponse ?? null,
+  );
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
@@ -35,6 +45,9 @@ async function setupReportsRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull: vi.fn(async () => "convex-token"),
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/admin-users", () => ({
     normalizeUsersListQuery: vi.fn(() => ({
       q: undefined,
@@ -72,6 +85,9 @@ async function setupUsersRoute(options: SetupOptions = {}) {
     userId: "user_target",
     isActive: true,
   }));
+  const enforceWorkspaceRestriction = vi.fn(async (_convex, _workspaceId, _role, action: string) =>
+    options.restrictionHandler?.(action) ?? options.restrictionResponse ?? null,
+  );
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
@@ -81,6 +97,9 @@ async function setupUsersRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull: vi.fn(async () => "convex-token"),
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/admin-users", () => ({
     normalizeUsersListQuery: vi.fn(() => ({
       q: undefined,
@@ -93,7 +112,7 @@ async function setupUsersRoute(options: SetupOptions = {}) {
   }));
   if (options.useActualApiError) {
     const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
-      "../lib/api-error"
+      "../lib/api-error",
     );
     vi.doMock("@/lib/api-error", () => ({
       convexErrorResponse: actualApiError.convexErrorResponse,
@@ -107,7 +126,11 @@ async function setupUsersRoute(options: SetupOptions = {}) {
   }
 
   const routeModule = await import("../app/api/admin/users/route");
-  return { GET: routeModule.GET, PATCH: routeModule.PATCH, mocks: { mutation, parseUsersPatchBody, query } };
+  return {
+    GET: routeModule.GET,
+    PATCH: routeModule.PATCH,
+    mocks: { mutation, parseUsersPatchBody, query },
+  };
 }
 
 describe("admin route workspace policy", () => {
@@ -124,7 +147,7 @@ describe("admin route workspace policy", () => {
       workspaceContext: { error: missingWorkspace },
     });
 
-    const response = await GET(new Request("http://localhost/api/admin/reports"));
+    const response = expectResponse(await GET(new Request("http://localhost/api/admin/reports")));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
@@ -136,19 +159,41 @@ describe("admin route workspace policy", () => {
   it("passes strict workspaceId to reports query + action", async () => {
     const { GET, POST, mocks } = await setupReportsRoute();
 
-    const listResponse = await GET(new Request("http://localhost/api/admin/reports"));
+    const listResponse = expectResponse(await GET(new Request("http://localhost/api/admin/reports")));
     expect(listResponse.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith("reports:listWeekly", {
       workspaceId: "workspace_123456",
     });
 
-    const triggerResponse = await POST(
-      new Request("http://localhost/api/admin/reports", { method: "POST" }),
+    const triggerResponse = expectResponse(
+      await POST(new Request("http://localhost/api/admin/reports", { method: "POST" })),
     );
     expect(triggerResponse.status).toBe(200);
     expect(mocks.action).toHaveBeenCalledWith("reports:triggerWeeklyReport", {
       workspaceId: "workspace_123456",
     });
+  });
+
+  it("blocks admin report actions when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, POST, mocks } = await setupReportsRoute({ restrictionResponse: restricted });
+
+    const listResponse = expectResponse(await GET(new Request("http://localhost/api/admin/reports")));
+    expect(listResponse.status).toBe(409);
+    expect(mocks.query).not.toHaveBeenCalled();
+
+    const postResponse = expectResponse(
+      await POST(new Request("http://localhost/api/admin/reports", { method: "POST" })),
+    );
+    expect(postResponse.status).toBe(409);
+    expect(mocks.action).not.toHaveBeenCalled();
   });
 
   it("returns 400 when workspace header is invalid on users route", async () => {
@@ -160,8 +205,8 @@ describe("admin route workspace policy", () => {
       workspaceContext: { error: invalidWorkspace },
     });
 
-    const response = await GET(
-      new Request("http://localhost/api/admin/users?limit=10"),
+    const response = expectResponse(
+      await GET(new Request("http://localhost/api/admin/users?limit=10")),
     );
 
     expect(response.status).toBe(400);
@@ -175,8 +220,8 @@ describe("admin route workspace policy", () => {
   it("passes strict workspaceId to users query", async () => {
     const { GET, mocks } = await setupUsersRoute();
 
-    const response = await GET(
-      new Request("http://localhost/api/admin/users?limit=10"),
+    const response = expectResponse(
+      await GET(new Request("http://localhost/api/admin/users?limit=10")),
     );
     expect(response.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith("users:listPaginated", {
@@ -206,12 +251,14 @@ describe("admin route workspace policy", () => {
       useActualApiError: true,
     });
 
-    const response = await PATCH(
-      new Request("http://localhost/api/admin/users", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: "user_target", isActive: true }),
-      }),
+    const response = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/users", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: "user_target", isActive: true }),
+        }),
+      ),
     );
 
     expect(response.status).toBe(409);
@@ -225,6 +272,79 @@ describe("admin route workspace policy", () => {
       userId: "user_target",
       role: undefined,
       isActive: true,
+    });
+  });
+
+  it("blocks admin user listing when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, mocks } = await setupUsersRoute({ restrictionResponse: restricted });
+
+    const response = expectResponse(await GET(new Request("http://localhost/api/admin/users?limit=10")));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("allows only member deactivation during restriction on users PATCH", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { PATCH, mocks } = await setupUsersRoute({
+      roleResult: { session: { role: "superadmin" } },
+      restrictionHandler: (action) => (action === "dashboard_overview" ? restricted : null),
+    });
+
+    const blockedResponse = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/users", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: "user_target", role: "admin" }),
+        }),
+      ),
+    );
+
+    expect(blockedResponse.status).toBe(409);
+    expect(mocks.mutation).not.toHaveBeenCalled();
+
+    mocks.parseUsersPatchBody.mockReturnValueOnce({
+      userId: "user_target",
+      isActive: false,
+    });
+
+    const allowedResponse = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/users", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: "user_target", isActive: false }),
+        }),
+      ),
+    );
+
+    expect(allowedResponse.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("users:updateAdminManagedFields", {
+      workspaceId: "workspace_123456",
+      userId: "user_target",
+      role: undefined,
+      isActive: false,
     });
   });
 });

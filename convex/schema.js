@@ -348,4 +348,84 @@ export default defineSchema({
   })
     .index("by_week_key", ["weekKey"])
     .index("by_workspace_week_key", ["workspaceId", "weekKey"]),
+
+  workspace_subscriptions: defineTable({
+    workspaceId: v.id("workspaces"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("active"),
+      v.literal("expired"),
+      v.literal("canceled"),
+    ),
+    provider: v.union(v.literal("mayar"), v.literal("manual")),
+    kind: v.union(v.literal("pro_one_time"), v.literal("enterprise_manual")),
+    startedAt: v.number(),
+    activatedAt: v.optional(v.number()),
+    currentPeriodStartsAt: v.optional(v.number()),
+    currentPeriodEndsAt: v.optional(v.number()),
+    expiredAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+    createdByUserId: v.optional(v.id("users")),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_updated_at", ["workspaceId", "updatedAt"])
+    .index("by_status_period_end", ["status", "currentPeriodEndsAt"]),
+
+  workspace_billing_customers: defineTable({
+    workspaceId: v.id("workspaces"),
+    provider: v.literal("mayar"),
+    providerCustomerId: v.string(),
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_workspace_provider", ["workspaceId", "provider"]),
+
+  workspace_billing_invoices: defineTable({
+    workspaceId: v.id("workspaces"),
+    subscriptionId: v.id("workspace_subscriptions"),
+    provider: v.literal("mayar"),
+    providerInvoiceId: v.optional(v.string()),
+    providerTransactionId: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending_initializing"),
+      v.literal("pending"),
+      v.literal("paid"),
+      v.literal("expired"),
+      v.literal("canceled"),
+      v.literal("failed"),
+    ),
+    amount: v.number(),
+    currency: v.literal("IDR"),
+    paymentUrl: v.optional(v.string()),
+    issuedAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    coveredPeriodStartsAt: v.optional(v.number()),
+    coveredPeriodEndsAt: v.optional(v.number()),
+    lastPolledAt: v.optional(v.number()),
+    pollAttempts: v.number(),
+    providerStatusText: v.optional(v.string()),
+    rawProviderSnapshot: v.optional(v.any()),
+  })
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_issued_at", ["workspaceId", "issuedAt"])
+    .index("by_provider_invoice_id", ["providerInvoiceId"]),
+
+  workspace_subscription_events: defineTable({
+    workspaceId: v.id("workspaces"),
+    subscriptionId: v.optional(v.id("workspace_subscriptions")),
+    invoiceId: v.optional(v.id("workspace_billing_invoices")),
+    eventType: v.string(),
+    eventKey: v.string(),
+    actorUserId: v.optional(v.id("users")),
+    payload: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_workspace_created_at", ["workspaceId", "createdAt"])
+    .index("by_subscription_created_at", ["subscriptionId", "createdAt"])
+    .index("by_invoice_created_at", ["invoiceId", "createdAt"])
+    .index("by_event_key", ["eventKey"]),
 });

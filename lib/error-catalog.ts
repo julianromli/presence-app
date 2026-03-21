@@ -38,6 +38,11 @@ export const ERROR_STATUS_BY_CODE: Record<string, number> = {
   ALREADY_MEMBER: 409,
   INVITE_CODE_NOT_FOUND: 404,
   WORKSPACE_DELETE_BLOCKED: 409,
+  BILLING_PENDING_INVOICE_EXISTS: 409,
+  BILLING_ACTIVE_ENTITLEMENT_EXISTS: 409,
+  BILLING_INVOICE_NOT_FOUND: 404,
+  BILLING_SYNC_FAILED: 503,
+  WORKSPACE_RESTRICTED_EXPIRED: 409,
   REGISTRATION_CODE_INVALID: 400,
   REGISTRATION_CODE_REVOKED: 409,
   REGISTRATION_CODE_CLAIMED: 409,
@@ -75,6 +80,15 @@ export const CLIENT_MESSAGE_BY_CODE: Record<string, string> = {
   INVITE_CODE_NOT_FOUND: "Invitation code aktif tidak ditemukan.",
   WORKSPACE_DELETE_BLOCKED:
     "Workspace belum bisa dihapus karena masih ada member aktif lain.",
+  BILLING_PENDING_INVOICE_EXISTS:
+    "Workspace masih memiliki checkout yang belum selesai.",
+  BILLING_ACTIVE_ENTITLEMENT_EXISTS:
+    "Workspace masih memiliki entitlement aktif sehingga checkout baru belum bisa dibuat.",
+  BILLING_INVOICE_NOT_FOUND: "Invoice billing workspace tidak ditemukan.",
+  BILLING_SYNC_FAILED:
+    "Sinkronisasi pembayaran dengan Mayar sedang bermasalah. Coba lagi beberapa saat.",
+  WORKSPACE_RESTRICTED_EXPIRED:
+    "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free.",
   REGISTRATION_CODE_INVALID: "Kode registrasi tidak valid.",
   REGISTRATION_CODE_REVOKED: "Kode registrasi sudah tidak aktif.",
   REGISTRATION_CODE_CLAIMED: "Kode registrasi sudah dipakai.",

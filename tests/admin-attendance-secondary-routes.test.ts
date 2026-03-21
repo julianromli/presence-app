@@ -11,6 +11,7 @@ type RouteSetupOptions = {
   queryImpl?: ReturnType<typeof vi.fn>;
   mutationImpl?: ReturnType<typeof vi.fn>;
   workspaceContext?: WorkspaceContextResult;
+  restrictionResponse?: Response | null;
 };
 
 function makeWorkspaceContext(options: RouteSetupOptions) {
@@ -38,6 +39,7 @@ async function setupSummaryRoute(options: RouteSetupOptions = {}) {
       edited: 0,
     }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -45,6 +47,9 @@ async function setupSummaryRoute(options: RouteSetupOptions = {}) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
       Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
@@ -76,6 +81,7 @@ async function setupScanEventsRoute(options: RouteSetupOptions = {}) {
       },
     }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -83,6 +89,9 @@ async function setupScanEventsRoute(options: RouteSetupOptions = {}) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
       Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
@@ -112,6 +121,7 @@ async function setupEditRoute(options: RouteSetupOptions = {}) {
     });
   const mutation = options.mutationImpl ?? vi.fn(async () => null);
   const getAuthedConvexHttpClient = vi.fn(() => ({ mutation, query }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -119,6 +129,9 @@ async function setupEditRoute(options: RouteSetupOptions = {}) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
       Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
@@ -256,5 +269,70 @@ describe("admin attendance secondary routes", () => {
       checkOutAt: 1_772_704_800_000,
       reason: "manual correction",
     });
+  });
+
+  it("blocks summary route when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, mocks } = await setupSummaryRoute({ restrictionResponse: restricted });
+
+    const response = await GET(
+      new Request("http://localhost/api/admin/attendance/summary?dateKey=2026-03-05"),
+    );
+
+    expect(response.status).toBe(409);
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("blocks scan-events route when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, mocks } = await setupScanEventsRoute({ restrictionResponse: restricted });
+
+    const response = await GET(
+      new Request("http://localhost/api/admin/attendance/scan-events?dateKey=2026-03-05"),
+    );
+
+    expect(response.status).toBe(409);
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("allows attendance edit during restricted mode for recovery-safe operations only when explicitly permitted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { PATCH, mocks } = await setupEditRoute({ restrictionResponse: restricted });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/attendance/edit", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          attendanceId: "attendance_123",
+          reason: "manual correction",
+          checkInAt: 1_700_000_000_000,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(mocks.mutation).not.toHaveBeenCalled();
   });
 });

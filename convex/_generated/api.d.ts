@@ -32,6 +32,8 @@ import type * as users from "../users.js";
 import type * as usersList from "../usersList.js";
 import type * as usersMetrics from "../usersMetrics.js";
 import type * as usersPolicy from "../usersPolicy.js";
+import type * as workspaceBilling from "../workspaceBilling.js";
+import type * as workspaceBillingMayar from "../workspaceBillingMayar.js";
 import type * as workspaceInvitePolicy from "../workspaceInvitePolicy.js";
 import type * as workspaceInviteView from "../workspaceInviteView.js";
 import type * as workspaceMembersPolicy from "../workspaceMembersPolicy.js";
@@ -69,6 +71,8 @@ declare const fullApi: ApiFromModules<{
   usersList: typeof usersList;
   usersMetrics: typeof usersMetrics;
   usersPolicy: typeof usersPolicy;
+  workspaceBilling: typeof workspaceBilling;
+  workspaceBillingMayar: typeof workspaceBillingMayar;
   workspaceInvitePolicy: typeof workspaceInvitePolicy;
   workspaceInviteView: typeof workspaceInviteView;
   workspaceMembersPolicy: typeof workspaceMembersPolicy;

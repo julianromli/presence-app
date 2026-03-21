@@ -74,7 +74,11 @@ export const listWeekly = query({
       .order("desc")
       .take(20);
 
-    return rows.map(({ fileUrl: _fileUrl, storageId: _storageId, ...row }) => row);
+    return rows.map(({ fileUrl, storageId, ...row }) => {
+      void fileUrl;
+      void storageId;
+      return row;
+    });
   },
 });
 

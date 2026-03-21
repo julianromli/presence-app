@@ -1,24 +1,24 @@
 import {
   getConvexTokenOrNull,
-  requireWorkspaceRoleApiFromDb,
   requireWorkspaceApiContext,
+  requireWorkspaceRoleApiFromDb,
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
-import { enforceWorkspaceRestriction } from "@/lib/workspace-restriction-guard";
+import type { WorkspaceRestrictedExpiredStatePayload } from "@/types/dashboard";
+
+const RESTRICTION_ACCESS_ROLES = ["superadmin", "admin"] as const;
 
 export async function GET(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) {
     return workspaceContext.error;
   }
+  const workspaceId = workspaceContext.workspace.workspaceId;
 
-  const role = await requireWorkspaceRoleApiFromDb(
-    ["superadmin"],
-    workspaceContext.workspace.workspaceId,
-  );
-  if ("error" in role) {
-    return role.error;
+  const roleCheck = await requireWorkspaceRoleApiFromDb(RESTRICTION_ACCESS_ROLES, workspaceId);
+  if ("error" in roleCheck) {
+    return roleCheck.error;
   }
 
   const token = await getConvexTokenOrNull();
@@ -31,22 +31,13 @@ export async function GET(req: Request) {
     return Response.json({ code: "INTERNAL_ERROR", message: "Convex URL missing" }, { status: 500 });
   }
 
-  const restrictionResponse = await enforceWorkspaceRestriction(
-    convex,
-    workspaceContext.workspace.workspaceId,
-    role.session.role,
-    "dashboard_overview",
-  );
-  if (restrictionResponse) {
-    return restrictionResponse;
-  }
-
   try {
-    const rows = await convex.query("devices:listDevices", {
-      workspaceId: workspaceContext.workspace.workspaceId,
-    });
-    return Response.json(rows);
+    const payload = await convex.query<WorkspaceRestrictedExpiredStatePayload>(
+      "workspaceBilling:getWorkspaceRestrictedExpiredState",
+      { workspaceId },
+    );
+    return Response.json(payload);
   } catch (error) {
-    return convexErrorResponse(error, "Gagal memuat device.");
+    return convexErrorResponse(error, "Gagal memuat status pembatasan workspace.");
   }
 }

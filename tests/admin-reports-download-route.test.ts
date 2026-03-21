@@ -11,6 +11,7 @@ type SetupOptions = {
   queryImpl?: ReturnType<typeof vi.fn>;
   workspaceContext?: WorkspaceContextResult;
   useActualApiError?: boolean;
+  restrictionResponse?: Response | null;
 };
 
 async function setupRoute(options: SetupOptions = {}) {
@@ -32,6 +33,7 @@ async function setupRoute(options: SetupOptions = {}) {
       fileName: "report.xlsx",
     }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -40,6 +42,9 @@ async function setupRoute(options: SetupOptions = {}) {
   }));
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
+  }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
   }));
   if (options.useActualApiError) {
     const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
@@ -181,5 +186,31 @@ describe("admin reports download route", () => {
       reportId: "report_123",
       workspaceId: "workspace_123456",
     });
+  });
+
+  it("blocks report downloads when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, mocks } = await setupRoute({ restrictionResponse: restricted });
+
+    const response = await GET(
+      new Request("http://localhost/api/admin/reports/download?reportId=report_123", {
+        headers: { "x-workspace-id": "workspace_123456" },
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { enforceWorkspaceRestriction } from "@/lib/workspace-restriction-guard";
 
 type RouteContext = {
   params: Promise<{
@@ -42,6 +43,19 @@ export async function PATCH(req: Request, context: RouteContext) {
   const convex = getAuthedConvexHttpClient(token);
   if (!convex) {
     return Response.json({ code: "INTERNAL_ERROR", message: "Convex URL missing" }, { status: 500 });
+  }
+
+  const restrictionAction = body.revoke === true && body.label === undefined
+    ? "device_recovery"
+    : "dashboard_overview";
+  const restrictionResponse = await enforceWorkspaceRestriction(
+    convex,
+    workspaceContext.workspace.workspaceId,
+    role.session.role,
+    restrictionAction,
+  );
+  if (restrictionResponse) {
+    return restrictionResponse;
   }
 
   try {

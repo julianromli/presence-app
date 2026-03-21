@@ -5,6 +5,7 @@ type RoleResult = { error: Response } | { session: { role: string } };
 type SetupOptions = {
   roleResult?: RoleResult;
   convexToken?: string | null;
+  restrictionResponse?: Response | null;
 };
 
 async function setupRoute(options: SetupOptions = {}) {
@@ -38,6 +39,7 @@ async function setupRoute(options: SetupOptions = {}) {
     timezone: "Asia/Jakarta",
   }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -51,6 +53,9 @@ async function setupRoute(options: SetupOptions = {}) {
   }));
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
+  }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
   }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
@@ -142,5 +147,29 @@ describe("admin attendance route", () => {
         cursor: null,
       },
     });
+  });
+
+  it("blocks attendance listing when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, mocks } = await setupRoute({ restrictionResponse: restricted });
+
+    const response = await GET(
+      new Request("http://localhost/api/admin/attendance?dateKey=2026-03-05"),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 });

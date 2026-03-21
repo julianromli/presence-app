@@ -7,7 +7,7 @@ function makeConvexErrorData(code: string, message: string) {
   const error = new ConvexError(message) as ConvexError<string> & {
     data?: { code: string; message: string };
   };
-  error.data = { code, message };
+  error.data = { code, message } as never;
   return error;
 }
 
@@ -157,6 +157,67 @@ describe('convexErrorResponse', () => {
     await expect(response.json()).resolves.toMatchObject({
       code: 'REGISTRATION_CODE_CLAIMED',
       message: 'Kode registrasi sudah dipakai.',
+    });
+  });
+
+  it('maps billing pending invoice errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'BILLING_PENDING_INVOICE_EXISTS',
+        'Workspace masih memiliki checkout yang belum selesai.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'BILLING_PENDING_INVOICE_EXISTS',
+      message: 'Workspace masih memiliki checkout yang belum selesai.',
+    });
+  });
+
+  it('maps billing active entitlement errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'BILLING_ACTIVE_ENTITLEMENT_EXISTS',
+        'Workspace masih memiliki entitlement aktif.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'BILLING_ACTIVE_ENTITLEMENT_EXISTS',
+      message: 'Workspace masih memiliki entitlement aktif.',
+    });
+  });
+
+  it('maps billing sync failures to 503', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData('BILLING_SYNC_FAILED', 'Sinkronisasi Mayar gagal.'),
+      'fallback',
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'BILLING_SYNC_FAILED',
+      message: 'Sinkronisasi Mayar gagal.',
+    });
+  });
+
+  it('maps restricted workspace errors to 409', async () => {
+    const response = convexErrorResponse(
+      makeConvexErrorData(
+        'WORKSPACE_RESTRICTED_EXPIRED',
+        'Dashboard diblokir sampai workspace kembali patuh ke batas paket Free.',
+      ),
+      'fallback',
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'WORKSPACE_RESTRICTED_EXPIRED',
+      message: 'Dashboard diblokir sampai workspace kembali patuh ke batas paket Free.',
     });
   });
 

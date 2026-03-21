@@ -35,7 +35,7 @@ describe("dashboard routing", () => {
     const html = renderToStaticMarkup(element);
 
     expect(requireWorkspaceRolePageFromDb).toHaveBeenCalledWith(["admin", "superadmin"]);
-    expect(html).toContain("Operasional Absensi");
+    expect(html).toContain("Review Absensi Karyawan");
     expect(html).toContain('data-viewer-role="admin"');
     expect(html).toContain('data-read-only="false"');
   });

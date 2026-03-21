@@ -30,7 +30,7 @@ async function setupCurrentWorkspaceRoute(options: SetupOptions = {}) {
       features: {
         geofence: false,
         ipWhitelist: false,
-        attendanceSchedule: false,
+        attendanceSchedule: true,
         reportExport: false,
         inviteRotation: true,
         inviteExpiry: false,
@@ -96,7 +96,7 @@ describe("workspace current route", () => {
         features: {
           geofence: false,
           ipWhitelist: false,
-          attendanceSchedule: false,
+          attendanceSchedule: true,
           reportExport: false,
           inviteRotation: true,
           inviteExpiry: false,

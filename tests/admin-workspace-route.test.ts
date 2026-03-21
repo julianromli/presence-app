@@ -6,6 +6,7 @@ type SetupOptions = {
   roleResult?: RoleResult;
   convexToken?: string | null;
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+  restrictionResponse?: Response | null;
 };
 
 function makeWorkspaceContext(options: SetupOptions) {
@@ -53,7 +54,7 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
       features: {
         geofence: false,
         ipWhitelist: false,
-        attendanceSchedule: false,
+        attendanceSchedule: true,
         reportExport: false,
         inviteRotation: true,
         inviteExpiry: false,
@@ -66,6 +67,7 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
   }));
   const mutation = vi.fn(async () => ({ ok: true }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceApiContext: vi.fn(() => makeWorkspaceContext(options)),
@@ -77,6 +79,9 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
     ),
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
       Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
@@ -130,7 +135,7 @@ describe("admin workspace route", () => {
       features: {
         geofence: false,
         ipWhitelist: false,
-        attendanceSchedule: false,
+        attendanceSchedule: true,
         reportExport: false,
         inviteRotation: true,
         inviteExpiry: false,
@@ -152,6 +157,34 @@ describe("admin workspace route", () => {
       message: "Unauthorized",
     });
     expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("blocks workspace management writes when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { PATCH, mocks } = await setupWorkspaceRoute({ restrictionResponse: restricted });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/workspace", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Blocked Name" }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
   });
 
   it("validates PATCH body name", async () => {
