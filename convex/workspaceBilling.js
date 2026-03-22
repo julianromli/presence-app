@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 
+import { DEFAULT_TIMEZONE, normalizeTimeZone } from "../lib/timezones";
 import { internal } from "./_generated/api";
 import { action, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { requireWorkspaceRole, requireWorkspaceRoleFromAction } from "./helpers";
@@ -191,6 +192,18 @@ const storedMayarCustomerValidator = v.object({
   phone: v.string(),
 });
 
+const workspaceBillingInvoiceDetailValidator = v.object({
+  workspace: v.object({
+    id: v.string(),
+    name: v.string(),
+    plan: workspacePlanValidator,
+    timezone: v.string(),
+  }),
+  invoice: workspaceBillingInvoiceViewValidator,
+  customer: v.union(v.null(), storedMayarCustomerValidator),
+  subscription: v.union(v.null(), workspaceBillingSubscriptionViewValidator),
+});
+
 function buildBillingError(code, message, data) {
   return new ConvexError({ code, message, ...(data ?? {}) });
 }
@@ -248,6 +261,36 @@ function toInvoiceView(row) {
     lastPolledAt: row.lastPolledAt,
     pollAttempts: row.pollAttempts,
     providerStatusText: row.providerStatusText,
+  };
+}
+
+async function getStoredMayarCustomerRow(ctx, workspaceId) {
+  return await ctx.db
+    .query("workspace_billing_customers")
+    .withIndex("by_workspace_provider", (q) =>
+      q.eq("workspaceId", workspaceId).eq("provider", "mayar"),
+    )
+    .unique();
+}
+
+async function getWorkspaceSettingsRow(ctx, workspaceId) {
+  return await ctx.db
+    .query("settings")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .unique();
+}
+
+function toStoredMayarCustomerView(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    workspaceId: String(row.workspaceId),
+    providerCustomerId: row.providerCustomerId,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
   };
 }
 
@@ -517,6 +560,52 @@ export const listWorkspaceBillingInvoices = query({
   },
 });
 
+export const getWorkspaceBillingInvoiceDetail = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    invoiceId: v.id("workspace_billing_invoices"),
+  },
+  returns: workspaceBillingInvoiceDetailValidator,
+  handler: async (ctx, args) => {
+    await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+
+    const [workspace, invoiceRow, customerRow, settingsRow] = await Promise.all([
+      ctx.db.get(args.workspaceId),
+      ctx.db.get(args.invoiceId),
+      getStoredMayarCustomerRow(ctx, args.workspaceId),
+      getWorkspaceSettingsRow(ctx, args.workspaceId),
+    ]);
+
+    const activeWorkspace = ensureActiveWorkspace(workspace, args.workspaceId);
+    if (!invoiceRow || invoiceRow.workspaceId !== args.workspaceId) {
+      throw buildBillingError(
+        "BILLING_INVOICE_NOT_FOUND",
+        "Invoice billing workspace tidak ditemukan.",
+        {
+          invoiceId: args.invoiceId,
+          workspaceId: args.workspaceId,
+        },
+      );
+    }
+
+    const subscriptionRow = invoiceRow.subscriptionId
+      ? await ctx.db.get(invoiceRow.subscriptionId)
+      : null;
+
+    return {
+      workspace: {
+        id: String(activeWorkspace._id),
+        name: activeWorkspace.name,
+        plan: resolveWorkspacePlan(activeWorkspace),
+        timezone: normalizeTimeZone(settingsRow?.timezone, DEFAULT_TIMEZONE),
+      },
+      invoice: toInvoiceView(invoiceRow),
+      customer: toStoredMayarCustomerView(customerRow),
+      subscription: toSubscriptionView(subscriptionRow),
+    };
+  },
+});
+
 export const getWorkspaceRestrictedExpiredState = query({
   args: {
     workspaceId: v.id("workspaces"),
@@ -718,24 +807,8 @@ export const getStoredMayarCustomer = internalQuery({
   },
   returns: v.union(v.null(), storedMayarCustomerValidator),
   handler: async (ctx, args) => {
-    const row = await ctx.db
-      .query("workspace_billing_customers")
-      .withIndex("by_workspace_provider", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("provider", "mayar"),
-      )
-      .unique();
-
-    if (!row) {
-      return null;
-    }
-
-    return {
-      workspaceId: String(row.workspaceId),
-      providerCustomerId: row.providerCustomerId,
-      name: row.name,
-      email: row.email,
-      phone: row.phone,
-    };
+    const row = await getStoredMayarCustomerRow(ctx, args.workspaceId);
+    return toStoredMayarCustomerView(row);
   },
 });
 

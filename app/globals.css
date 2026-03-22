@@ -382,3 +382,37 @@ html {
     transition-duration: 0.01ms;
   }
 }
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  .invoice-toolbar {
+    display: none !important;
+  }
+
+  .invoice-page-shell {
+    background: #ffffff !important;
+    padding: 0 !important;
+  }
+
+  .invoice-page-grid {
+    max-width: none !important;
+    gap: 0 !important;
+    padding: 0 !important;
+  }
+
+  .invoice-sheet {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}

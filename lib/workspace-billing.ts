@@ -8,6 +8,7 @@ export const FREE_WORKSPACE_DEVICE_LIMIT = 1;
 export const WORKSPACE_PRO_PERIOD_DAYS = 30;
 
 export type WorkspaceRestrictionRole = 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
+export type WorkspaceBillingInvoiceIntent = 'print' | 'download';
 export type WorkspaceRestrictionAction =
   | 'billing_checkout'
   | 'billing_history'
@@ -125,4 +126,16 @@ export function mapMayarInvoiceStatus({
 
 export function buildRestrictedWorkspaceMessage() {
   return 'Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.';
+}
+
+export function buildWorkspaceBillingInvoiceHref(
+  invoiceId: string,
+  intent?: WorkspaceBillingInvoiceIntent,
+) {
+  const basePath = `/settings/workspace/invoices/${encodeURIComponent(invoiceId)}`;
+  if (!intent) {
+    return basePath;
+  }
+
+  return `${basePath}?intent=${intent}`;
 }

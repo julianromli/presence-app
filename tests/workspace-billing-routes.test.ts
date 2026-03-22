@@ -7,6 +7,7 @@ type SetupOptions = {
   restrictionsRoleResult?: RoleResult;
   convexToken?: string | null;
   workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+  invoiceDetailQueryResult?: unknown;
   summaryQueryResult?: unknown;
   checkoutActionResult?: unknown;
   refreshActionResult?: unknown;
@@ -66,6 +67,39 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
             },
           ],
           workspaceId: "workspace_123456",
+        }
+      );
+    }
+
+    if (name === "workspaceBilling:getWorkspaceBillingInvoiceDetail") {
+      return (
+        options.invoiceDetailQueryResult ?? {
+          customer: {
+            email: "owner@absenin.id",
+            name: "Owner Workspace",
+            phone: "+6281234567890",
+            providerCustomerId: "mayar_customer_123",
+            workspaceId: "workspace_123456",
+          },
+          invoice: {
+            amount: 150000,
+            currency: "IDR",
+            invoiceId: "invoice_paid_123",
+            issuedAt: 1_900_000_000_000,
+            paidAt: 1_900_000_100_000,
+            pollAttempts: 1,
+            provider: "mayar",
+            providerInvoiceId: "mayar_invoice_paid_123",
+            providerTransactionId: "mayar_txn_paid_123",
+            status: "paid",
+          },
+          subscription: null,
+          workspace: {
+            id: "workspace_123456",
+            name: "Workspace Demo",
+            plan: "pro",
+            timezone: "Asia/Jakarta",
+          },
         }
       );
     }
@@ -179,15 +213,19 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
   const invoicesRouteModule = await import(
     "../app/api/workspaces/current/billing/invoices/route"
   );
+  const invoiceDetailRouteModule = await import(
+    "../app/api/workspaces/current/billing/invoices/[invoiceId]/route"
+  );
   const refreshRouteModule = await import(
     "../app/api/workspaces/current/billing/refresh/route"
   );
 
   return {
-    GETBilling: billingRouteModule.GET!,
-    GETInvoices: invoicesRouteModule.GET!,
-    GETRestrictions: restrictionsRouteModule.GET!,
-    POSTCheckout: checkoutRouteModule.POST!,
+      GETBilling: billingRouteModule.GET!,
+      GETInvoiceDetail: invoiceDetailRouteModule.GET!,
+      GETInvoices: invoicesRouteModule.GET!,
+      GETRestrictions: restrictionsRouteModule.GET!,
+      POSTCheckout: checkoutRouteModule.POST!,
     POSTRefresh: refreshRouteModule.POST!,
     mocks: { action, query, requireWorkspaceRoleApiFromDb },
   };
@@ -336,6 +374,51 @@ describe("workspace billing routes", () => {
     expect(mocks.query).toHaveBeenCalledWith(
       "workspaceBilling:listWorkspaceBillingInvoices",
       { workspaceId: "workspace_123456" },
+    );
+  });
+
+  it("returns invoice detail for superadmin users", async () => {
+    const { GETInvoiceDetail, mocks } = await setupBillingRoutes();
+
+    const response = expectResponse(await GETInvoiceDetail(
+      new Request("http://localhost/api/workspaces/current/billing/invoices/invoice_paid_123", {
+        headers: { "x-workspace-id": "workspace_123456" },
+      }),
+      {
+        params: Promise.resolve({ invoiceId: "invoice_paid_123" }),
+      },
+    ));
+
+    expect(response.status).toBe(200);
+    expect(mocks.query).toHaveBeenCalledWith(
+      "workspaceBilling:getWorkspaceBillingInvoiceDetail",
+      {
+        invoiceId: "invoice_paid_123",
+        workspaceId: "workspace_123456",
+      },
+    );
+  });
+
+  it("rejects invoice detail when invoiceId route param is empty", async () => {
+    const { GETInvoiceDetail, mocks } = await setupBillingRoutes();
+
+    const response = expectResponse(await GETInvoiceDetail(
+      new Request("http://localhost/api/workspaces/current/billing/invoices/%20%20", {
+        headers: { "x-workspace-id": "workspace_123456" },
+      }),
+      {
+        params: Promise.resolve({ invoiceId: "   " }),
+      },
+    ));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "Field invoiceId wajib diisi.",
+    });
+    expect(mocks.query).not.toHaveBeenCalledWith(
+      "workspaceBilling:getWorkspaceBillingInvoiceDetail",
+      expect.anything(),
     );
   });
 

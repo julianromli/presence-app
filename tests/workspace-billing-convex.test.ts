@@ -660,6 +660,136 @@ describe("workspace billing convex checkout flow", () => {
     });
   });
 
+  it("returns invoice detail with workspace and stored Mayar customer data", async () => {
+    const { getWorkspaceBillingInvoiceDetail } = await import("../convex/workspaceBilling");
+    const workspace = {
+      _id: "workspace_123456",
+      slug: "workspace-demo",
+      name: "Workspace Demo",
+      plan: "pro",
+      isActive: true,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const subscription = {
+      _id: "subscription_active",
+      workspaceId: "workspace_123456",
+      status: "active",
+      provider: "mayar",
+      kind: "pro_one_time",
+      startedAt: 1_900_000_000_000,
+      activatedAt: 1_900_000_100_000,
+      currentPeriodStartsAt: 1_900_000_100_000,
+      currentPeriodEndsAt: 1_902_592_100_000,
+      updatedAt: 1_900_000_100_000,
+    };
+    const invoice = {
+      _id: "invoice_paid_123",
+      workspaceId: "workspace_123456",
+      subscriptionId: "subscription_active",
+      provider: "mayar",
+      providerInvoiceId: "mayar_invoice_paid_123",
+      providerTransactionId: "mayar_txn_paid_123",
+      status: "paid",
+      amount: 150000,
+      currency: "IDR",
+      issuedAt: 1_900_000_000_000,
+      paidAt: 1_900_000_100_000,
+      coveredPeriodStartsAt: 1_900_000_100_000,
+      coveredPeriodEndsAt: 1_902_592_100_000,
+      pollAttempts: 1,
+      providerStatusText: "paid",
+    };
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "workspace_123456") {
+            return workspace;
+          }
+
+          if (id === "invoice_paid_123") {
+            return invoice;
+          }
+
+          if (id === "subscription_active") {
+            return subscription;
+          }
+
+          return null;
+        }),
+        query: vi.fn((table: string) => ({
+          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
+            const filters: Record<string, unknown> = {};
+            const queryBuilder = {
+              eq(field: string, value: unknown) {
+                filters[field] = value;
+                return queryBuilder;
+              },
+            };
+            builder(queryBuilder);
+
+            if (table === "workspace_billing_customers" && indexName === "by_workspace_provider") {
+              return {
+                unique: vi.fn(async () => ({
+                  workspaceId: "workspace_123456",
+                  provider: "mayar",
+                  providerCustomerId: "mayar_customer_123",
+                  name: "Owner Workspace",
+                  email: "owner@absenin.id",
+                  phone: "+6281234567890",
+                })),
+              };
+            }
+
+            if (table === "settings" && indexName === "by_workspace") {
+              return {
+                unique: vi.fn(async () => ({
+                  workspaceId: "workspace_123456",
+                  timezone: "Asia/Jakarta",
+                })),
+              };
+            }
+
+            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
+          }),
+        })),
+      },
+    };
+
+    const result = (await getHandler(getWorkspaceBillingInvoiceDetail)(ctx as never, {
+      invoiceId: "invoice_paid_123" as never,
+      workspaceId: "workspace_123456" as never,
+    })) as {
+      customer: { name: string } | null;
+      invoice: { invoiceId: string; status: string };
+      subscription: { subscriptionId: string } | null;
+      workspace: { id: string; name: string; plan: string };
+    };
+
+    expect(result.workspace).toEqual({
+      id: "workspace_123456",
+      name: "Workspace Demo",
+      plan: "pro",
+      timezone: "Asia/Jakarta",
+    });
+    expect(result.invoice).toEqual(
+      expect.objectContaining({
+        invoiceId: "invoice_paid_123",
+        status: "paid",
+      }),
+    );
+    expect(result.subscription).toEqual(
+      expect.objectContaining({
+        subscriptionId: "subscription_active",
+      }),
+    );
+    expect(result.customer).toEqual(
+      expect.objectContaining({
+        name: "Owner Workspace",
+      }),
+    );
+  });
+
   it("does not allow refreshing a checkout that is still pending initialization", async () => {
     const { getWorkspaceBillingSummary } = await import("../convex/workspaceBilling");
     const workspace = {

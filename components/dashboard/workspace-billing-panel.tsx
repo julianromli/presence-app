@@ -1,10 +1,18 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowsClockwise } from '@phosphor-icons/react/dist/ssr';
+import {
+  ArrowsClockwise,
+  DotsThree,
+  DownloadSimple,
+  Printer,
+} from '@phosphor-icons/react/dist/ssr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from '@/components/ui/menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Table,
   TableBody,
@@ -20,6 +28,7 @@ import {
   normalizeWorkspaceBillingError,
   refreshWorkspacePendingInvoice,
 } from '@/lib/workspace-billing-client';
+import { buildWorkspaceBillingInvoiceHref } from '@/lib/workspace-billing';
 import {
   formatWorkspaceBillingPeriod,
   getRestrictedWorkspaceOverlayCopy,
@@ -137,6 +146,109 @@ function noticeClass(tone: NoticeTone) {
     default:
       return 'border-zinc-200 bg-zinc-50 text-zinc-900';
   }
+}
+
+function InvoiceRowActions({ invoice }: { invoice: WorkspaceBillingInvoice }) {
+  const invoiceDetailHref = buildWorkspaceBillingInvoiceHref(invoice.invoiceId);
+  const invoicePrintHref = buildWorkspaceBillingInvoiceHref(invoice.invoiceId, 'print');
+  const invoiceDownloadHref = buildWorkspaceBillingInvoiceHref(invoice.invoiceId, 'download');
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center justify-end gap-1.5">
+        {(invoice.status === 'pending' || invoice.status === 'pending_initializing') && invoice.paymentUrl ? (
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => window.location.assign(invoice.paymentUrl ?? '/settings/workspace')}
+          >
+            Lanjut bayar
+          </Button>
+        ) : null}
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label={`Download invoice ${invoice.invoiceId}`}
+                size="icon-xs"
+                variant="outline"
+                className="hidden sm:inline-flex xl:hidden"
+                render={<Link href={invoiceDownloadHref} />}
+              />
+            }
+          >
+            <DownloadSimple className="h-4 w-4" weight="regular" />
+          </TooltipTrigger>
+          <TooltipContent>Download PDF</TooltipContent>
+        </Tooltip>
+
+        <Button
+          size="xs"
+          variant="outline"
+          className="hidden xl:inline-flex"
+          render={<Link href={invoiceDownloadHref} />}
+        >
+          <DownloadSimple className="h-4 w-4" weight="regular" />
+          Download
+        </Button>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label={`Print invoice ${invoice.invoiceId}`}
+                size="icon-xs"
+                variant="outline"
+                className="hidden sm:inline-flex xl:hidden"
+                render={<Link href={invoicePrintHref} />}
+              />
+            }
+          >
+            <Printer className="h-4 w-4" weight="regular" />
+          </TooltipTrigger>
+          <TooltipContent>Print invoice</TooltipContent>
+        </Tooltip>
+
+        <Button
+          size="xs"
+          variant="outline"
+          className="hidden xl:inline-flex"
+          render={<Link href={invoicePrintHref} />}
+        >
+          <Printer className="h-4 w-4" weight="regular" />
+          Print
+        </Button>
+
+        <Menu>
+          <MenuTrigger
+            render={
+              <Button
+                aria-label={`Aksi invoice ${invoice.invoiceId}`}
+                size="icon-xs"
+                variant="ghost"
+              />
+            }
+          >
+            <DotsThree className="h-4 w-4" weight="bold" />
+          </MenuTrigger>
+          <MenuPopup align="end" className="min-w-[190px]">
+            <MenuItem render={<Link href={invoiceDetailHref} />}>
+              Buka detail invoice
+            </MenuItem>
+            <MenuItem render={<Link href={invoiceDownloadHref} />}>
+              <DownloadSimple className="h-4 w-4" weight="regular" />
+              Download PDF
+            </MenuItem>
+            <MenuItem render={<Link href={invoicePrintHref} />}>
+              <Printer className="h-4 w-4" weight="regular" />
+              Print invoice
+            </MenuItem>
+          </MenuPopup>
+        </Menu>
+      </div>
+    </TooltipProvider>
+  );
 }
 
 export function WorkspaceBillingPanel({
@@ -507,17 +619,7 @@ export function WorkspaceBillingPanel({
                             {invoice.paidAt ? formatDateTime(invoice.paidAt) : formatDateTime(invoice.expiresAt)}
                           </TableCell>
                           <TableCell className="text-right">
-                            {invoice.status === 'pending' && invoice.paymentUrl ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => window.location.assign(invoice.paymentUrl ?? '/settings/workspace')}
-                              >
-                                Lanjut bayar
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-zinc-500">-</span>
-                            )}
+                            <InvoiceRowActions invoice={invoice} />
                           </TableCell>
                         </TableRow>
                       ))

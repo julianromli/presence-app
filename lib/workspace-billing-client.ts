@@ -1,6 +1,7 @@
 import { normalizeClientError, parseApiErrorResponse } from '@/lib/client-error';
 import { workspaceFetch } from '@/lib/workspace-client';
 import type {
+  WorkspaceBillingInvoiceDetailPayload,
   WorkspaceBillingInvoicesPayload,
   WorkspaceBillingSummaryPayload,
   WorkspaceCheckoutPayload,
@@ -29,6 +30,21 @@ export async function fetchWorkspaceBillingInvoices() {
   }
 
   return (await response.json()) as WorkspaceBillingInvoicesPayload;
+}
+
+export async function fetchWorkspaceBillingInvoiceDetail(invoiceId: string) {
+  const response = await workspaceFetch(
+    `/api/workspaces/current/billing/invoices/${encodeURIComponent(invoiceId)}`,
+    {
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw await parseApiErrorResponse(response, 'Gagal memuat detail invoice workspace.');
+  }
+
+  return (await response.json()) as WorkspaceBillingInvoiceDetailPayload;
 }
 
 export async function createWorkspaceCheckout(billingPhone: string) {

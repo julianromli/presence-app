@@ -200,6 +200,26 @@ export type WorkspaceBillingInvoice = {
   providerStatusText?: string;
 };
 
+export type WorkspaceBillingCustomer = {
+  workspaceId: string;
+  providerCustomerId: string;
+  name: string;
+  email: string;
+  phone: string;
+};
+
+export type WorkspaceBillingInvoiceDetailPayload = {
+  workspace: {
+    id: string;
+    name: string;
+    plan: WorkspacePlan;
+    timezone: string;
+  };
+  invoice: WorkspaceBillingInvoice;
+  customer: WorkspaceBillingCustomer | null;
+  subscription: WorkspaceBillingSubscription | null;
+};
+
 export type WorkspaceRestrictedMemberRow = {
   membershipId: string;
   userId: string;

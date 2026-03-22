@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildWorkspaceBillingInvoiceHref,
   deriveRestrictedExpiredState,
   isBillingActionAllowedDuringRestriction,
   mapMayarInvoiceStatus,
@@ -97,5 +98,17 @@ describe("workspace billing helpers", () => {
     expect(
       isBillingActionAllowedDuringRestriction("admin", "device_recovery"),
     ).toBe(false);
+  });
+
+  it("builds invoice detail hrefs for print and download flows", () => {
+    expect(buildWorkspaceBillingInvoiceHref("invoice_paid_123")).toBe(
+      "/settings/workspace/invoices/invoice_paid_123",
+    );
+    expect(buildWorkspaceBillingInvoiceHref("invoice_paid_123", "print")).toBe(
+      "/settings/workspace/invoices/invoice_paid_123?intent=print",
+    );
+    expect(buildWorkspaceBillingInvoiceHref("invoice with spaces", "download")).toBe(
+      "/settings/workspace/invoices/invoice%20with%20spaces?intent=download",
+    );
   });
 });
