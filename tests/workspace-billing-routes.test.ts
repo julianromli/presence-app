@@ -6,7 +6,10 @@ type SetupOptions = {
   billingRoleResult?: RoleResult;
   restrictionsRoleResult?: RoleResult;
   convexToken?: string | null;
-  workspaceContext?: { error: Response } | { workspace: { workspaceId: string } };
+  workspaceContext?:
+    | { error: Response }
+    | { workspace: { workspaceId: string } };
+  cancelActionResult?: unknown;
   invoiceDetailQueryResult?: unknown;
   summaryQueryResult?: unknown;
   checkoutActionResult?: unknown;
@@ -31,6 +34,7 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
       return (
         options.summaryQueryResult ?? {
           allowedActions: {
+            canCancelPendingInvoice: false,
             canCreateCheckout: true,
             canRefreshPendingInvoice: true,
             canViewInvoices: true,
@@ -148,6 +152,7 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
       return (
         options.refreshActionResult ?? {
           allowedActions: {
+            canCancelPendingInvoice: false,
             canCreateCheckout: false,
             canRefreshPendingInvoice: false,
             canViewInvoices: true,
@@ -178,16 +183,43 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
       );
     }
 
+    if (name === "workspaceBilling:cancelWorkspacePendingInvoice") {
+      return (
+        options.cancelActionResult ?? {
+          allowedActions: {
+            canCancelPendingInvoice: false,
+            canCreateCheckout: true,
+            canRefreshPendingInvoice: false,
+            canViewInvoices: true,
+          },
+          currentSubscription: null,
+          pendingInvoice: null,
+          plan: "free",
+          restrictedState: {
+            activeDevices: 1,
+            activeMembers: 3,
+            hadPaidOrManualEntitlement: false,
+            isRestricted: false,
+            overFreeDeviceLimit: false,
+            overFreeMemberLimit: false,
+          },
+          workspaceId: "workspace_123456",
+        }
+      );
+    }
+
     throw new Error(`Unexpected action: ${name}`);
   });
   const getAuthedConvexHttpClient = vi.fn(() => ({ action, query }));
-  const requireWorkspaceRoleApiFromDb = vi.fn(async (roles: readonly string[]) => {
-    if (roles.includes("superadmin") && !roles.includes("admin")) {
-      return options.billingRoleResult ?? { session: { role: "superadmin" } };
-    }
+  const requireWorkspaceRoleApiFromDb = vi.fn(
+    async (roles: readonly string[]) => {
+      if (roles.includes("superadmin") && !roles.includes("admin")) {
+        return options.billingRoleResult ?? { session: { role: "superadmin" } };
+      }
 
-    return options.restrictionsRoleResult ?? { session: { role: "admin" } };
-  });
+      return options.restrictionsRoleResult ?? { session: { role: "admin" } };
+    },
+  );
 
   vi.doMock("@/lib/auth", () => ({
     getConvexTokenOrNull: vi.fn(async () =>
@@ -199,33 +231,35 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
-      Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
+      Response.json(
+        { code: "INTERNAL_ERROR", message: fallbackMessage },
+        { status: 500 },
+      ),
     ),
   }));
 
-  const billingRouteModule = await import("../app/api/workspaces/current/billing/route");
-  const restrictionsRouteModule = await import(
-    "../app/api/workspaces/current/restrictions/route"
-  );
-  const checkoutRouteModule = await import(
-    "../app/api/workspaces/current/billing/checkout/route"
-  );
-  const invoicesRouteModule = await import(
-    "../app/api/workspaces/current/billing/invoices/route"
-  );
-  const invoiceDetailRouteModule = await import(
-    "../app/api/workspaces/current/billing/invoices/[invoiceId]/route"
-  );
-  const refreshRouteModule = await import(
-    "../app/api/workspaces/current/billing/refresh/route"
-  );
+  const billingRouteModule =
+    await import("../app/api/workspaces/current/billing/route");
+  const restrictionsRouteModule =
+    await import("../app/api/workspaces/current/restrictions/route");
+  const checkoutRouteModule =
+    await import("../app/api/workspaces/current/billing/checkout/route");
+  const invoicesRouteModule =
+    await import("../app/api/workspaces/current/billing/invoices/route");
+  const invoiceDetailRouteModule =
+    await import("../app/api/workspaces/current/billing/invoices/[invoiceId]/route");
+  const refreshRouteModule =
+    await import("../app/api/workspaces/current/billing/refresh/route");
+  const cancelRouteModule =
+    await import("../app/api/workspaces/current/billing/cancel/route");
 
   return {
-      GETBilling: billingRouteModule.GET!,
-      GETInvoiceDetail: invoiceDetailRouteModule.GET!,
-      GETInvoices: invoicesRouteModule.GET!,
-      GETRestrictions: restrictionsRouteModule.GET!,
-      POSTCheckout: checkoutRouteModule.POST!,
+    GETBilling: billingRouteModule.GET!,
+    GETInvoiceDetail: invoiceDetailRouteModule.GET!,
+    GETInvoices: invoicesRouteModule.GET!,
+    GETRestrictions: restrictionsRouteModule.GET!,
+    POSTCancel: cancelRouteModule.POST!,
+    POSTCheckout: checkoutRouteModule.POST!,
     POSTRefresh: refreshRouteModule.POST!,
     mocks: { action, query, requireWorkspaceRoleApiFromDb },
   };
@@ -244,11 +278,13 @@ describe("workspace billing routes", () => {
   it("returns the billing summary for superadmin users", async () => {
     const { GETBilling, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await GETBilling(
-      new Request("http://localhost/api/workspaces/current/billing", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-    ));
+    const response = expectResponse(
+      await GETBilling(
+        new Request("http://localhost/api/workspaces/current/billing", {
+          headers: { "x-workspace-id": "workspace_123456" },
+        }),
+      ),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith(
@@ -261,6 +297,7 @@ describe("workspace billing routes", () => {
     const { GETBilling } = await setupBillingRoutes({
       summaryQueryResult: {
         allowedActions: {
+          canCancelPendingInvoice: false,
           canCreateCheckout: false,
           canRefreshPendingInvoice: false,
           canViewInvoices: true,
@@ -288,11 +325,13 @@ describe("workspace billing routes", () => {
       },
     });
 
-    const response = expectResponse(await GETBilling(
-      new Request("http://localhost/api/workspaces/current/billing", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-    ));
+    const response = expectResponse(
+      await GETBilling(
+        new Request("http://localhost/api/workspaces/current/billing", {
+          headers: { "x-workspace-id": "workspace_123456" },
+        }),
+      ),
+    );
 
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
@@ -311,11 +350,13 @@ describe("workspace billing routes", () => {
   it("allows admin users to load restriction data", async () => {
     const { GETRestrictions, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await GETRestrictions(
-      new Request("http://localhost/api/workspaces/current/restrictions", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-    ));
+    const response = expectResponse(
+      await GETRestrictions(
+        new Request("http://localhost/api/workspaces/current/restrictions", {
+          headers: { "x-workspace-id": "workspace_123456" },
+        }),
+      ),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith(
@@ -340,11 +381,13 @@ describe("workspace billing routes", () => {
       },
     });
 
-    const response = expectResponse(await GETRestrictions(
-      new Request("http://localhost/api/workspaces/current/restrictions", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-    ));
+    const response = expectResponse(
+      await GETRestrictions(
+        new Request("http://localhost/api/workspaces/current/restrictions", {
+          headers: { "x-workspace-id": "workspace_123456" },
+        }),
+      ),
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -364,11 +407,16 @@ describe("workspace billing routes", () => {
   it("returns invoice history for superadmin users", async () => {
     const { GETInvoices, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await GETInvoices(
-      new Request("http://localhost/api/workspaces/current/billing/invoices", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-    ));
+    const response = expectResponse(
+      await GETInvoices(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/invoices",
+          {
+            headers: { "x-workspace-id": "workspace_123456" },
+          },
+        ),
+      ),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith(
@@ -380,14 +428,19 @@ describe("workspace billing routes", () => {
   it("returns invoice detail for superadmin users", async () => {
     const { GETInvoiceDetail, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await GETInvoiceDetail(
-      new Request("http://localhost/api/workspaces/current/billing/invoices/invoice_paid_123", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-      {
-        params: Promise.resolve({ invoiceId: "invoice_paid_123" }),
-      },
-    ));
+    const response = expectResponse(
+      await GETInvoiceDetail(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/invoices/invoice_paid_123",
+          {
+            headers: { "x-workspace-id": "workspace_123456" },
+          },
+        ),
+        {
+          params: Promise.resolve({ invoiceId: "invoice_paid_123" }),
+        },
+      ),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith(
@@ -402,14 +455,19 @@ describe("workspace billing routes", () => {
   it("rejects invoice detail when invoiceId route param is empty", async () => {
     const { GETInvoiceDetail, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await GETInvoiceDetail(
-      new Request("http://localhost/api/workspaces/current/billing/invoices/%20%20", {
-        headers: { "x-workspace-id": "workspace_123456" },
-      }),
-      {
-        params: Promise.resolve({ invoiceId: "   " }),
-      },
-    ));
+    const response = expectResponse(
+      await GETInvoiceDetail(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/invoices/%20%20",
+          {
+            headers: { "x-workspace-id": "workspace_123456" },
+          },
+        ),
+        {
+          params: Promise.resolve({ invoiceId: "   " }),
+        },
+      ),
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
@@ -431,16 +489,21 @@ describe("workspace billing routes", () => {
       billingRoleResult: { error: forbidden },
     });
 
-    const response = expectResponse(await POSTCheckout(
-      new Request("http://localhost/api/workspaces/current/billing/checkout", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({}),
-      }),
-    ));
+    const response = expectResponse(
+      await POSTCheckout(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/checkout",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-workspace-id": "workspace_123456",
+            },
+            body: JSON.stringify({}),
+          },
+        ),
+      ),
+    );
 
     expect(response.status).toBe(403);
     expect(mocks.action).not.toHaveBeenCalled();
@@ -449,16 +512,21 @@ describe("workspace billing routes", () => {
   it("rejects checkout creation when billingPhone is missing", async () => {
     const { POSTCheckout, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await POSTCheckout(
-      new Request("http://localhost/api/workspaces/current/billing/checkout", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({}),
-      }),
-    ));
+    const response = expectResponse(
+      await POSTCheckout(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/checkout",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-workspace-id": "workspace_123456",
+            },
+            body: JSON.stringify({}),
+          },
+        ),
+      ),
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
@@ -471,16 +539,21 @@ describe("workspace billing routes", () => {
   it("rejects checkout creation when billingPhone contains too few digits", async () => {
     const { POSTCheckout, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await POSTCheckout(
-      new Request("http://localhost/api/workspaces/current/billing/checkout", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({ billingPhone: "0812" }),
-      }),
-    ));
+    const response = expectResponse(
+      await POSTCheckout(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/checkout",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-workspace-id": "workspace_123456",
+            },
+            body: JSON.stringify({ billingPhone: "0812" }),
+          },
+        ),
+      ),
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
@@ -493,16 +566,21 @@ describe("workspace billing routes", () => {
   it("forwards normalized billingPhone into checkout creation", async () => {
     const { POSTCheckout, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await POSTCheckout(
-      new Request("http://localhost/api/workspaces/current/billing/checkout", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({ billingPhone: "  +62 81234567890  " }),
-      }),
-    ));
+    const response = expectResponse(
+      await POSTCheckout(
+        new Request(
+          "http://localhost/api/workspaces/current/billing/checkout",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-workspace-id": "workspace_123456",
+            },
+            body: JSON.stringify({ billingPhone: "  +62 81234567890  " }),
+          },
+        ),
+      ),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.action).toHaveBeenCalledWith(
@@ -517,20 +595,45 @@ describe("workspace billing routes", () => {
   it("refreshes the current pending invoice for superadmin users", async () => {
     const { POSTRefresh, mocks } = await setupBillingRoutes();
 
-    const response = expectResponse(await POSTRefresh(
-      new Request("http://localhost/api/workspaces/current/billing/refresh", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-workspace-id": "workspace_123456",
-        },
-        body: JSON.stringify({}),
-      }),
-    ));
+    const response = expectResponse(
+      await POSTRefresh(
+        new Request("http://localhost/api/workspaces/current/billing/refresh", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({}),
+        }),
+      ),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.action).toHaveBeenCalledWith(
       "workspaceBilling:refreshWorkspacePendingInvoice",
+      { workspaceId: "workspace_123456" },
+    );
+  });
+
+  it("cancels the current pending invoice for superadmin users", async () => {
+    const { POSTCancel, mocks } = await setupBillingRoutes();
+
+    const response = expectResponse(
+      await POSTCancel(
+        new Request("http://localhost/api/workspaces/current/billing/cancel", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-workspace-id": "workspace_123456",
+          },
+          body: JSON.stringify({}),
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.action).toHaveBeenCalledWith(
+      "workspaceBilling:cancelWorkspacePendingInvoice",
       { workspaceId: "workspace_123456" },
     );
   });

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type HandlerResult = { handler: (...args: unknown[]) => Promise<unknown> };
+
 vi.mock("../convex/_generated/server", () => ({
   internalAction: (config: unknown) => config,
 }));
@@ -17,7 +19,8 @@ vi.mock("../convex/_generated/api", () => ({
 
 describe("workspace billing Mayar integration", () => {
   function getHandler(fn: unknown) {
-    return (fn as { handler: (...args: unknown[]) => Promise<unknown> }).handler;
+    return (fn as { handler: (...args: unknown[]) => Promise<unknown> })
+      .handler;
   }
 
   beforeEach(() => {
@@ -31,24 +34,24 @@ describe("workspace billing Mayar integration", () => {
   });
 
   it("normalizes a configured base url that already includes /hl/v1", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            customerId: "mayar_customer_123",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              customerId: "mayar_customer_123",
+            },
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 200,
           },
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { createMayarCustomerIfNeeded } = await import(
-      "../convex/workspaceBillingMayar"
-    );
+    const { createMayarCustomerIfNeeded } =
+      await import("../convex/workspaceBillingMayar");
 
     const runQuery = vi.fn(async (reference: string) => {
       if (reference === "internal:workspaceBilling.getStoredMayarCustomer") {
@@ -57,13 +60,15 @@ describe("workspace billing Mayar integration", () => {
 
       throw new Error(`Unexpected runQuery call: ${reference}`);
     });
-    const runMutation = vi.fn(async (_reference: string, args: Record<string, unknown>) => ({
-      workspaceId: args.workspaceId,
-      providerCustomerId: args.providerCustomerId,
-      name: args.name,
-      email: args.email,
-      phone: args.phone,
-    }));
+    const runMutation = vi.fn(
+      async (_reference: string, args: Record<string, unknown>) => ({
+        workspaceId: args.workspaceId,
+        providerCustomerId: args.providerCustomerId,
+        name: args.name,
+        email: args.email,
+        phone: args.phone,
+      }),
+    );
 
     const result = await getHandler(createMayarCustomerIfNeeded)(
       {
@@ -107,42 +112,44 @@ describe("workspace billing Mayar integration", () => {
     process.env.MAYAR_REDIRECT_URL = "";
     process.env.APP_SITE_URL = "https://app.absenin.id/";
 
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            expiredAt: 1_900_086_400_000,
-            id: "mayar_invoice_123",
-            link: "https://mayar.example/invoice/123",
-            status: "unpaid",
-            transactionId: "mayar_txn_123",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              expiredAt: 1_900_086_400_000,
+              id: "mayar_invoice_123",
+              link: "https://mayar.example/invoice/123",
+              status: "unpaid",
+              transactionId: "mayar_txn_123",
+            },
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 200,
           },
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        },
-      ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { createMayarInvoice } = await import("../convex/workspaceBillingMayar");
+    const { createMayarInvoice } =
+      await import("../convex/workspaceBillingMayar");
 
-    const result = await getHandler(createMayarInvoice)(
-      {} as never,
-      {
-        amount: 150000,
-        billingPhone: "+6281234567890",
-        customerEmail: "owner@absenin.id",
-        customerName: "Owner Workspace",
-        invoiceId: "invoice_123",
-        providerCustomerId: "mayar_customer_123",
-        subscriptionId: "subscription_123",
-        workspaceId: "workspace_123456" as never,
-      },
-    );
+    const result = await getHandler(createMayarInvoice)({} as never, {
+      amount: 150000,
+      billingPhone: "+6281234567890",
+      customerEmail: "owner@absenin.id",
+      customerName: "Owner Workspace",
+      invoiceId: "invoice_123",
+      providerCustomerId: "mayar_customer_123",
+      subscriptionId: "subscription_123",
+      workspaceId: "workspace_123456" as never,
+    });
 
-    const [, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [, options] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(JSON.parse(String(options.body))).toMatchObject({
       redirectUrl: "https://app.absenin.id/settings/workspace",
     });
@@ -171,9 +178,8 @@ describe("workspace billing Mayar integration", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { createMayarCustomerIfNeeded } = await import(
-      "../convex/workspaceBillingMayar"
-    );
+    const { createMayarCustomerIfNeeded } =
+      await import("../convex/workspaceBillingMayar");
 
     const runQuery = vi.fn(async () => null);
     const runMutation = vi.fn();
@@ -198,5 +204,46 @@ describe("workspace billing Mayar integration", () => {
       },
     });
     expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it("closes a Mayar invoice through the official close endpoint", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            messages: "success",
+            statusCode: 200,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const module = await import("../convex/workspaceBillingMayar");
+    const closeMayarInvoice = (module as typeof module & {
+      closeMayarInvoice: HandlerResult;
+    }).closeMayarInvoice;
+
+    const result = await getHandler(closeMayarInvoice)({} as never, {
+      providerInvoiceId: "mayar_invoice_123",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.mayar.club/hl/v1/invoice/close/mayar_invoice_123",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer mayar_test_key",
+        }),
+        method: "GET",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(result).toEqual({
+      providerInvoiceId: "mayar_invoice_123",
+      providerStatusText: "closed",
+    });
   });
 });

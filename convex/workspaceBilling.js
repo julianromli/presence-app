@@ -51,6 +51,7 @@ const workspaceBillingInvoiceStatusValidator = v.union(
 );
 
 const workspaceBillingAllowedActionsValidator = v.object({
+  canCancelPendingInvoice: v.boolean(),
   canCreateCheckout: v.boolean(),
   canRefreshPendingInvoice: v.boolean(),
   canViewInvoices: v.boolean(),
@@ -506,6 +507,11 @@ async function buildBillingSummary(ctx, workspaceId, role) {
     pendingInvoice: toInvoiceView(pendingInvoice),
     restrictedState,
     allowedActions: {
+      canCancelPendingInvoice:
+        role === "superadmin" &&
+        pendingInvoice !== null &&
+        (pendingInvoice.status === "pending" ||
+          pendingInvoice.status === "pending_initializing"),
       canCreateCheckout:
         role === "superadmin" && !activeSubscription && pendingInvoice === null,
       canRefreshPendingInvoice:
@@ -896,6 +902,53 @@ export const refreshWorkspacePendingInvoice = action({
   },
 });
 
+export const cancelWorkspacePendingInvoice = action({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: workspaceBillingSummaryValidator,
+  handler: async (ctx, args) => {
+    await requireWorkspaceRoleFromAction(ctx, args.workspaceId, ["superadmin"]);
+
+    const pendingInvoice = await ctx.runQuery(
+      internal.workspaceBilling.getPendingInvoiceForRefresh,
+      {
+        workspaceId: args.workspaceId,
+      },
+    );
+
+    if (pendingInvoice.providerInvoiceId) {
+      const providerResult = await ctx.runAction(
+        internal.workspaceBillingMayar.closeMayarInvoice,
+        {
+          providerInvoiceId: pendingInvoice.providerInvoiceId,
+        },
+      );
+
+      return await ctx.runMutation(
+        internal.workspaceBilling.cancelPendingInvoice,
+        {
+          invoiceId: pendingInvoice.invoiceId,
+          providerStatusText: providerResult.providerStatusText,
+          subscriptionId: pendingInvoice.subscriptionId,
+          workspaceId: args.workspaceId,
+        },
+      );
+    }
+
+    return await ctx.runMutation(
+      internal.workspaceBilling.cancelPendingInvoice,
+      {
+        invoiceId: pendingInvoice.invoiceId,
+        providerStatusText:
+          "Dibatalkan oleh superadmin sebelum referensi pembayaran tersedia.",
+        subscriptionId: pendingInvoice.subscriptionId,
+        workspaceId: args.workspaceId,
+      },
+    );
+  },
+});
+
 export const getPendingInvoiceForRefresh = internalQuery({
   args: {
     workspaceId: v.id("workspaces"),
@@ -1231,6 +1284,71 @@ export const finalizeWorkspaceCheckoutFailure = internalMutation({
     });
 
     return null;
+  },
+});
+
+export const cancelPendingInvoice = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    subscriptionId: v.id("workspace_subscriptions"),
+    invoiceId: v.id("workspace_billing_invoices"),
+    providerStatusText: v.optional(v.string()),
+  },
+  returns: workspaceBillingSummaryValidator,
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const invoice = await ctx.db.get(args.invoiceId);
+    const subscription = await ctx.db.get(args.subscriptionId);
+
+    if (!invoice || !subscription || invoice.workspaceId !== args.workspaceId) {
+      throw buildBillingError(
+        "BILLING_INVOICE_NOT_FOUND",
+        "Invoice billing tidak ditemukan.",
+        {
+          workspaceId: args.workspaceId,
+        },
+      );
+    }
+
+    if (
+      invoice.status !== "pending" &&
+      invoice.status !== "pending_initializing"
+    ) {
+      throw buildBillingError(
+        "BILLING_INVOICE_NOT_FOUND",
+        "Invoice pending sudah tidak tersedia untuk dibatalkan.",
+        {
+          workspaceId: args.workspaceId,
+        },
+      );
+    }
+
+    await ctx.db.patch(args.invoiceId, {
+      providerStatusText:
+        args.providerStatusText ?? invoice.providerStatusText ?? "closed",
+      status: "canceled",
+    });
+
+    if (subscription.status === "pending") {
+      await ctx.db.patch(args.subscriptionId, {
+        canceledAt: now,
+        status: "canceled",
+        updatedAt: now,
+      });
+    }
+
+    await emitSubscriptionEvent(ctx, {
+      workspaceId: args.workspaceId,
+      subscriptionId: args.subscriptionId,
+      invoiceId: args.invoiceId,
+      eventType: "invoice_canceled",
+      eventKey: `invoice_canceled:${String(args.invoiceId)}`,
+      actorUserId: subscription.createdByUserId,
+      payload: { providerStatusText: args.providerStatusText },
+      createdAt: now,
+    });
+
+    return await buildBillingSummary(ctx, args.workspaceId, "superadmin");
   },
 });
 

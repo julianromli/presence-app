@@ -9,7 +9,7 @@ export type RecentActivityItem = {
   employeeName: string;
   dateKey: string;
   happenedAt: number;
-  status: 'check-in' | 'check-out';
+  status: "check-in" | "check-out";
   edited: boolean;
 };
 
@@ -26,7 +26,7 @@ export type DashboardOverviewPayload = {
   recentActivity: RecentActivityItem[];
   reportStatus: {
     weekKey: string;
-    status: 'pending' | 'success' | 'failed';
+    status: "pending" | "success" | "failed";
     generatedAt?: number;
     lastTriggeredAt?: number;
   } | null;
@@ -37,7 +37,7 @@ export type AdminUserRow = {
   clerkUserId: string;
   name: string;
   email: string;
-  role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
+  role: "superadmin" | "admin" | "karyawan" | "device-qr";
   isActive: boolean;
   createdAt: number;
   updatedAt: number;
@@ -49,7 +49,7 @@ export type AdminUsersPage = {
     continueCursor: string;
     isDone: boolean;
     splitCursor: string | null;
-    pageStatus: 'SplitRecommended' | 'SplitRequired' | null;
+    pageStatus: "SplitRecommended" | "SplitRequired" | null;
   };
   summary: {
     total: number;
@@ -65,7 +65,7 @@ export type AdminAttendanceRow = {
   dateKey: string;
   checkInAt?: number;
   checkOutAt?: number;
-  punctuality?: 'on-time' | 'late' | 'not-applicable';
+  punctuality?: "on-time" | "late" | "not-applicable";
   edited: boolean;
 };
 
@@ -82,7 +82,7 @@ export type AdminAttendancePage = {
     continueCursor: string;
     isDone: boolean;
     splitCursor: string | null;
-    pageStatus: 'SplitRecommended' | 'SplitRequired' | null;
+    pageStatus: "SplitRecommended" | "SplitRequired" | null;
   };
   summary: AdminAttendanceSummary;
 };
@@ -145,22 +145,23 @@ export type WorkspaceManagementPayload = {
 };
 
 export type WorkspaceBillingInvoiceStatus =
-  | 'pending_initializing'
-  | 'pending'
-  | 'paid'
-  | 'expired'
-  | 'canceled'
-  | 'failed';
+  | "pending_initializing"
+  | "pending"
+  | "paid"
+  | "expired"
+  | "canceled"
+  | "failed";
 
-export type WorkspaceBillingProvider = 'mayar' | 'manual';
-export type WorkspaceSubscriptionKind = 'pro_one_time' | 'enterprise_manual';
+export type WorkspaceBillingProvider = "mayar" | "manual";
+export type WorkspaceSubscriptionKind = "pro_one_time" | "enterprise_manual";
 export type WorkspaceSubscriptionLifecycleStatus =
-  | 'pending'
-  | 'active'
-  | 'expired'
-  | 'canceled';
+  | "pending"
+  | "active"
+  | "expired"
+  | "canceled";
 
 export type WorkspaceBillingAllowedActions = {
+  canCancelPendingInvoice: boolean;
   canCreateCheckout: boolean;
   canRefreshPendingInvoice: boolean;
   canViewInvoices: boolean;
@@ -183,12 +184,12 @@ export type WorkspaceBillingSubscription = {
 export type WorkspaceBillingInvoice = {
   invoiceId: string;
   subscriptionId?: string;
-  provider: 'mayar';
+  provider: "mayar";
   providerInvoiceId?: string;
   providerTransactionId?: string;
   status: WorkspaceBillingInvoiceStatus;
   amount: number;
-  currency: 'IDR';
+  currency: "IDR";
   paymentUrl?: string;
   issuedAt: number;
   expiresAt?: number;
@@ -225,7 +226,7 @@ export type WorkspaceRestrictedMemberRow = {
   userId: string;
   name: string;
   email: string;
-  role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
+  role: "superadmin" | "admin" | "karyawan" | "device-qr";
   isActive: boolean;
   isCurrentUser: boolean;
   createdAt: number;
@@ -235,7 +236,7 @@ export type WorkspaceRestrictedMemberRow = {
 export type WorkspaceRestrictedDeviceRow = {
   deviceId: string;
   label: string;
-  status: 'active' | 'revoked';
+  status: "active" | "revoked";
   online: boolean;
   lastSeenAt?: number;
   claimedAt: number;
@@ -285,13 +286,13 @@ export type WorkspaceRestrictedExpiredStatePayload = {
 };
 
 export type AttendanceScheduleDay =
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
-  | 'sunday';
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
 export type AttendanceScheduleRow = {
   day: AttendanceScheduleDay;

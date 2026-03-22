@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireWorkspaceRole = vi.fn();
 const requireWorkspaceRoleFromAction = vi.fn();
 const getWorkspaceSubscriptionSummary = vi.fn();
+type HandlerResult = { handler: (...args: unknown[]) => Promise<unknown> };
 
 function getHandler(fn: unknown) {
   return (fn as { handler: (...args: unknown[]) => Promise<unknown> }).handler;
@@ -42,11 +43,13 @@ vi.mock("../convex/_generated/api", () => ({
         "internal:workspaceBilling.finalizeWorkspaceCheckoutSuccess",
       finalizeWorkspaceCheckoutFailure:
         "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure",
+      cancelPendingInvoice: "internal:workspaceBilling.cancelPendingInvoice",
     },
     workspaceBillingMayar: {
       createMayarCustomerIfNeeded:
         "internal:workspaceBillingMayar.createMayarCustomerIfNeeded",
       createMayarInvoice: "internal:workspaceBillingMayar.createMayarInvoice",
+      closeMayarInvoice: "internal:workspaceBillingMayar.closeMayarInvoice",
       fetchMayarInvoiceStatus:
         "internal:workspaceBillingMayar.fetchMayarInvoiceStatus",
     },
@@ -629,6 +632,7 @@ describe("workspace billing convex checkout flow", () => {
         void args;
         return {
           allowedActions: {
+            canCancelPendingInvoice: false,
             canCreateCheckout: false,
             canRefreshPendingInvoice: false,
             canViewInvoices: true,
@@ -740,6 +744,178 @@ describe("workspace billing convex checkout flow", () => {
     );
   });
 
+  it("cancels a pending invoice after closing it in Mayar", async () => {
+    const module = await import("../convex/workspaceBilling");
+    const cancelWorkspacePendingInvoice = (
+      module as typeof module & {
+        cancelWorkspacePendingInvoice: HandlerResult;
+      }
+    ).cancelWorkspacePendingInvoice;
+    const runQuery = vi.fn(async (reference: string) => {
+      if (
+        reference === "internal:workspaceBilling.getPendingInvoiceForRefresh"
+      ) {
+        return {
+          invoiceId: "invoice_pending",
+          providerInvoiceId: "mayar_invoice_pending",
+          subscriptionId: "subscription_pending",
+          workspaceId: "workspace_123456",
+        };
+      }
+
+      throw new Error(`Unexpected runQuery call: ${reference}`);
+    });
+    const runAction = vi.fn(async (reference: string) => {
+      if (reference === "internal:workspaceBillingMayar.closeMayarInvoice") {
+        return {
+          providerInvoiceId: "mayar_invoice_pending",
+          providerStatusText: "closed",
+        };
+      }
+
+      throw new Error(`Unexpected runAction call: ${reference}`);
+    });
+    const cancelPendingInvoice = vi.fn(
+      async (args: Record<string, unknown>) => ({
+        allowedActions: {
+          canCancelPendingInvoice: false,
+          canCreateCheckout: true,
+          canRefreshPendingInvoice: false,
+          canViewInvoices: true,
+        },
+        currentSubscription: null,
+        pendingInvoice: null,
+        plan: "free",
+        restrictedState: {
+          activeDevices: 1,
+          activeMembers: 3,
+          hadPaidOrManualEntitlement: false,
+          isRestricted: false,
+          overFreeDeviceLimit: false,
+          overFreeMemberLimit: false,
+        },
+        workspaceId: args.workspaceId,
+      }),
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (reference === "internal:workspaceBilling.cancelPendingInvoice") {
+          return await cancelPendingInvoice(args);
+        }
+
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
+
+    const result = await getHandler(cancelWorkspacePendingInvoice)(
+      {
+        runAction,
+        runMutation,
+        runQuery,
+      } as never,
+      {
+        workspaceId: "workspace_123456" as never,
+      },
+    );
+
+    expect(runAction).toHaveBeenCalledWith(
+      "internal:workspaceBillingMayar.closeMayarInvoice",
+      { providerInvoiceId: "mayar_invoice_pending" },
+    );
+    expect(cancelPendingInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: "invoice_pending",
+        providerStatusText: "closed",
+        subscriptionId: "subscription_pending",
+        workspaceId: "workspace_123456",
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        allowedActions: expect.objectContaining({
+          canCreateCheckout: true,
+        }),
+        pendingInvoice: null,
+        workspaceId: "workspace_123456",
+      }),
+    );
+  });
+
+  it("cancels a pending_initializing invoice locally when provider reference is missing", async () => {
+    const module = await import("../convex/workspaceBilling");
+    const cancelWorkspacePendingInvoice = (
+      module as typeof module & {
+        cancelWorkspacePendingInvoice: HandlerResult;
+      }
+    ).cancelWorkspacePendingInvoice;
+    const runQuery = vi.fn(async (reference: string) => {
+      if (
+        reference === "internal:workspaceBilling.getPendingInvoiceForRefresh"
+      ) {
+        return {
+          invoiceId: "invoice_initializing",
+          providerInvoiceId: undefined,
+          subscriptionId: "subscription_pending",
+          workspaceId: "workspace_123456",
+        };
+      }
+
+      throw new Error(`Unexpected runQuery call: ${reference}`);
+    });
+    const runAction = vi.fn();
+    const cancelPendingInvoice = vi.fn(
+      async (_args: Record<string, unknown>) => ({
+        allowedActions: {
+          canCancelPendingInvoice: false,
+          canCreateCheckout: true,
+          canRefreshPendingInvoice: false,
+          canViewInvoices: true,
+        },
+        currentSubscription: null,
+        pendingInvoice: null,
+        plan: "free",
+        restrictedState: {
+          activeDevices: 1,
+          activeMembers: 3,
+          hadPaidOrManualEntitlement: false,
+          isRestricted: false,
+          overFreeDeviceLimit: false,
+          overFreeMemberLimit: false,
+        },
+        workspaceId: "workspace_123456",
+      }),
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (reference === "internal:workspaceBilling.cancelPendingInvoice") {
+          return await cancelPendingInvoice(args);
+        }
+
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
+
+    await getHandler(cancelWorkspacePendingInvoice)(
+      {
+        runAction,
+        runMutation,
+        runQuery,
+      } as never,
+      {
+        workspaceId: "workspace_123456" as never,
+      },
+    );
+
+    expect(runAction).not.toHaveBeenCalled();
+    expect(cancelPendingInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: "invoice_initializing",
+        providerStatusText:
+          "Dibatalkan oleh superadmin sebelum referensi pembayaran tersedia.",
+      }),
+    );
+  });
+
   it("rebuilds billing summary after refresh through an internal query boundary", async () => {
     const { refreshWorkspacePendingInvoice } =
       await import("../convex/workspaceBilling");
@@ -809,6 +985,7 @@ describe("workspace billing convex checkout flow", () => {
       ) {
         return {
           allowedActions: {
+            canCancelPendingInvoice: false,
             canCreateCheckout: false,
             canRefreshPendingInvoice: true,
             canViewInvoices: true,
@@ -1322,6 +1499,7 @@ describe("workspace billing convex checkout flow", () => {
     })) as Record<string, unknown> & {
       pendingInvoice: Record<string, unknown> | null;
       allowedActions: {
+        canCancelPendingInvoice: boolean;
         canCreateCheckout: boolean;
         canRefreshPendingInvoice: boolean;
       };
@@ -1333,6 +1511,7 @@ describe("workspace billing convex checkout flow", () => {
         status: "pending_initializing",
       }),
     );
+    expect(result.allowedActions.canCancelPendingInvoice).toBe(true);
     expect(result.allowedActions.canCreateCheckout).toBe(false);
     expect(result.allowedActions.canRefreshPendingInvoice).toBe(false);
   });

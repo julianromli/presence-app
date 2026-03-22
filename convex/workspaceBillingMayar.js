@@ -34,6 +34,11 @@ const mayarInvoiceStatusResultValidator = v.object({
   rawProviderSnapshot: v.any(),
 });
 
+const mayarInvoiceCloseResultValidator = v.object({
+  providerInvoiceId: v.string(),
+  providerStatusText: v.string(),
+});
+
 function requireMayarApiKey() {
   const apiKey = process.env.MAYAR_API_KEY?.trim();
   if (!apiKey) {
@@ -48,11 +53,13 @@ function requireMayarApiKey() {
 
 function getMayarBaseUrl() {
   const configured = process.env.MAYAR_API_BASE_URL?.trim();
-  const baseUrl = (configured && configured.length > 0 ? configured : "https://api.mayar.id").replace(
-    /\/$/, "",
-  );
+  const baseUrl = (
+    configured && configured.length > 0 ? configured : "https://api.mayar.id"
+  ).replace(/\/$/, "");
 
-  return baseUrl.endsWith("/hl/v1") ? baseUrl.slice(0, -"/hl/v1".length) : baseUrl;
+  return baseUrl.endsWith("/hl/v1")
+    ? baseUrl.slice(0, -"/hl/v1".length)
+    : baseUrl;
 }
 
 function getMayarRedirectUrl() {
@@ -70,7 +77,10 @@ function getMayarRedirectUrl() {
 }
 
 function getMayarFetchTimeoutMs() {
-  const configured = Number.parseInt(process.env.MAYAR_FETCH_TIMEOUT_MS ?? "", 10);
+  const configured = Number.parseInt(
+    process.env.MAYAR_FETCH_TIMEOUT_MS ?? "",
+    10,
+  );
   return Number.isFinite(configured) && configured > 0
     ? configured
     : DEFAULT_MAYAR_FETCH_TIMEOUT_MS;
@@ -100,12 +110,16 @@ async function fetchMayar(path, options = {}) {
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal:
-        typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+        typeof AbortSignal !== "undefined" &&
+        typeof AbortSignal.timeout === "function"
           ? AbortSignal.timeout(getMayarFetchTimeoutMs())
           : undefined,
     });
   } catch (error) {
-    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    if (
+      error instanceof Error &&
+      (error.name === "AbortError" || error.name === "TimeoutError")
+    ) {
       throw new ConvexError({
         code: "BILLING_SYNC_FAILED",
         message: "Permintaan ke Mayar melebihi batas waktu.",
@@ -152,18 +166,24 @@ export const createMayarCustomerIfNeeded = internalAction({
   },
   returns: mayarCustomerResultValidator,
   handler: async (ctx, args) => {
-    const existing = await ctx.runQuery(internal.workspaceBilling.getStoredMayarCustomer, {
-      workspaceId: args.workspaceId,
-    });
+    const existing = await ctx.runQuery(
+      internal.workspaceBilling.getStoredMayarCustomer,
+      {
+        workspaceId: args.workspaceId,
+      },
+    );
 
     if (existing?.providerCustomerId) {
-      return await ctx.runMutation(internal.workspaceBilling.upsertStoredMayarCustomer, {
-        workspaceId: args.workspaceId,
-        providerCustomerId: existing.providerCustomerId,
-        name: args.name,
-        email: args.email,
-        phone: args.billingPhone,
-      });
+      return await ctx.runMutation(
+        internal.workspaceBilling.upsertStoredMayarCustomer,
+        {
+          workspaceId: args.workspaceId,
+          providerCustomerId: existing.providerCustomerId,
+          name: args.name,
+          email: args.email,
+          phone: args.billingPhone,
+        },
+      );
     }
 
     const data = await fetchMayar("/hl/v1/customer/create", {
@@ -187,13 +207,16 @@ export const createMayarCustomerIfNeeded = internalAction({
       });
     }
 
-    return await ctx.runMutation(internal.workspaceBilling.upsertStoredMayarCustomer, {
-      workspaceId: args.workspaceId,
-      providerCustomerId,
-      name: args.name,
-      email: args.email,
-      phone: args.billingPhone,
-    });
+    return await ctx.runMutation(
+      internal.workspaceBilling.upsertStoredMayarCustomer,
+      {
+        workspaceId: args.workspaceId,
+        providerCustomerId,
+        name: args.name,
+        email: args.email,
+        phone: args.billingPhone,
+      },
+    );
   },
 });
 
@@ -251,7 +274,8 @@ export const createMayarInvoice = internalAction({
       providerTransactionId:
         typeof data.transactionId === "string" ? data.transactionId : undefined,
       paymentUrl,
-      expiresAt: typeof data.expiredAt === "number" ? data.expiredAt : expiresAt,
+      expiresAt:
+        typeof data.expiredAt === "number" ? data.expiredAt : expiresAt,
       providerStatusText: "unpaid",
       rawProviderSnapshot: data,
     };
@@ -267,7 +291,8 @@ export const fetchMayarInvoiceStatus = internalAction({
     const data = await fetchMayar(`/hl/v1/invoice/${args.providerInvoiceId}`);
     return {
       amount: typeof data.amount === "number" ? data.amount : undefined,
-      expiresAt: typeof data.expiredAt === "number" ? data.expiredAt : undefined,
+      expiresAt:
+        typeof data.expiredAt === "number" ? data.expiredAt : undefined,
       paidAt: typeof data.paidAt === "number" ? data.paidAt : undefined,
       paymentUrl:
         typeof data.paymentUrl === "string"
@@ -283,10 +308,93 @@ export const fetchMayarInvoiceStatus = internalAction({
       providerTransactionId:
         typeof data.transactionId === "string"
           ? data.transactionId
-          : Array.isArray(data.transactions) && typeof data.transactions[0]?.id === "string"
+          : Array.isArray(data.transactions) &&
+              typeof data.transactions[0]?.id === "string"
             ? data.transactions[0].id
             : undefined,
       rawProviderSnapshot: data,
+    };
+  },
+});
+
+export const closeMayarInvoice = internalAction({
+  args: {
+    providerInvoiceId: v.string(),
+  },
+  returns: mayarInvoiceCloseResultValidator,
+  handler: async (_ctx, args) => {
+    const apiKey = requireMayarApiKey();
+    let response;
+
+    try {
+      response = await fetch(
+        `${getMayarBaseUrl()}/hl/v1/invoice/close/${args.providerInvoiceId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "content-type": "application/json",
+          },
+          signal:
+            typeof AbortSignal !== "undefined" &&
+            typeof AbortSignal.timeout === "function"
+              ? AbortSignal.timeout(getMayarFetchTimeoutMs())
+              : undefined,
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError")
+      ) {
+        throw new ConvexError({
+          code: "BILLING_SYNC_FAILED",
+          message: "Permintaan ke Mayar melebihi batas waktu.",
+        });
+      }
+
+      throw new ConvexError({
+        code: "BILLING_SYNC_FAILED",
+        message: "Gagal terhubung ke Mayar.",
+      });
+    }
+
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok) {
+      throw new ConvexError({
+        code: "BILLING_SYNC_FAILED",
+        message: toMayarErrorMessage(payload, "Gagal menutup invoice Mayar."),
+        status: response.status,
+      });
+    }
+
+    if (!payload || typeof payload !== "object") {
+      throw new ConvexError({
+        code: "BILLING_SYNC_FAILED",
+        message: "Respons Mayar tidak valid.",
+      });
+    }
+
+    const closeMessage =
+      typeof payload.messages === "string"
+        ? payload.messages.trim().toLowerCase()
+        : "";
+    if (closeMessage !== "success") {
+      throw new ConvexError({
+        code: "BILLING_SYNC_FAILED",
+        message: toMayarErrorMessage(payload, "Gagal menutup invoice Mayar."),
+      });
+    }
+
+    return {
+      providerInvoiceId: args.providerInvoiceId,
+      providerStatusText: "closed",
     };
   },
 });
