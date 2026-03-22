@@ -2,20 +2,35 @@ import { ConvexError, v } from "convex/values";
 
 import { DEFAULT_TIMEZONE, normalizeTimeZone } from "../lib/timezones";
 import { internal } from "./_generated/api";
-import { action, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
-import { requireWorkspaceRole, requireWorkspaceRoleFromAction } from "./helpers";
+import {
+  action,
+  internalAction,
+  internalMutation,
+  internalQuery,
+  query,
+} from "./_generated/server";
+import {
+  requireWorkspaceRole,
+  requireWorkspaceRoleFromAction,
+} from "./helpers";
 import { resolveWorkspacePlan, workspacePlanValidator } from "./plans";
 import { getWorkspaceSubscriptionSummary } from "./workspaceSubscription";
 
 const FREE_WORKSPACE_MEMBER_LIMIT = 5;
 const FREE_WORKSPACE_DEVICE_LIMIT = 1;
 const WORKSPACE_PRO_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+const STALE_PENDING_INITIALIZING_TIMEOUT_MS = 10 * 60 * 1000;
 const WORKSPACE_PRO_PRICE_IDR = Number.parseInt(
   process.env.WORKSPACE_PRO_PRICE_IDR ?? "150000",
   10,
 );
+const STALE_PENDING_INITIALIZING_MESSAGE =
+  "Sinkronisasi invoice Mayar terhenti sebelum referensi pembayaran tersedia.";
 
-const workspaceBillingProviderValidator = v.union(v.literal("mayar"), v.literal("manual"));
+const workspaceBillingProviderValidator = v.union(
+  v.literal("mayar"),
+  v.literal("manual"),
+);
 const workspaceSubscriptionKindValidator = v.union(
   v.literal("pro_one_time"),
   v.literal("enterprise_manual"),
@@ -113,7 +128,10 @@ const workspaceRestrictedSummaryValidator = v.object({
 const workspaceBillingSummaryValidator = v.object({
   workspaceId: v.string(),
   plan: workspacePlanValidator,
-  currentSubscription: v.union(v.null(), workspaceBillingSubscriptionViewValidator),
+  currentSubscription: v.union(
+    v.null(),
+    workspaceBillingSubscriptionViewValidator,
+  ),
   pendingInvoice: v.union(v.null(), workspaceBillingInvoiceViewValidator),
   restrictedState: workspaceRestrictedSummaryValidator,
   allowedActions: workspaceBillingAllowedActionsValidator,
@@ -206,6 +224,21 @@ const workspaceBillingInvoiceDetailValidator = v.object({
 
 function buildBillingError(code, message, data) {
   return new ConvexError({ code, message, ...(data ?? {}) });
+}
+
+function hasProviderInvoiceReference(invoice) {
+  return (
+    typeof invoice.providerInvoiceId === "string" &&
+    invoice.providerInvoiceId.length > 0
+  );
+}
+
+function isStalePendingInitializingInvoice(invoice, now) {
+  return (
+    invoice.status === "pending_initializing" &&
+    !hasProviderInvoiceReference(invoice) &&
+    invoice.issuedAt <= now - STALE_PENDING_INITIALIZING_TIMEOUT_MS
+  );
 }
 
 function ensureActiveWorkspace(workspace, workspaceId) {
@@ -316,7 +349,11 @@ function buildRestrictedState({
   };
 }
 
-function mapMayarInvoiceStatus({ expiresAt, now = Date.now(), providerStatus }) {
+function mapMayarInvoiceStatus({
+  expiresAt,
+  now = Date.now(),
+  providerStatus,
+}) {
   const normalizedStatus = providerStatus?.trim().toLowerCase();
 
   if (normalizedStatus === "paid") {
@@ -387,7 +424,9 @@ async function listInvoicesByStatuses(ctx, workspaceId, statuses) {
 async function listSubscriptionRowsByWorkspace(ctx, workspaceId) {
   return await ctx.db
     .query("workspace_subscriptions")
-    .withIndex("by_workspace_updated_at", (q) => q.eq("workspaceId", workspaceId))
+    .withIndex("by_workspace_updated_at", (q) =>
+      q.eq("workspaceId", workspaceId),
+    )
     .collect();
 }
 
@@ -409,7 +448,9 @@ async function getLatestSubscriptionByStatus(ctx, workspaceId, status) {
     )
     .collect();
 
-  return rows.sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
+  return (
+    rows.sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null
+  );
 }
 
 async function getLatestOpenInvoice(ctx, workspaceId) {
@@ -434,19 +475,27 @@ async function getPendingInvoiceByWorkspace(ctx, workspaceId) {
 }
 
 async function buildBillingSummary(ctx, workspaceId, role) {
-  const workspace = ensureActiveWorkspace(await ctx.db.get(workspaceId), workspaceId);
-  const [subscriptionSummary, activeSubscription, pendingInvoice, subscriptionRows] =
-    await Promise.all([
-      getWorkspaceSubscriptionSummary(ctx, workspace),
-      getLatestSubscriptionByStatus(ctx, workspaceId, "active"),
-      getLatestOpenInvoice(ctx, workspaceId),
-      listSubscriptionRowsByWorkspace(ctx, workspaceId),
-    ]);
+  const workspace = ensureActiveWorkspace(
+    await ctx.db.get(workspaceId),
+    workspaceId,
+  );
+  const [
+    subscriptionSummary,
+    activeSubscription,
+    pendingInvoice,
+    subscriptionRows,
+  ] = await Promise.all([
+    getWorkspaceSubscriptionSummary(ctx, workspace),
+    getLatestSubscriptionByStatus(ctx, workspaceId, "active"),
+    getLatestOpenInvoice(ctx, workspaceId),
+    listSubscriptionRowsByWorkspace(ctx, workspaceId),
+  ]);
 
   const restrictedState = buildRestrictedState({
     activeDevices: subscriptionSummary.usage.activeDevices,
     activeMembers: subscriptionSummary.usage.activeMembers,
-    hadPaidOrManualEntitlement: hasHistoricalPaidOrManualEntitlement(subscriptionRows),
+    hadPaidOrManualEntitlement:
+      hasHistoricalPaidOrManualEntitlement(subscriptionRows),
     plan: resolveWorkspacePlan(workspace),
   });
 
@@ -473,7 +522,12 @@ async function buildBillingSummary(ctx, workspaceId, role) {
 export const getWorkspaceBillingSummaryFromMutation = internalQuery({
   args: {
     workspaceId: v.id("workspaces"),
-    role: v.union(v.literal("superadmin"), v.literal("admin"), v.literal("karyawan"), v.literal("device-qr")),
+    role: v.union(
+      v.literal("superadmin"),
+      v.literal("admin"),
+      v.literal("karyawan"),
+      v.literal("device-qr"),
+    ),
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
@@ -545,7 +599,9 @@ export const getWorkspaceBillingSummary = query({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const { membership } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+    const { membership } = await requireWorkspaceRole(ctx, args.workspaceId, [
+      "superadmin",
+    ]);
     return await buildBillingSummary(ctx, args.workspaceId, membership.role);
   },
 });
@@ -559,7 +615,9 @@ export const listWorkspaceBillingInvoices = query({
     await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
     const rows = await ctx.db
       .query("workspace_billing_invoices")
-      .withIndex("by_workspace_issued_at", (q) => q.eq("workspaceId", args.workspaceId))
+      .withIndex("by_workspace_issued_at", (q) =>
+        q.eq("workspaceId", args.workspaceId),
+      )
       .collect();
 
     return {
@@ -580,12 +638,14 @@ export const getWorkspaceBillingInvoiceDetail = query({
   handler: async (ctx, args) => {
     await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
 
-    const [workspace, invoiceRow, customerRow, settingsRow] = await Promise.all([
-      ctx.db.get(args.workspaceId),
-      ctx.db.get(args.invoiceId),
-      getStoredMayarCustomerRow(ctx, args.workspaceId),
-      getWorkspaceSettingsRow(ctx, args.workspaceId),
-    ]);
+    const [workspace, invoiceRow, customerRow, settingsRow] = await Promise.all(
+      [
+        ctx.db.get(args.workspaceId),
+        ctx.db.get(args.invoiceId),
+        getStoredMayarCustomerRow(ctx, args.workspaceId),
+        getWorkspaceSettingsRow(ctx, args.workspaceId),
+      ],
+    );
 
     const activeWorkspace = ensureActiveWorkspace(workspace, args.workspaceId);
     if (!invoiceRow || invoiceRow.workspaceId !== args.workspaceId) {
@@ -623,17 +683,28 @@ export const getWorkspaceRestrictedExpiredState = query({
   },
   returns: workspaceRestrictedStateValidator,
   handler: async (ctx, args) => {
-    const { user, membership } = await requireWorkspaceRole(ctx, args.workspaceId, [
-      "superadmin",
-      "admin",
-    ]);
-    const workspace = ensureActiveWorkspace(await ctx.db.get(args.workspaceId), args.workspaceId);
-    const subscriptionSummary = await getWorkspaceSubscriptionSummary(ctx, workspace);
-    const subscriptionRows = await listSubscriptionRowsByWorkspace(ctx, args.workspaceId);
+    const { user, membership } = await requireWorkspaceRole(
+      ctx,
+      args.workspaceId,
+      ["superadmin", "admin"],
+    );
+    const workspace = ensureActiveWorkspace(
+      await ctx.db.get(args.workspaceId),
+      args.workspaceId,
+    );
+    const subscriptionSummary = await getWorkspaceSubscriptionSummary(
+      ctx,
+      workspace,
+    );
+    const subscriptionRows = await listSubscriptionRowsByWorkspace(
+      ctx,
+      args.workspaceId,
+    );
     const restrictedState = buildRestrictedState({
       activeDevices: subscriptionSummary.usage.activeDevices,
       activeMembers: subscriptionSummary.usage.activeMembers,
-      hadPaidOrManualEntitlement: hasHistoricalPaidOrManualEntitlement(subscriptionRows),
+      hadPaidOrManualEntitlement:
+        hasHistoricalPaidOrManualEntitlement(subscriptionRows),
       plan: resolveWorkspacePlan(workspace),
     });
     const rows = restrictedState.isRestricted
@@ -657,13 +728,20 @@ export const createWorkspaceCheckout = action({
   },
   returns: workspaceCheckoutPayloadValidator,
   handler: async (ctx, args) => {
-    const { user } = await requireWorkspaceRoleFromAction(ctx, args.workspaceId, ["superadmin"]);
+    const { user } = await requireWorkspaceRoleFromAction(
+      ctx,
+      args.workspaceId,
+      ["superadmin"],
+    );
 
-    const reservation = await ctx.runMutation(internal.workspaceBilling.reserveWorkspaceCheckout, {
-      billingPhone: args.billingPhone,
-      createdByUserId: user._id,
-      workspaceId: args.workspaceId,
-    });
+    const reservation = await ctx.runMutation(
+      internal.workspaceBilling.reserveWorkspaceCheckout,
+      {
+        billingPhone: args.billingPhone,
+        createdByUserId: user._id,
+        workspaceId: args.workspaceId,
+      },
+    );
 
     if (reservation.reused) {
       return reservation;
@@ -709,20 +787,28 @@ export const createWorkspaceCheckout = action({
         },
       );
     } catch (error) {
-      const failureMessage = error instanceof Error ? error.message : "Gagal membuat invoice Mayar.";
+      const failureMessage =
+        error instanceof Error ? error.message : "Gagal membuat invoice Mayar.";
       const errorCode =
-        error && typeof error === "object" && "data" in error && error.data && typeof error.data === "object"
+        error &&
+        typeof error === "object" &&
+        "data" in error &&
+        error.data &&
+        typeof error.data === "object"
           ? error.data.code
           : undefined;
       const isAmbiguousFailure = errorCode === "BILLING_SYNC_FAILED";
 
       if (!isAmbiguousFailure) {
-        await ctx.runMutation(internal.workspaceBilling.finalizeWorkspaceCheckoutFailure, {
-          invoiceId: reservation.invoiceId,
-          providerStatusText: failureMessage,
-          subscriptionId: reservation.subscriptionId,
-          workspaceId: args.workspaceId,
-        });
+        await ctx.runMutation(
+          internal.workspaceBilling.finalizeWorkspaceCheckoutFailure,
+          {
+            invoiceId: reservation.invoiceId,
+            providerStatusText: failureMessage,
+            subscriptionId: reservation.subscriptionId,
+            workspaceId: args.workspaceId,
+          },
+        );
       }
 
       throw error;
@@ -736,11 +822,18 @@ export const refreshWorkspacePendingInvoice = action({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const { membership } = await requireWorkspaceRoleFromAction(ctx, args.workspaceId, ["superadmin"]);
+    const { membership } = await requireWorkspaceRoleFromAction(
+      ctx,
+      args.workspaceId,
+      ["superadmin"],
+    );
 
-    const pendingInvoice = await ctx.runQuery(internal.workspaceBilling.getPendingInvoiceForRefresh, {
-      workspaceId: args.workspaceId,
-    });
+    const pendingInvoice = await ctx.runQuery(
+      internal.workspaceBilling.getPendingInvoiceForRefresh,
+      {
+        workspaceId: args.workspaceId,
+      },
+    );
 
     if (!pendingInvoice.providerInvoiceId) {
       throw buildBillingError(
@@ -757,26 +850,32 @@ export const refreshWorkspacePendingInvoice = action({
       },
     );
 
-    const invoiceUpdate = await ctx.runMutation(internal.workspaceBilling.markInvoiceFromProvider, {
-      amount: providerStatus.amount,
-      expiresAt: providerStatus.expiresAt,
-      invoiceId: pendingInvoice.invoiceId,
-      paidAt: providerStatus.paidAt,
-      paymentUrl: providerStatus.paymentUrl,
-      providerInvoiceId: providerStatus.providerInvoiceId,
-      providerStatusText: providerStatus.providerStatusText,
-      providerTransactionId: providerStatus.providerTransactionId,
-      rawProviderSnapshot: providerStatus.rawProviderSnapshot,
-      subscriptionId: pendingInvoice.subscriptionId,
-      workspaceId: args.workspaceId,
-    });
-
-    if (invoiceUpdate.invoice.status === "paid") {
-      return await ctx.runMutation(internal.workspaceBilling.activatePaidWorkspacePeriod, {
-        paidAt: invoiceUpdate.invoice.paidAt ?? Date.now(),
+    const invoiceUpdate = await ctx.runMutation(
+      internal.workspaceBilling.markInvoiceFromProvider,
+      {
+        amount: providerStatus.amount,
+        expiresAt: providerStatus.expiresAt,
+        invoiceId: pendingInvoice.invoiceId,
+        paidAt: providerStatus.paidAt,
+        paymentUrl: providerStatus.paymentUrl,
+        providerInvoiceId: providerStatus.providerInvoiceId,
+        providerStatusText: providerStatus.providerStatusText,
+        providerTransactionId: providerStatus.providerTransactionId,
+        rawProviderSnapshot: providerStatus.rawProviderSnapshot,
         subscriptionId: pendingInvoice.subscriptionId,
         workspaceId: args.workspaceId,
-      });
+      },
+    );
+
+    if (invoiceUpdate.invoice.status === "paid") {
+      return await ctx.runMutation(
+        internal.workspaceBilling.activatePaidWorkspacePeriod,
+        {
+          paidAt: invoiceUpdate.invoice.paidAt ?? Date.now(),
+          subscriptionId: pendingInvoice.subscriptionId,
+          workspaceId: args.workspaceId,
+        },
+      );
     }
 
     if (invoiceUpdate.invoice.status === "expired") {
@@ -787,10 +886,13 @@ export const refreshWorkspacePendingInvoice = action({
       });
     }
 
-    return await ctx.runQuery(internal.workspaceBilling.getWorkspaceBillingSummaryFromMutation, {
-      role: membership.role,
-      workspaceId: args.workspaceId,
-    });
+    return await ctx.runQuery(
+      internal.workspaceBilling.getWorkspaceBillingSummaryFromMutation,
+      {
+        role: membership.role,
+        workspaceId: args.workspaceId,
+      },
+    );
   },
 });
 
@@ -884,7 +986,10 @@ export const reserveWorkspaceCheckout = internalMutation({
   returns: reserveWorkspaceCheckoutResultValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
-    const workspace = ensureActiveWorkspace(await ctx.db.get(args.workspaceId), args.workspaceId);
+    const workspace = ensureActiveWorkspace(
+      await ctx.db.get(args.workspaceId),
+      args.workspaceId,
+    );
     const plan = resolveWorkspacePlan(workspace);
 
     const activeSubscription = await getLatestSubscriptionByStatus(
@@ -906,7 +1011,11 @@ export const reserveWorkspaceCheckout = internalMutation({
     ]);
 
     for (const invoice of openInvoices) {
-      if (invoice.status === "pending" && typeof invoice.expiresAt === "number" && invoice.expiresAt <= now) {
+      if (
+        invoice.status === "pending" &&
+        typeof invoice.expiresAt === "number" &&
+        invoice.expiresAt <= now
+      ) {
         await ctx.db.patch(invoice._id, {
           providerStatusText: invoice.providerStatusText ?? "expired",
           status: "expired",
@@ -915,6 +1024,35 @@ export const reserveWorkspaceCheckout = internalMutation({
           expiredAt: now,
           status: "expired",
           updatedAt: now,
+        });
+        continue;
+      }
+
+      if (isStalePendingInitializingInvoice(invoice, now)) {
+        const staleSubscription = await ctx.db.get(invoice.subscriptionId);
+
+        await ctx.db.patch(invoice._id, {
+          providerStatusText: STALE_PENDING_INITIALIZING_MESSAGE,
+          status: "failed",
+        });
+
+        if (staleSubscription && staleSubscription.status === "pending") {
+          await ctx.db.patch(invoice.subscriptionId, {
+            canceledAt: now,
+            status: "canceled",
+            updatedAt: now,
+          });
+        }
+
+        await emitSubscriptionEvent(ctx, {
+          workspaceId: args.workspaceId,
+          subscriptionId: invoice.subscriptionId,
+          invoiceId: invoice._id,
+          eventType: "invoice_failed",
+          eventKey: `invoice_failed:${String(invoice._id)}`,
+          actorUserId: staleSubscription?.createdByUserId,
+          payload: { providerStatusText: STALE_PENDING_INITIALIZING_MESSAGE },
+          createdAt: now,
         });
         continue;
       }
@@ -1002,9 +1140,13 @@ export const finalizeWorkspaceCheckoutSuccess = internalMutation({
     const invoice = await ctx.db.get(args.invoiceId);
     const subscription = await ctx.db.get(args.subscriptionId);
     if (!invoice || !subscription || invoice.workspaceId !== args.workspaceId) {
-      throw buildBillingError("BILLING_INVOICE_NOT_FOUND", "Invoice billing tidak ditemukan.", {
-        workspaceId: args.workspaceId,
-      });
+      throw buildBillingError(
+        "BILLING_INVOICE_NOT_FOUND",
+        "Invoice billing tidak ditemukan.",
+        {
+          workspaceId: args.workspaceId,
+        },
+      );
     }
 
     if (invoice.status === "pending_initializing") {
@@ -1111,9 +1253,13 @@ export const markInvoiceFromProvider = internalMutation({
     const invoice = await ctx.db.get(args.invoiceId);
     const subscription = await ctx.db.get(args.subscriptionId);
     if (!invoice || !subscription || invoice.workspaceId !== args.workspaceId) {
-      throw buildBillingError("BILLING_INVOICE_NOT_FOUND", "Invoice billing tidak ditemukan.", {
-        workspaceId: args.workspaceId,
-      });
+      throw buildBillingError(
+        "BILLING_INVOICE_NOT_FOUND",
+        "Invoice billing tidak ditemukan.",
+        {
+          workspaceId: args.workspaceId,
+        },
+      );
     }
 
     const nextStatus = mapMayarInvoiceStatus({
@@ -1130,7 +1276,8 @@ export const markInvoiceFromProvider = internalMutation({
       pollAttempts: nextPollAttempts,
       providerInvoiceId: args.providerInvoiceId,
       providerStatusText: args.providerStatusText,
-      providerTransactionId: args.providerTransactionId ?? invoice.providerTransactionId,
+      providerTransactionId:
+        args.providerTransactionId ?? invoice.providerTransactionId,
       rawProviderSnapshot: args.rawProviderSnapshot,
       status: nextStatus,
     };
@@ -1166,7 +1313,10 @@ export const activatePaidWorkspacePeriod = internalMutation({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const workspace = ensureActiveWorkspace(await ctx.db.get(args.workspaceId), args.workspaceId);
+    const workspace = ensureActiveWorkspace(
+      await ctx.db.get(args.workspaceId),
+      args.workspaceId,
+    );
     const subscription = await ctx.db.get(args.subscriptionId);
     if (!subscription || subscription.workspaceId !== args.workspaceId) {
       throw buildBillingError(
@@ -1191,9 +1341,14 @@ export const activatePaidWorkspacePeriod = internalMutation({
 
       const invoiceRows = await ctx.db
         .query("workspace_billing_invoices")
-        .withIndex("by_workspace_issued_at", (q) => q.eq("workspaceId", args.workspaceId))
+        .withIndex("by_workspace_issued_at", (q) =>
+          q.eq("workspaceId", args.workspaceId),
+        )
         .collect();
-      const paidInvoice = invoiceRows.find((row) => row.subscriptionId === args.subscriptionId && row.status === "paid");
+      const paidInvoice = invoiceRows.find(
+        (row) =>
+          row.subscriptionId === args.subscriptionId && row.status === "paid",
+      );
       if (paidInvoice) {
         await ctx.db.patch(paidInvoice._id, {
           coveredPeriodStartsAt: currentPeriodStartsAt,
@@ -1237,8 +1392,15 @@ export const activateEnterpriseWorkspacePeriod = internalMutation({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const workspace = ensureActiveWorkspace(await ctx.db.get(args.workspaceId), args.workspaceId);
-    const activeSubscription = await getLatestSubscriptionByStatus(ctx, args.workspaceId, "active");
+    const workspace = ensureActiveWorkspace(
+      await ctx.db.get(args.workspaceId),
+      args.workspaceId,
+    );
+    const activeSubscription = await getLatestSubscriptionByStatus(
+      ctx,
+      args.workspaceId,
+      "active",
+    );
 
     if (activeSubscription) {
       if (
@@ -1302,8 +1464,15 @@ export const cancelEnterpriseWorkspacePeriod = internalMutation({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const workspace = ensureActiveWorkspace(await ctx.db.get(args.workspaceId), args.workspaceId);
-    const activeSubscription = await getLatestSubscriptionByStatus(ctx, args.workspaceId, "active");
+    const workspace = ensureActiveWorkspace(
+      await ctx.db.get(args.workspaceId),
+      args.workspaceId,
+    );
+    const activeSubscription = await getLatestSubscriptionByStatus(
+      ctx,
+      args.workspaceId,
+      "active",
+    );
 
     if (
       !activeSubscription ||
@@ -1349,7 +1518,9 @@ export const listPendingInvoicesForReconciliation = internalQuery({
     const stalePendingInitializingRows = await ctx.db
       .query("workspace_billing_invoices")
       .withIndex("by_status_issued_at", (q) =>
-        q.eq("status", "pending_initializing").lte("issuedAt", now - 10 * 60 * 1000),
+        q
+          .eq("status", "pending_initializing")
+          .lte("issuedAt", now - STALE_PENDING_INITIALIZING_TIMEOUT_MS),
       )
       .collect();
     const pendingRows = await ctx.db
@@ -1362,8 +1533,11 @@ export const listPendingInvoicesForReconciliation = internalQuery({
 
     return rows
       .filter((row) => {
-        return row.status !== "pending" ||
-          (typeof row.providerInvoiceId === "string" && row.providerInvoiceId.length > 0);
+        return (
+          row.status !== "pending" ||
+          (typeof row.providerInvoiceId === "string" &&
+            row.providerInvoiceId.length > 0)
+        );
       })
       .map((row) => ({
         invoiceId: row._id,
@@ -1387,7 +1561,9 @@ export const listExpiredActiveWorkspacePeriods = internalQuery({
       .collect();
 
     return rows
-      .sort((left, right) => left.currentPeriodEndsAt - right.currentPeriodEndsAt)
+      .sort(
+        (left, right) => left.currentPeriodEndsAt - right.currentPeriodEndsAt,
+      )
       .map((row) => ({
         currentPeriodEndsAt: row.currentPeriodEndsAt,
         subscriptionId: row._id,
@@ -1409,6 +1585,15 @@ export const reconcilePendingWorkspaceInvoices = internalAction({
 
     for (const pendingInvoice of pendingInvoices) {
       if (!pendingInvoice.providerInvoiceId) {
+        await ctx.runMutation(
+          internal.workspaceBilling.finalizeWorkspaceCheckoutFailure,
+          {
+            invoiceId: pendingInvoice.invoiceId,
+            providerStatusText: STALE_PENDING_INITIALIZING_MESSAGE,
+            subscriptionId: pendingInvoice.subscriptionId,
+            workspaceId: pendingInvoice.workspaceId,
+          },
+        );
         continue;
       }
 
@@ -1438,22 +1623,28 @@ export const reconcilePendingWorkspaceInvoices = internalAction({
 
         if (invoiceUpdate.invoice.status === "paid") {
           paidCount += 1;
-          await ctx.runMutation(internal.workspaceBilling.activatePaidWorkspacePeriod, {
-            paidAt: invoiceUpdate.invoice.paidAt ?? Date.now(),
-            subscriptionId: pendingInvoice.subscriptionId,
-            workspaceId: pendingInvoice.workspaceId,
-          });
+          await ctx.runMutation(
+            internal.workspaceBilling.activatePaidWorkspacePeriod,
+            {
+              paidAt: invoiceUpdate.invoice.paidAt ?? Date.now(),
+              subscriptionId: pendingInvoice.subscriptionId,
+              workspaceId: pendingInvoice.workspaceId,
+            },
+          );
         }
 
         if (invoiceUpdate.invoice.status === "expired") {
           expiredCount += 1;
         }
       } catch (error) {
-        console.error("[workspaceBilling:reconcilePendingWorkspaceInvoices] failed", {
-          invoiceId: String(pendingInvoice.invoiceId),
-          workspaceId: String(pendingInvoice.workspaceId),
-          error: String(error),
-        });
+        console.error(
+          "[workspaceBilling:reconcilePendingWorkspaceInvoices] failed",
+          {
+            invoiceId: String(pendingInvoice.invoiceId),
+            workspaceId: String(pendingInvoice.workspaceId),
+            error: String(error),
+          },
+        );
       }
     }
 
@@ -1482,11 +1673,14 @@ export const expireActiveWorkspacePeriods = internalAction({
           workspaceId: period.workspaceId,
         });
       } catch (error) {
-        console.error("[workspaceBilling:expireActiveWorkspacePeriods] failed", {
-          subscriptionId: String(period.subscriptionId),
-          workspaceId: String(period.workspaceId),
-          error: String(error),
-        });
+        console.error(
+          "[workspaceBilling:expireActiveWorkspacePeriods] failed",
+          {
+            subscriptionId: String(period.subscriptionId),
+            workspaceId: String(period.workspaceId),
+            error: String(error),
+          },
+        );
       }
     }
 
@@ -1502,7 +1696,10 @@ export const expireWorkspacePeriod = internalMutation({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const workspace = ensureActiveWorkspace(await ctx.db.get(args.workspaceId), args.workspaceId);
+    const workspace = ensureActiveWorkspace(
+      await ctx.db.get(args.workspaceId),
+      args.workspaceId,
+    );
     const subscription = await ctx.db.get(args.subscriptionId);
     if (!subscription || subscription.workspaceId !== args.workspaceId) {
       throw buildBillingError(

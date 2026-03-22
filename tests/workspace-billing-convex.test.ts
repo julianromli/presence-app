@@ -28,14 +28,16 @@ vi.mock("../convex/_generated/api", () => ({
       expireWorkspacePeriod: "internal:workspaceBilling.expireWorkspacePeriod",
       expireActiveWorkspacePeriods:
         "internal:workspaceBilling.expireActiveWorkspacePeriods",
-      markInvoiceFromProvider: "internal:workspaceBilling.markInvoiceFromProvider",
+      markInvoiceFromProvider:
+        "internal:workspaceBilling.markInvoiceFromProvider",
       listExpiredActiveWorkspacePeriods:
         "internal:workspaceBilling.listExpiredActiveWorkspacePeriods",
       listPendingInvoicesForReconciliation:
         "internal:workspaceBilling.listPendingInvoicesForReconciliation",
       reconcilePendingWorkspaceInvoices:
         "internal:workspaceBilling.reconcilePendingWorkspaceInvoices",
-      reserveWorkspaceCheckout: "internal:workspaceBilling.reserveWorkspaceCheckout",
+      reserveWorkspaceCheckout:
+        "internal:workspaceBilling.reserveWorkspaceCheckout",
       finalizeWorkspaceCheckoutSuccess:
         "internal:workspaceBilling.finalizeWorkspaceCheckoutSuccess",
       finalizeWorkspaceCheckoutFailure:
@@ -90,7 +92,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("reuses an existing open checkout before calling Mayar", async () => {
-    const { createWorkspaceCheckout } = await import("../convex/workspaceBilling");
+    const { createWorkspaceCheckout } =
+      await import("../convex/workspaceBilling");
     const runMutation = vi.fn(async (reference: string) => {
       if (reference === "internal:workspaceBilling.reserveWorkspaceCheckout") {
         return {
@@ -137,45 +140,58 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("creates a Mayar customer and invoice when no open checkout exists", async () => {
-    const { createWorkspaceCheckout } = await import("../convex/workspaceBilling");
-    const finalizeWorkspaceCheckoutSuccess = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return {
-      invoice: {
-        amount: 150000,
-        currency: "IDR",
-        invoiceId: "invoice_reserved",
-        issuedAt: 1_900_000_000_000,
-        paymentUrl: "https://mayar.example/invoice/new",
-        pollAttempts: 0,
-        provider: "mayar",
-        providerInvoiceId: "mayar_invoice_123",
-        providerTransactionId: "mayar_txn_123",
-        status: "pending",
-      },
-        reused: false,
-        workspaceId: "workspace_123456",
-      };
-    });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.reserveWorkspaceCheckout") {
+    const { createWorkspaceCheckout } =
+      await import("../convex/workspaceBilling");
+    const finalizeWorkspaceCheckoutSuccess = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
         return {
-          createdByUserId: "user_superadmin",
-          invoiceId: "invoice_reserved",
-          invoiceIssuedAt: 1_900_000_000_000,
-          subscriptionId: "subscription_reserved",
+          invoice: {
+            amount: 150000,
+            currency: "IDR",
+            invoiceId: "invoice_reserved",
+            issuedAt: 1_900_000_000_000,
+            paymentUrl: "https://mayar.example/invoice/new",
+            pollAttempts: 0,
+            provider: "mayar",
+            providerInvoiceId: "mayar_invoice_123",
+            providerTransactionId: "mayar_txn_123",
+            status: "pending",
+          },
+          reused: false,
           workspaceId: "workspace_123456",
         };
-      }
+      },
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (
+          reference === "internal:workspaceBilling.reserveWorkspaceCheckout"
+        ) {
+          return {
+            createdByUserId: "user_superadmin",
+            invoiceId: "invoice_reserved",
+            invoiceIssuedAt: 1_900_000_000_000,
+            subscriptionId: "subscription_reserved",
+            workspaceId: "workspace_123456",
+          };
+        }
 
-      if (reference === "internal:workspaceBilling.finalizeWorkspaceCheckoutSuccess") {
-        return await finalizeWorkspaceCheckoutSuccess(args);
-      }
+        if (
+          reference ===
+          "internal:workspaceBilling.finalizeWorkspaceCheckoutSuccess"
+        ) {
+          return await finalizeWorkspaceCheckoutSuccess(args);
+        }
 
-      throw new Error(`Unexpected runMutation call: ${reference}`);
-    });
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
     const runAction = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBillingMayar.createMayarCustomerIfNeeded") {
+      if (
+        reference ===
+        "internal:workspaceBillingMayar.createMayarCustomerIfNeeded"
+      ) {
         return {
           email: "owner@absenin.id",
           name: "Owner Workspace",
@@ -242,30 +258,43 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("marks reserved checkout failed when Mayar invoice creation throws", async () => {
-    const { createWorkspaceCheckout } = await import("../convex/workspaceBilling");
-    const finalizeWorkspaceCheckoutFailure = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return null;
-    });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.reserveWorkspaceCheckout") {
-        return {
-          createdByUserId: "user_superadmin",
-          invoiceId: "invoice_reserved",
-          invoiceIssuedAt: 1_900_000_000_000,
-          subscriptionId: "subscription_reserved",
-          workspaceId: "workspace_123456",
-        };
-      }
+    const { createWorkspaceCheckout } =
+      await import("../convex/workspaceBilling");
+    const finalizeWorkspaceCheckoutFailure = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return null;
+      },
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (
+          reference === "internal:workspaceBilling.reserveWorkspaceCheckout"
+        ) {
+          return {
+            createdByUserId: "user_superadmin",
+            invoiceId: "invoice_reserved",
+            invoiceIssuedAt: 1_900_000_000_000,
+            subscriptionId: "subscription_reserved",
+            workspaceId: "workspace_123456",
+          };
+        }
 
-      if (reference === "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure") {
-        return await finalizeWorkspaceCheckoutFailure(args);
-      }
+        if (
+          reference ===
+          "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure"
+        ) {
+          return await finalizeWorkspaceCheckoutFailure(args);
+        }
 
-      throw new Error(`Unexpected runMutation call: ${reference}`);
-    });
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
     const runAction = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBillingMayar.createMayarCustomerIfNeeded") {
+      if (
+        reference ===
+        "internal:workspaceBillingMayar.createMayarCustomerIfNeeded"
+      ) {
         return {
           email: "owner@absenin.id",
           name: "Owner Workspace",
@@ -304,28 +333,38 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("keeps pending_initializing reservations open when provider failure is ambiguous", async () => {
-    const { createWorkspaceCheckout } = await import("../convex/workspaceBilling");
-    const finalizeWorkspaceCheckoutFailure = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return null;
-    });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.reserveWorkspaceCheckout") {
-        return {
-          createdByUserId: "user_superadmin",
-          invoiceId: "invoice_reserved",
-          invoiceIssuedAt: 1_900_000_000_000,
-          subscriptionId: "subscription_reserved",
-          workspaceId: "workspace_123456",
-        };
-      }
+    const { createWorkspaceCheckout } =
+      await import("../convex/workspaceBilling");
+    const finalizeWorkspaceCheckoutFailure = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return null;
+      },
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (
+          reference === "internal:workspaceBilling.reserveWorkspaceCheckout"
+        ) {
+          return {
+            createdByUserId: "user_superadmin",
+            invoiceId: "invoice_reserved",
+            invoiceIssuedAt: 1_900_000_000_000,
+            subscriptionId: "subscription_reserved",
+            workspaceId: "workspace_123456",
+          };
+        }
 
-      if (reference === "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure") {
-        return await finalizeWorkspaceCheckoutFailure(args);
-      }
+        if (
+          reference ===
+          "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure"
+        ) {
+          return await finalizeWorkspaceCheckoutFailure(args);
+        }
 
-      throw new Error(`Unexpected runMutation call: ${reference}`);
-    });
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
     const ambiguousError = new Error("Mayar sync unavailable") as Error & {
       data?: { code: string; message: string };
     };
@@ -334,7 +373,10 @@ describe("workspace billing convex checkout flow", () => {
       message: "Mayar sync unavailable",
     };
     const runAction = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBillingMayar.createMayarCustomerIfNeeded") {
+      if (
+        reference ===
+        "internal:workspaceBillingMayar.createMayarCustomerIfNeeded"
+      ) {
         return {
           email: "owner@absenin.id",
           name: "Owner Workspace",
@@ -367,83 +409,274 @@ describe("workspace billing convex checkout flow", () => {
     expect(finalizeWorkspaceCheckoutFailure).not.toHaveBeenCalled();
   });
 
-  it("refreshes a paid pending invoice into an active pro period", async () => {
-    const { refreshWorkspacePendingInvoice } = await import("../convex/workspaceBilling");
-    const markInvoiceFromProvider = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return {
-      invoice: {
+  it("releases stale pending_initializing invoices without a provider reference before reserving a new checkout", async () => {
+    const { reserveWorkspaceCheckout } =
+      await import("../convex/workspaceBilling");
+    const workspace = {
+      _id: "workspace_123456",
+      slug: "workspace",
+      name: "Workspace",
+      plan: "free",
+      isActive: true,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const subscriptions = [
+      {
+        _id: "subscription_stale",
+        workspaceId: "workspace_123456",
+        status: "pending",
+        provider: "mayar",
+        kind: "pro_one_time",
+        startedAt: 1_899_999_000_000,
+        createdByUserId: "user_superadmin",
+        updatedAt: 1_899_999_000_000,
+      },
+    ];
+    const invoices = [
+      {
+        _id: "invoice_stale",
+        workspaceId: "workspace_123456",
+        subscriptionId: "subscription_stale",
+        provider: "mayar",
+        status: "pending_initializing",
         amount: 150000,
         currency: "IDR",
-        invoiceId: "invoice_pending",
-        issuedAt: 1_900_000_000_000,
-        paidAt: 1_900_000_100_000,
-        paymentUrl: "https://mayar.example/invoice/pending",
-        pollAttempts: 1,
-        provider: "mayar",
-        providerInvoiceId: "mayar_invoice_pending",
-        providerTransactionId: "mayar_txn_paid",
-        status: "paid",
+        paymentUrl: undefined,
+        providerInvoiceId: undefined,
+        providerStatusText: undefined,
+        issuedAt: 1_900_000_000_000 - 10 * 60 * 1000,
+        pollAttempts: 0,
       },
-      subscription: {
-        activatedAt: undefined,
-        currentPeriodEndsAt: undefined,
-        currentPeriodStartsAt: undefined,
-        kind: "pro_one_time",
-        provider: "mayar",
-        startedAt: 1_900_000_000_000,
-        status: "pending",
-        subscriptionId: "subscription_pending",
-        updatedAt: 1_900_000_000_000,
-      },
-        workspaceId: "workspace_123456",
-      };
-    });
-    const activatePaidWorkspacePeriod = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return {
-      allowedActions: {
-        canCreateCheckout: false,
-        canRefreshPendingInvoice: false,
-        canViewInvoices: true,
-      },
-      currentSubscription: {
-        activatedAt: 1_900_000_100_000,
-        currentPeriodEndsAt: 1_902_592_100_000,
-        currentPeriodStartsAt: 1_900_000_100_000,
-        kind: "pro_one_time",
-        provider: "mayar",
-        startedAt: 1_900_000_000_000,
-        status: "active",
-        subscriptionId: "subscription_pending",
-        updatedAt: 1_900_000_100_000,
-      },
-      pendingInvoice: null,
-      plan: "pro",
-      restrictedState: {
-        activeDevices: 1,
-        activeMembers: 3,
-        hadPaidOrManualEntitlement: true,
-        isRestricted: false,
-        overFreeDeviceLimit: false,
-        overFreeMemberLimit: false,
-      },
-        workspaceId: "workspace_123456",
-      };
-    });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.markInvoiceFromProvider") {
-        return await markInvoiceFromProvider(args);
-      }
+    ];
+    const patches: Array<{ id: string; value: Record<string, unknown> }> = [];
+    const events: Array<Record<string, unknown>> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "workspace_123456") {
+            return workspace;
+          }
 
-      if (reference === "internal:workspaceBilling.activatePaidWorkspacePeriod") {
-        return await activatePaidWorkspacePeriod(args);
-      }
+          if (id === "subscription_stale") {
+            return subscriptions[0];
+          }
 
-      throw new Error(`Unexpected runMutation call: ${reference}`);
+          return null;
+        }),
+        insert: vi.fn(async (table: string, value: Record<string, unknown>) => {
+          inserts.push({ table, value });
+
+          if (table === "workspace_subscriptions") {
+            return "subscription_new";
+          }
+
+          if (table === "workspace_billing_invoices") {
+            return "invoice_new";
+          }
+
+          if (table === "workspace_subscription_events") {
+            events.push(value);
+            return `event_${events.length}`;
+          }
+
+          throw new Error(`Unexpected insert table: ${table}`);
+        }),
+        patch: vi.fn(async (id: string, value: Record<string, unknown>) => {
+          patches.push({ id, value });
+        }),
+        query: vi.fn((table: string) => ({
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
+
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () =>
+                    subscriptions.filter(
+                      (row) =>
+                        row.workspaceId === filters.workspaceId &&
+                        row.status === filters.status,
+                    ),
+                  ),
+                };
+              }
+
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () =>
+                    invoices.filter(
+                      (row) =>
+                        row.workspaceId === filters.workspaceId &&
+                        row.status === filters.status,
+                    ),
+                  ),
+                };
+              }
+
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
+        })),
+      },
+    };
+
+    const result = await getHandler(reserveWorkspaceCheckout)(ctx as never, {
+      billingPhone: "+6281234567890",
+      createdByUserId: "user_superadmin" as never,
+      workspaceId: "workspace_123456" as never,
     });
+
+    expect(patches).toEqual(
+      expect.arrayContaining([
+        {
+          id: "invoice_stale",
+          value: expect.objectContaining({
+            providerStatusText:
+              "Sinkronisasi invoice Mayar terhenti sebelum referensi pembayaran tersedia.",
+            status: "failed",
+          }),
+        },
+        {
+          id: "subscription_stale",
+          value: expect.objectContaining({
+            canceledAt: 1_900_000_000_000,
+            status: "canceled",
+            updatedAt: 1_900_000_000_000,
+          }),
+        },
+      ]),
+    );
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventKey: "invoice_failed:invoice_stale",
+          eventType: "invoice_failed",
+          invoiceId: "invoice_stale",
+          subscriptionId: "subscription_stale",
+          workspaceId: "workspace_123456",
+        }),
+      ]),
+    );
+    expect(result).toEqual({
+      createdByUserId: "user_superadmin",
+      invoiceId: "invoice_new",
+      invoiceIssuedAt: 1_900_000_000_000,
+      subscriptionId: "subscription_new",
+      workspaceId: "workspace_123456",
+    });
+    expect(inserts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ table: "workspace_subscriptions" }),
+        expect.objectContaining({ table: "workspace_billing_invoices" }),
+      ]),
+    );
+  });
+
+  it("refreshes a paid pending invoice into an active pro period", async () => {
+    const { refreshWorkspacePendingInvoice } =
+      await import("../convex/workspaceBilling");
+    const markInvoiceFromProvider = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return {
+          invoice: {
+            amount: 150000,
+            currency: "IDR",
+            invoiceId: "invoice_pending",
+            issuedAt: 1_900_000_000_000,
+            paidAt: 1_900_000_100_000,
+            paymentUrl: "https://mayar.example/invoice/pending",
+            pollAttempts: 1,
+            provider: "mayar",
+            providerInvoiceId: "mayar_invoice_pending",
+            providerTransactionId: "mayar_txn_paid",
+            status: "paid",
+          },
+          subscription: {
+            activatedAt: undefined,
+            currentPeriodEndsAt: undefined,
+            currentPeriodStartsAt: undefined,
+            kind: "pro_one_time",
+            provider: "mayar",
+            startedAt: 1_900_000_000_000,
+            status: "pending",
+            subscriptionId: "subscription_pending",
+            updatedAt: 1_900_000_000_000,
+          },
+          workspaceId: "workspace_123456",
+        };
+      },
+    );
+    const activatePaidWorkspacePeriod = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return {
+          allowedActions: {
+            canCreateCheckout: false,
+            canRefreshPendingInvoice: false,
+            canViewInvoices: true,
+          },
+          currentSubscription: {
+            activatedAt: 1_900_000_100_000,
+            currentPeriodEndsAt: 1_902_592_100_000,
+            currentPeriodStartsAt: 1_900_000_100_000,
+            kind: "pro_one_time",
+            provider: "mayar",
+            startedAt: 1_900_000_000_000,
+            status: "active",
+            subscriptionId: "subscription_pending",
+            updatedAt: 1_900_000_100_000,
+          },
+          pendingInvoice: null,
+          plan: "pro",
+          restrictedState: {
+            activeDevices: 1,
+            activeMembers: 3,
+            hadPaidOrManualEntitlement: true,
+            isRestricted: false,
+            overFreeDeviceLimit: false,
+            overFreeMemberLimit: false,
+          },
+          workspaceId: "workspace_123456",
+        };
+      },
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (reference === "internal:workspaceBilling.markInvoiceFromProvider") {
+          return await markInvoiceFromProvider(args);
+        }
+
+        if (
+          reference === "internal:workspaceBilling.activatePaidWorkspacePeriod"
+        ) {
+          return await activatePaidWorkspacePeriod(args);
+        }
+
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
     const runAction = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBillingMayar.fetchMayarInvoiceStatus") {
+      if (
+        reference === "internal:workspaceBillingMayar.fetchMayarInvoiceStatus"
+      ) {
         return {
           amount: 150000,
           expiresAt: 1_900_003_600_000,
@@ -508,7 +741,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("rebuilds billing summary after refresh through an internal query boundary", async () => {
-    const { refreshWorkspacePendingInvoice } = await import("../convex/workspaceBilling");
+    const { refreshWorkspacePendingInvoice } =
+      await import("../convex/workspaceBilling");
     const runMutation = vi.fn(async (reference: string) => {
       if (reference === "internal:workspaceBilling.markInvoiceFromProvider") {
         return {
@@ -539,21 +773,28 @@ describe("workspace billing convex checkout flow", () => {
       throw new Error(`Unexpected runMutation call: ${reference}`);
     });
     const runAction = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBillingMayar.fetchMayarInvoiceStatus") {
+      if (
+        reference === "internal:workspaceBillingMayar.fetchMayarInvoiceStatus"
+      ) {
         return {
           amount: 150000,
           expiresAt: 1_900_003_600_000,
           paymentUrl: "https://mayar.example/invoice/pending",
           providerInvoiceId: "mayar_invoice_pending",
           providerStatusText: "unpaid",
-          rawProviderSnapshot: { id: "mayar_invoice_pending", status: "unpaid" },
+          rawProviderSnapshot: {
+            id: "mayar_invoice_pending",
+            status: "unpaid",
+          },
         };
       }
 
       throw new Error(`Unexpected runAction call: ${reference}`);
     });
     const runQuery = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBilling.getPendingInvoiceForRefresh") {
+      if (
+        reference === "internal:workspaceBilling.getPendingInvoiceForRefresh"
+      ) {
         return {
           invoiceId: "invoice_pending",
           providerInvoiceId: "mayar_invoice_pending",
@@ -562,7 +803,10 @@ describe("workspace billing convex checkout flow", () => {
         };
       }
 
-      if (reference === "internal:workspaceBilling.getWorkspaceBillingSummaryFromMutation") {
+      if (
+        reference ===
+        "internal:workspaceBilling.getWorkspaceBillingSummaryFromMutation"
+      ) {
         return {
           allowedActions: {
             canCreateCheckout: false,
@@ -634,9 +878,13 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("reconciles pending invoices and activates paid workspaces", async () => {
-    const { reconcilePendingWorkspaceInvoices } = await import("../convex/workspaceBilling");
+    const { reconcilePendingWorkspaceInvoices } =
+      await import("../convex/workspaceBilling");
     const runQuery = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBilling.listPendingInvoicesForReconciliation") {
+      if (
+        reference ===
+        "internal:workspaceBilling.listPendingInvoicesForReconciliation"
+      ) {
         return [
           {
             invoiceId: "invoice_paid",
@@ -655,69 +903,84 @@ describe("workspace billing convex checkout flow", () => {
 
       throw new Error(`Unexpected runQuery call: ${reference}`);
     });
-    const markInvoiceFromProvider = vi.fn(async (args: Record<string, unknown>) => ({
-      invoice: {
-        amount: 150000,
-        currency: "IDR",
-        invoiceId: args.invoiceId,
-        issuedAt: 1_900_000_000_000,
-        paidAt:
-          args.providerStatusText === "paid" ? 1_900_000_100_000 : undefined,
-        pollAttempts: 1,
-        provider: "mayar",
-        providerInvoiceId: args.providerInvoiceId,
-        status: args.providerStatusText === "paid" ? "paid" : "pending",
+    const markInvoiceFromProvider = vi.fn(
+      async (args: Record<string, unknown>) => ({
+        invoice: {
+          amount: 150000,
+          currency: "IDR",
+          invoiceId: args.invoiceId,
+          issuedAt: 1_900_000_000_000,
+          paidAt:
+            args.providerStatusText === "paid" ? 1_900_000_100_000 : undefined,
+          pollAttempts: 1,
+          provider: "mayar",
+          providerInvoiceId: args.providerInvoiceId,
+          status: args.providerStatusText === "paid" ? "paid" : "pending",
+        },
+        subscription: {
+          kind: "pro_one_time",
+          provider: "mayar",
+          startedAt: 1_900_000_000_000,
+          status: "pending",
+          subscriptionId: args.subscriptionId,
+          updatedAt: 1_900_000_000_000,
+        },
+        workspaceId: args.workspaceId,
+      }),
+    );
+    const activatePaidWorkspacePeriod = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return null;
       },
-      subscription: {
-        kind: "pro_one_time",
-        provider: "mayar",
-        startedAt: 1_900_000_000_000,
-        status: "pending",
-        subscriptionId: args.subscriptionId,
-        updatedAt: 1_900_000_000_000,
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (reference === "internal:workspaceBilling.markInvoiceFromProvider") {
+          return await markInvoiceFromProvider(args);
+        }
+
+        if (
+          reference === "internal:workspaceBilling.activatePaidWorkspacePeriod"
+        ) {
+          return await activatePaidWorkspacePeriod(args);
+        }
+
+        throw new Error(`Unexpected runMutation call: ${reference}`);
       },
-      workspaceId: args.workspaceId,
-    }));
-    const activatePaidWorkspacePeriod = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return null;
-    });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.markInvoiceFromProvider") {
-        return await markInvoiceFromProvider(args);
-      }
+    );
+    const runAction = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (
+          reference !== "internal:workspaceBillingMayar.fetchMayarInvoiceStatus"
+        ) {
+          throw new Error(`Unexpected runAction call: ${reference}`);
+        }
 
-      if (reference === "internal:workspaceBilling.activatePaidWorkspacePeriod") {
-        return await activatePaidWorkspacePeriod(args);
-      }
-
-      throw new Error(`Unexpected runMutation call: ${reference}`);
-    });
-    const runAction = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference !== "internal:workspaceBillingMayar.fetchMayarInvoiceStatus") {
-        throw new Error(`Unexpected runAction call: ${reference}`);
-      }
-
-      return args.providerInvoiceId === "mayar_invoice_paid"
-        ? {
-            amount: 150000,
-            expiresAt: 1_900_003_600_000,
-            paidAt: 1_900_000_100_000,
-            paymentUrl: "https://mayar.example/invoice/paid",
-            providerInvoiceId: "mayar_invoice_paid",
-            providerStatusText: "paid",
-            providerTransactionId: "mayar_txn_paid",
-            rawProviderSnapshot: { id: "mayar_invoice_paid", status: "paid" },
-          }
-        : {
-            amount: 150000,
-            expiresAt: 1_900_003_600_000,
-            paymentUrl: "https://mayar.example/invoice/pending",
-            providerInvoiceId: "mayar_invoice_pending",
-            providerStatusText: "unpaid",
-            rawProviderSnapshot: { id: "mayar_invoice_pending", status: "unpaid" },
-          };
-    });
+        return args.providerInvoiceId === "mayar_invoice_paid"
+          ? {
+              amount: 150000,
+              expiresAt: 1_900_003_600_000,
+              paidAt: 1_900_000_100_000,
+              paymentUrl: "https://mayar.example/invoice/paid",
+              providerInvoiceId: "mayar_invoice_paid",
+              providerStatusText: "paid",
+              providerTransactionId: "mayar_txn_paid",
+              rawProviderSnapshot: { id: "mayar_invoice_paid", status: "paid" },
+            }
+          : {
+              amount: 150000,
+              expiresAt: 1_900_003_600_000,
+              paymentUrl: "https://mayar.example/invoice/pending",
+              providerInvoiceId: "mayar_invoice_pending",
+              providerStatusText: "unpaid",
+              rawProviderSnapshot: {
+                id: "mayar_invoice_pending",
+                status: "unpaid",
+              },
+            };
+      },
+    );
 
     const result = await getHandler(reconcilePendingWorkspaceInvoices)(
       {
@@ -744,14 +1007,20 @@ describe("workspace billing convex checkout flow", () => {
     });
   });
 
-  it("keeps stale pending_initializing invoices locked when provider reference is missing", async () => {
-    const { reconcilePendingWorkspaceInvoices } = await import("../convex/workspaceBilling");
-    const finalizeWorkspaceCheckoutFailure = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return null;
-    });
+  it("releases stale pending_initializing invoices during reconciliation when provider reference is missing", async () => {
+    const { reconcilePendingWorkspaceInvoices } =
+      await import("../convex/workspaceBilling");
+    const finalizeWorkspaceCheckoutFailure = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return null;
+      },
+    );
     const runQuery = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBilling.listPendingInvoicesForReconciliation") {
+      if (
+        reference ===
+        "internal:workspaceBilling.listPendingInvoicesForReconciliation"
+      ) {
         return [
           {
             invoiceId: "invoice_initializing",
@@ -763,13 +1032,18 @@ describe("workspace billing convex checkout flow", () => {
 
       throw new Error(`Unexpected runQuery call: ${reference}`);
     });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure") {
-        return await finalizeWorkspaceCheckoutFailure(args);
-      }
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (
+          reference ===
+          "internal:workspaceBilling.finalizeWorkspaceCheckoutFailure"
+        ) {
+          return await finalizeWorkspaceCheckoutFailure(args);
+        }
 
-      throw new Error(`Unexpected runMutation call: ${reference}`);
-    });
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
     const runAction = vi.fn();
 
     const result = await getHandler(reconcilePendingWorkspaceInvoices)(
@@ -782,7 +1056,13 @@ describe("workspace billing convex checkout flow", () => {
     );
 
     expect(runAction).not.toHaveBeenCalled();
-    expect(finalizeWorkspaceCheckoutFailure).not.toHaveBeenCalled();
+    expect(finalizeWorkspaceCheckoutFailure).toHaveBeenCalledWith({
+      invoiceId: "invoice_initializing",
+      providerStatusText:
+        "Sinkronisasi invoice Mayar terhenti sebelum referensi pembayaran tersedia.",
+      subscriptionId: "subscription_initializing",
+      workspaceId: "workspace_123456",
+    });
     expect(result).toEqual({
       expiredCount: 0,
       paidCount: 0,
@@ -791,7 +1071,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("returns invoice detail with workspace and stored Mayar customer data", async () => {
-    const { getWorkspaceBillingInvoiceDetail } = await import("../convex/workspaceBilling");
+    const { getWorkspaceBillingInvoiceDetail } =
+      await import("../convex/workspaceBilling");
     const workspace = {
       _id: "workspace_123456",
       slug: "workspace-demo",
@@ -848,48 +1129,63 @@ describe("workspace billing convex checkout flow", () => {
           return null;
         }),
         query: vi.fn((table: string) => ({
-          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-            const filters: Record<string, unknown> = {};
-            const queryBuilder = {
-              eq(field: string, value: unknown) {
-                filters[field] = value;
-                return queryBuilder;
-              },
-            };
-            builder(queryBuilder);
-
-            if (table === "workspace_billing_customers" && indexName === "by_workspace_provider") {
-              return {
-                unique: vi.fn(async () => ({
-                  workspaceId: "workspace_123456",
-                  provider: "mayar",
-                  providerCustomerId: "mayar_customer_123",
-                  name: "Owner Workspace",
-                  email: "owner@absenin.id",
-                  phone: "+6281234567890",
-                })),
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
               };
-            }
+              builder(queryBuilder);
 
-            if (table === "settings" && indexName === "by_workspace") {
-              return {
-                unique: vi.fn(async () => ({
-                  workspaceId: "workspace_123456",
-                  timezone: "Asia/Jakarta",
-                })),
-              };
-            }
+              if (
+                table === "workspace_billing_customers" &&
+                indexName === "by_workspace_provider"
+              ) {
+                return {
+                  unique: vi.fn(async () => ({
+                    workspaceId: "workspace_123456",
+                    provider: "mayar",
+                    providerCustomerId: "mayar_customer_123",
+                    name: "Owner Workspace",
+                    email: "owner@absenin.id",
+                    phone: "+6281234567890",
+                  })),
+                };
+              }
 
-            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
-          }),
+              if (table === "settings" && indexName === "by_workspace") {
+                return {
+                  unique: vi.fn(async () => ({
+                    workspaceId: "workspace_123456",
+                    timezone: "Asia/Jakarta",
+                  })),
+                };
+              }
+
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
         })),
       },
     };
 
-    const result = (await getHandler(getWorkspaceBillingInvoiceDetail)(ctx as never, {
-      invoiceId: "invoice_paid_123" as never,
-      workspaceId: "workspace_123456" as never,
-    })) as {
+    const result = (await getHandler(getWorkspaceBillingInvoiceDetail)(
+      ctx as never,
+      {
+        invoiceId: "invoice_paid_123" as never,
+        workspaceId: "workspace_123456" as never,
+      },
+    )) as {
       customer: { name: string } | null;
       invoice: { invoiceId: string; status: string };
       subscription: { subscriptionId: string } | null;
@@ -921,7 +1217,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("does not allow refreshing a checkout that is still pending initialization", async () => {
-    const { getWorkspaceBillingSummary } = await import("../convex/workspaceBilling");
+    const { getWorkspaceBillingSummary } =
+      await import("../convex/workspaceBilling");
     const workspace = {
       _id: "workspace_123456",
       slug: "workspace",
@@ -965,46 +1262,57 @@ describe("workspace billing convex checkout flow", () => {
           return null;
         }),
         query: vi.fn((table: string) => ({
-          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-            const filters: Record<string, unknown> = {};
-            const queryBuilder = {
-              eq(field: string, value: unknown) {
-                filters[field] = value;
-                return queryBuilder;
-              },
-            };
-            builder(queryBuilder);
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
 
-            if (table === "workspace_subscriptions") {
-              return {
-                collect: vi.fn(async () => {
-                  if (indexName === "by_workspace_status") {
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () => {
+                    if (indexName === "by_workspace_status") {
+                      return subscriptions.filter(
+                        (row) =>
+                          row.workspaceId === filters.workspaceId &&
+                          row.status === filters.status,
+                      );
+                    }
+
                     return subscriptions.filter(
-                      (row) =>
-                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                      (row) => row.workspaceId === filters.workspaceId,
                     );
-                  }
+                  }),
+                };
+              }
 
-                  return subscriptions.filter(
-                    (row) => row.workspaceId === filters.workspaceId,
-                  );
-                }),
-              };
-            }
-
-            if (table === "workspace_billing_invoices") {
-              return {
-                collect: vi.fn(async () =>
-                  invoices.filter(
-                    (row) =>
-                      row.workspaceId === filters.workspaceId && row.status === filters.status,
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () =>
+                    invoices.filter(
+                      (row) =>
+                        row.workspaceId === filters.workspaceId &&
+                        row.status === filters.status,
+                    ),
                   ),
-                ),
-              };
-            }
+                };
+              }
 
-            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
-          }),
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
         })),
       },
     };
@@ -1013,7 +1321,10 @@ describe("workspace billing convex checkout flow", () => {
       workspaceId: "workspace_123456" as never,
     })) as Record<string, unknown> & {
       pendingInvoice: Record<string, unknown> | null;
-      allowedActions: { canCreateCheckout: boolean; canRefreshPendingInvoice: boolean };
+      allowedActions: {
+        canCreateCheckout: boolean;
+        canRefreshPendingInvoice: boolean;
+      };
     };
 
     expect(result.pendingInvoice).toEqual(
@@ -1027,7 +1338,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("does not mark over-limit free workspaces as restricted when billing never activated", async () => {
-    const { getWorkspaceBillingSummary } = await import("../convex/workspaceBilling");
+    const { getWorkspaceBillingSummary } =
+      await import("../convex/workspaceBilling");
     getWorkspaceSubscriptionSummary.mockResolvedValueOnce({
       usage: {
         activeDevices: 2,
@@ -1064,41 +1376,51 @@ describe("workspace billing convex checkout flow", () => {
           return null;
         }),
         query: vi.fn((table: string) => ({
-          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-            const filters: Record<string, unknown> = {};
-            const queryBuilder = {
-              eq(field: string, value: unknown) {
-                filters[field] = value;
-                return queryBuilder;
-              },
-            };
-            builder(queryBuilder);
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
 
-            if (table === "workspace_subscriptions") {
-              return {
-                collect: vi.fn(async () => {
-                  if (indexName === "by_workspace_status") {
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () => {
+                    if (indexName === "by_workspace_status") {
+                      return subscriptions.filter(
+                        (row) =>
+                          row.workspaceId === filters.workspaceId &&
+                          row.status === filters.status,
+                      );
+                    }
+
                     return subscriptions.filter(
-                      (row) =>
-                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                      (row) => row.workspaceId === filters.workspaceId,
                     );
-                  }
+                  }),
+                };
+              }
 
-                  return subscriptions.filter(
-                    (row) => row.workspaceId === filters.workspaceId,
-                  );
-                }),
-              };
-            }
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () => []),
+                };
+              }
 
-            if (table === "workspace_billing_invoices") {
-              return {
-                collect: vi.fn(async () => []),
-              };
-            }
-
-            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
-          }),
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
         })),
       },
     };
@@ -1106,7 +1428,10 @@ describe("workspace billing convex checkout flow", () => {
     const result = (await getHandler(getWorkspaceBillingSummary)(ctx as never, {
       workspaceId: "workspace_123456" as never,
     })) as {
-      restrictedState: { hadPaidOrManualEntitlement: boolean; isRestricted: boolean };
+      restrictedState: {
+        hadPaidOrManualEntitlement: boolean;
+        isRestricted: boolean;
+      };
     };
 
     expect(result.restrictedState.hadPaidOrManualEntitlement).toBe(false);
@@ -1114,7 +1439,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("does not mark expired unpaid billing history as prior entitlement", async () => {
-    const { getWorkspaceBillingSummary } = await import("../convex/workspaceBilling");
+    const { getWorkspaceBillingSummary } =
+      await import("../convex/workspaceBilling");
     getWorkspaceSubscriptionSummary.mockResolvedValueOnce({
       usage: {
         activeDevices: 2,
@@ -1152,41 +1478,51 @@ describe("workspace billing convex checkout flow", () => {
           return null;
         }),
         query: vi.fn((table: string) => ({
-          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-            const filters: Record<string, unknown> = {};
-            const queryBuilder = {
-              eq(field: string, value: unknown) {
-                filters[field] = value;
-                return queryBuilder;
-              },
-            };
-            builder(queryBuilder);
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
 
-            if (table === "workspace_subscriptions") {
-              return {
-                collect: vi.fn(async () => {
-                  if (indexName === "by_workspace_status") {
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () => {
+                    if (indexName === "by_workspace_status") {
+                      return subscriptions.filter(
+                        (row) =>
+                          row.workspaceId === filters.workspaceId &&
+                          row.status === filters.status,
+                      );
+                    }
+
                     return subscriptions.filter(
-                      (row) =>
-                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                      (row) => row.workspaceId === filters.workspaceId,
                     );
-                  }
+                  }),
+                };
+              }
 
-                  return subscriptions.filter(
-                    (row) => row.workspaceId === filters.workspaceId,
-                  );
-                }),
-              };
-            }
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () => []),
+                };
+              }
 
-            if (table === "workspace_billing_invoices") {
-              return {
-                collect: vi.fn(async () => []),
-              };
-            }
-
-            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
-          }),
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
         })),
       },
     };
@@ -1194,7 +1530,10 @@ describe("workspace billing convex checkout flow", () => {
     const result = (await getHandler(getWorkspaceBillingSummary)(ctx as never, {
       workspaceId: "workspace_123456" as never,
     })) as {
-      restrictedState: { hadPaidOrManualEntitlement: boolean; isRestricted: boolean };
+      restrictedState: {
+        hadPaidOrManualEntitlement: boolean;
+        isRestricted: boolean;
+      };
     };
 
     expect(result.restrictedState.hadPaidOrManualEntitlement).toBe(false);
@@ -1202,7 +1541,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("queries pending reconciliation rows through global status indexes", async () => {
-    const { listPendingInvoicesForReconciliation } = await import("../convex/workspaceBilling");
+    const { listPendingInvoicesForReconciliation } =
+      await import("../convex/workspaceBilling");
     const queryCalls: Array<Record<string, unknown>> = [];
     const staleCutoff = 1_900_000_000_000 - 10 * 60 * 1000;
     const ctx = {
@@ -1213,55 +1553,66 @@ describe("workspace billing convex checkout flow", () => {
           }
 
           return {
-            withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown; lte: (field: string, value: unknown) => unknown }) => unknown) => {
-              const filters: Record<string, unknown> = { indexName };
-              const queryBuilder = {
-                eq(field: string, value: unknown) {
-                  filters[field] = value;
-                  return queryBuilder;
-                },
-                lte(field: string, value: unknown) {
-                  filters[`${field}Lte`] = value;
-                  return queryBuilder;
-                },
-              };
-              builder(queryBuilder);
-              queryCalls.push(filters);
+            withIndex: vi.fn(
+              (
+                indexName: string,
+                builder: (query: {
+                  eq: (field: string, value: unknown) => unknown;
+                  lte: (field: string, value: unknown) => unknown;
+                }) => unknown,
+              ) => {
+                const filters: Record<string, unknown> = { indexName };
+                const queryBuilder = {
+                  eq(field: string, value: unknown) {
+                    filters[field] = value;
+                    return queryBuilder;
+                  },
+                  lte(field: string, value: unknown) {
+                    filters[`${field}Lte`] = value;
+                    return queryBuilder;
+                  },
+                };
+                builder(queryBuilder);
+                queryCalls.push(filters);
 
-              return {
-                collect: vi.fn(async () => {
-                  if (filters.status === "pending_initializing") {
-                    expect(filters.issuedAtLte).toBe(staleCutoff);
+                return {
+                  collect: vi.fn(async () => {
+                    if (filters.status === "pending_initializing") {
+                      expect(filters.issuedAtLte).toBe(staleCutoff);
+                      return [
+                        {
+                          _id: "invoice_initializing",
+                          subscriptionId: "subscription_initializing",
+                          workspaceId: "workspace_123456",
+                          status: "pending_initializing",
+                          issuedAt: staleCutoff,
+                        },
+                      ];
+                    }
+
                     return [
                       {
-                        _id: "invoice_initializing",
-                        subscriptionId: "subscription_initializing",
+                        _id: "invoice_pending",
+                        subscriptionId: "subscription_pending",
                         workspaceId: "workspace_123456",
-                        status: "pending_initializing",
-                        issuedAt: staleCutoff,
+                        providerInvoiceId: "mayar_invoice_pending",
+                        status: "pending",
+                        issuedAt: 1_900_000_000_000,
                       },
                     ];
-                  }
-
-                  return [
-                    {
-                      _id: "invoice_pending",
-                      subscriptionId: "subscription_pending",
-                      workspaceId: "workspace_123456",
-                      providerInvoiceId: "mayar_invoice_pending",
-                      status: "pending",
-                      issuedAt: 1_900_000_000_000,
-                    },
-                  ];
-                }),
-              };
-            }),
+                  }),
+                };
+              },
+            ),
           };
         }),
       },
     };
 
-    const result = await getHandler(listPendingInvoicesForReconciliation)(ctx as never, {});
+    const result = await getHandler(listPendingInvoicesForReconciliation)(
+      ctx as never,
+      {},
+    );
 
     expect(queryCalls).toEqual([
       expect.objectContaining({
@@ -1290,7 +1641,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("activates an internal enterprise entitlement without using Mayar", async () => {
-    const { activateEnterpriseWorkspacePeriod } = await import("../convex/workspaceBilling");
+    const { activateEnterpriseWorkspacePeriod } =
+      await import("../convex/workspaceBilling");
     const workspace = {
       _id: "workspace_123456",
       slug: "workspace",
@@ -1337,51 +1689,64 @@ describe("workspace billing convex checkout flow", () => {
           }
         }),
         query: vi.fn((table: string) => ({
-          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-            const filters: Record<string, unknown> = {};
-            const queryBuilder = {
-              eq(field: string, value: unknown) {
-                filters[field] = value;
-                return queryBuilder;
-              },
-            };
-            builder(queryBuilder);
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
 
-            if (table === "workspace_subscriptions") {
-              return {
-                collect: vi.fn(async () => {
-                  if (indexName === "by_workspace_status") {
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () => {
+                    if (indexName === "by_workspace_status") {
+                      return subscriptions.filter(
+                        (row) =>
+                          row.workspaceId === filters.workspaceId &&
+                          row.status === filters.status,
+                      );
+                    }
+
                     return subscriptions.filter(
-                      (row) =>
-                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                      (row) => row.workspaceId === filters.workspaceId,
                     );
-                  }
+                  }),
+                };
+              }
 
-                  return subscriptions.filter(
-                    (row) => row.workspaceId === filters.workspaceId,
-                  );
-                }),
-              };
-            }
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () => []),
+                };
+              }
 
-            if (table === "workspace_billing_invoices") {
-              return {
-                collect: vi.fn(async () => []),
-              };
-            }
-
-            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
-          }),
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
         })),
       },
     };
 
-    const result = (await getHandler(activateEnterpriseWorkspacePeriod)(ctx as never, {
-      activatedAt: 1_900_000_100_000,
-      createdByUserId: "user_superadmin" as never,
-      currentPeriodEndsAt: 1_902_592_100_000,
-      workspaceId: "workspace_123456" as never,
-    })) as { plan: string };
+    const result = (await getHandler(activateEnterpriseWorkspacePeriod)(
+      ctx as never,
+      {
+        activatedAt: 1_900_000_100_000,
+        createdByUserId: "user_superadmin" as never,
+        currentPeriodEndsAt: 1_902_592_100_000,
+        workspaceId: "workspace_123456" as never,
+      },
+    )) as { plan: string };
 
     expect(workspace.plan).toBe("enterprise");
     expect(subscriptions).toEqual([
@@ -1403,7 +1768,8 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("cancels an active internal enterprise entitlement and downgrades the workspace", async () => {
-    const { cancelEnterpriseWorkspacePeriod } = await import("../convex/workspaceBilling");
+    const { cancelEnterpriseWorkspacePeriod } =
+      await import("../convex/workspaceBilling");
     const workspace = {
       _id: "workspace_123456",
       slug: "workspace",
@@ -1458,49 +1824,62 @@ describe("workspace billing convex checkout flow", () => {
           }
         }),
         query: vi.fn((table: string) => ({
-          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-            const filters: Record<string, unknown> = {};
-            const queryBuilder = {
-              eq(field: string, value: unknown) {
-                filters[field] = value;
-                return queryBuilder;
-              },
-            };
-            builder(queryBuilder);
+          withIndex: vi.fn(
+            (
+              indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const filters: Record<string, unknown> = {};
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
 
-            if (table === "workspace_subscriptions") {
-              return {
-                collect: vi.fn(async () => {
-                  if (indexName === "by_workspace_status") {
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () => {
+                    if (indexName === "by_workspace_status") {
+                      return subscriptions.filter(
+                        (row) =>
+                          row.workspaceId === filters.workspaceId &&
+                          row.status === filters.status,
+                      );
+                    }
+
                     return subscriptions.filter(
-                      (row) =>
-                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                      (row) => row.workspaceId === filters.workspaceId,
                     );
-                  }
+                  }),
+                };
+              }
 
-                  return subscriptions.filter(
-                    (row) => row.workspaceId === filters.workspaceId,
-                  );
-                }),
-              };
-            }
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () => []),
+                };
+              }
 
-            if (table === "workspace_billing_invoices") {
-              return {
-                collect: vi.fn(async () => []),
-              };
-            }
-
-            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
-          }),
+              throw new Error(
+                `Unexpected table/index combination: ${table}/${indexName}`,
+              );
+            },
+          ),
         })),
       },
     };
 
-    const result = (await getHandler(cancelEnterpriseWorkspacePeriod)(ctx as never, {
-      canceledAt: 1_900_500_000_000,
-      workspaceId: "workspace_123456" as never,
-    })) as { plan: string };
+    const result = (await getHandler(cancelEnterpriseWorkspacePeriod)(
+      ctx as never,
+      {
+        canceledAt: 1_900_500_000_000,
+        workspaceId: "workspace_123456" as never,
+      },
+    )) as { plan: string };
 
     expect(workspace.plan).toBe("free");
     expect(subscriptions).toEqual([
@@ -1521,9 +1900,13 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("expires active workspace periods whose end date has passed", async () => {
-    const { expireActiveWorkspacePeriods, listExpiredActiveWorkspacePeriods } = await import("../convex/workspaceBilling");
+    const { expireActiveWorkspacePeriods, listExpiredActiveWorkspacePeriods } =
+      await import("../convex/workspaceBilling");
     const runQuery = vi.fn(async (reference: string) => {
-      if (reference === "internal:workspaceBilling.listExpiredActiveWorkspacePeriods") {
+      if (
+        reference ===
+        "internal:workspaceBilling.listExpiredActiveWorkspacePeriods"
+      ) {
         return [
           {
             currentPeriodEndsAt: 1_899_999_999_000,
@@ -1535,17 +1918,21 @@ describe("workspace billing convex checkout flow", () => {
 
       throw new Error(`Unexpected runQuery call: ${reference}`);
     });
-    const expireWorkspacePeriod = vi.fn(async (...args: [Record<string, unknown>]) => {
-      void args;
-      return null;
-    });
-    const runMutation = vi.fn(async (reference: string, args: Record<string, unknown>) => {
-      if (reference === "internal:workspaceBilling.expireWorkspacePeriod") {
-        return await expireWorkspacePeriod(args);
-      }
+    const expireWorkspacePeriod = vi.fn(
+      async (...args: [Record<string, unknown>]) => {
+        void args;
+        return null;
+      },
+    );
+    const runMutation = vi.fn(
+      async (reference: string, args: Record<string, unknown>) => {
+        if (reference === "internal:workspaceBilling.expireWorkspacePeriod") {
+          return await expireWorkspacePeriod(args);
+        }
 
-      throw new Error(`Unexpected runMutation call: ${reference}`);
-    });
+        throw new Error(`Unexpected runMutation call: ${reference}`);
+      },
+    );
 
     const result = await getHandler(expireActiveWorkspacePeriods)(
       {
@@ -1571,38 +1958,48 @@ describe("workspace billing convex checkout flow", () => {
           }
 
           return {
-            withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown; lte: (field: string, value: unknown) => unknown }) => unknown) => {
-              const filters: Record<string, unknown> = { indexName };
-              const queryBuilder = {
-                eq(field: string, value: unknown) {
-                  filters[field] = value;
-                  return queryBuilder;
-                },
-                lte(field: string, value: unknown) {
-                  filters[`${field}Lte`] = value;
-                  return queryBuilder;
-                },
-              };
-              builder(queryBuilder);
-              queryCalls.push(filters);
-
-              return {
-                collect: vi.fn(async () => [
-                  {
-                    _id: "subscription_expired",
-                    workspaceId: "workspace_123456",
-                    status: "active",
-                    currentPeriodEndsAt: 1_899_999_999_000,
+            withIndex: vi.fn(
+              (
+                indexName: string,
+                builder: (query: {
+                  eq: (field: string, value: unknown) => unknown;
+                  lte: (field: string, value: unknown) => unknown;
+                }) => unknown,
+              ) => {
+                const filters: Record<string, unknown> = { indexName };
+                const queryBuilder = {
+                  eq(field: string, value: unknown) {
+                    filters[field] = value;
+                    return queryBuilder;
                   },
-                ]),
-              };
-            }),
+                  lte(field: string, value: unknown) {
+                    filters[`${field}Lte`] = value;
+                    return queryBuilder;
+                  },
+                };
+                builder(queryBuilder);
+                queryCalls.push(filters);
+
+                return {
+                  collect: vi.fn(async () => [
+                    {
+                      _id: "subscription_expired",
+                      workspaceId: "workspace_123456",
+                      status: "active",
+                      currentPeriodEndsAt: 1_899_999_999_000,
+                    },
+                  ]),
+                };
+              },
+            ),
           };
         }),
       },
     };
 
-    await expect(getHandler(listExpiredActiveWorkspacePeriods)(listCtx as never, {})).resolves.toEqual([
+    await expect(
+      getHandler(listExpiredActiveWorkspacePeriods)(listCtx as never, {}),
+    ).resolves.toEqual([
       {
         currentPeriodEndsAt: 1_899_999_999_000,
         subscriptionId: "subscription_expired",
