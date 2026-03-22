@@ -81,7 +81,7 @@ async function setupUsersRoute(options: SetupOptions = {}) {
   }));
   const mutation = options.mutationImpl ?? vi.fn(async () => ({ ok: true }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ query, mutation }));
-  const parseUsersPatchBody = vi.fn(() => ({
+  const parseUsersPatchBody = vi.fn<() => { userId: string; role?: string; isActive?: boolean }>(() => ({
     userId: "user_target",
     isActive: true,
   }));
@@ -344,6 +344,45 @@ describe("admin route workspace policy", () => {
       workspaceId: "workspace_123456",
       userId: "user_target",
       role: undefined,
+      isActive: false,
+    });
+  });
+
+  it("treats deactivation with role changes as member recovery during restriction", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { PATCH, mocks } = await setupUsersRoute({
+      roleResult: { session: { role: "superadmin" } },
+      restrictionHandler: (action) => (action === "dashboard_overview" ? restricted : null),
+    });
+
+    mocks.parseUsersPatchBody.mockReturnValueOnce({
+      userId: "user_target",
+      role: "admin",
+      isActive: false,
+    });
+
+    const response = expectResponse(
+      await PATCH(
+        new Request("http://localhost/api/admin/users", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: "user_target", role: "admin", isActive: false }),
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith("users:updateAdminManagedFields", {
+      workspaceId: "workspace_123456",
+      userId: "user_target",
+      role: "admin",
       isActive: false,
     });
   });

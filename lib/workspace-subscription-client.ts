@@ -199,6 +199,7 @@ export function formatWorkspaceBillingPeriod(
   const formatter = new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
+    timeZone: "Asia/Jakarta",
     year: "numeric",
   });
 

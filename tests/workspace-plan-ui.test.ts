@@ -133,6 +133,9 @@ describe("workspace plan UI helpers", () => {
     expect(formatWorkspaceBillingPeriod(1_900_000_000_000, 1_902_592_000_000)).toBe(
       "18 Mar 2030 - 17 Apr 2030",
     );
+    expect(formatWorkspaceBillingPeriod(1_900_000_000_000, 1_900_000_000_000)).toBe(
+      "18 Mar 2030 - 18 Mar 2030",
+    );
     expect(
       getRestrictedWorkspaceOverlayCopy({
         activeDevices: 2,

@@ -2,7 +2,9 @@ import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
-import { SITE_URL } from "../lib/site-config";
+
+const DEFAULT_SITE_URL = "https://www.absenin.id";
+const DEFAULT_MAYAR_FETCH_TIMEOUT_MS = 15_000;
 
 const mayarCustomerResultValidator = v.object({
   workspaceId: v.string(),
@@ -59,7 +61,19 @@ function getMayarRedirectUrl() {
     return configured;
   }
 
-  return `${SITE_URL}/settings/workspace`;
+  const siteUrl =
+    process.env.APP_SITE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    DEFAULT_SITE_URL;
+
+  return `${siteUrl.replace(/\/$/, "")}/settings/workspace`;
+}
+
+function getMayarFetchTimeoutMs() {
+  const configured = Number.parseInt(process.env.MAYAR_FETCH_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_MAYAR_FETCH_TIMEOUT_MS;
 }
 
 function toMayarErrorMessage(payload, fallbackMessage) {
@@ -75,14 +89,34 @@ function toMayarErrorMessage(payload, fallbackMessage) {
 
 async function fetchMayar(path, options = {}) {
   const apiKey = requireMayarApiKey();
-  const response = await fetch(`${getMayarBaseUrl()}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${getMayarBaseUrl()}${path}`, {
+      method: options.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal:
+        typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+          ? AbortSignal.timeout(getMayarFetchTimeoutMs())
+          : undefined,
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      throw new ConvexError({
+        code: "BILLING_SYNC_FAILED",
+        message: "Permintaan ke Mayar melebihi batas waktu.",
+      });
+    }
+
+    throw new ConvexError({
+      code: "BILLING_SYNC_FAILED",
+      message: "Gagal terhubung ke Mayar.",
+    });
+  }
 
   let payload = null;
   try {

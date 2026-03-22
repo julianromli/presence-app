@@ -468,6 +468,28 @@ describe("workspace billing routes", () => {
     expect(mocks.action).not.toHaveBeenCalled();
   });
 
+  it("rejects checkout creation when billingPhone contains too few digits", async () => {
+    const { POSTCheckout, mocks } = await setupBillingRoutes();
+
+    const response = expectResponse(await POSTCheckout(
+      new Request("http://localhost/api/workspaces/current/billing/checkout", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-workspace-id": "workspace_123456",
+        },
+        body: JSON.stringify({ billingPhone: "0812" }),
+      }),
+    ));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "Field billingPhone harus berisi nomor WhatsApp yang valid.",
+    });
+    expect(mocks.action).not.toHaveBeenCalled();
+  });
+
   it("forwards normalized billingPhone into checkout creation", async () => {
     const { POSTCheckout, mocks } = await setupBillingRoutes();
 

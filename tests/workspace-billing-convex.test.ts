@@ -21,6 +21,10 @@ vi.mock("../convex/_generated/api", () => ({
     workspaceBilling: {
       activatePaidWorkspacePeriod:
         "internal:workspaceBilling.activatePaidWorkspacePeriod",
+      getPendingInvoiceForRefresh:
+        "internal:workspaceBilling.getPendingInvoiceForRefresh",
+      getWorkspaceBillingSummaryFromMutation:
+        "internal:workspaceBilling.getWorkspaceBillingSummaryFromMutation",
       expireWorkspacePeriod: "internal:workspaceBilling.expireWorkspacePeriod",
       expireActiveWorkspacePeriods:
         "internal:workspaceBilling.expireActiveWorkspacePeriods",
@@ -498,6 +502,132 @@ describe("workspace billing convex checkout flow", () => {
     expect(result).toEqual(
       expect.objectContaining({
         plan: "pro",
+        workspaceId: "workspace_123456",
+      }),
+    );
+  });
+
+  it("rebuilds billing summary after refresh through an internal query boundary", async () => {
+    const { refreshWorkspacePendingInvoice } = await import("../convex/workspaceBilling");
+    const runMutation = vi.fn(async (reference: string) => {
+      if (reference === "internal:workspaceBilling.markInvoiceFromProvider") {
+        return {
+          invoice: {
+            amount: 150000,
+            currency: "IDR",
+            invoiceId: "invoice_pending",
+            issuedAt: 1_900_000_000_000,
+            paymentUrl: "https://mayar.example/invoice/pending",
+            pollAttempts: 1,
+            provider: "mayar",
+            providerInvoiceId: "mayar_invoice_pending",
+            providerStatusText: "unpaid",
+            status: "pending",
+          },
+          subscription: {
+            kind: "pro_one_time",
+            provider: "mayar",
+            startedAt: 1_900_000_000_000,
+            status: "pending",
+            subscriptionId: "subscription_pending",
+            updatedAt: 1_900_000_000_000,
+          },
+          workspaceId: "workspace_123456",
+        };
+      }
+
+      throw new Error(`Unexpected runMutation call: ${reference}`);
+    });
+    const runAction = vi.fn(async (reference: string) => {
+      if (reference === "internal:workspaceBillingMayar.fetchMayarInvoiceStatus") {
+        return {
+          amount: 150000,
+          expiresAt: 1_900_003_600_000,
+          paymentUrl: "https://mayar.example/invoice/pending",
+          providerInvoiceId: "mayar_invoice_pending",
+          providerStatusText: "unpaid",
+          rawProviderSnapshot: { id: "mayar_invoice_pending", status: "unpaid" },
+        };
+      }
+
+      throw new Error(`Unexpected runAction call: ${reference}`);
+    });
+    const runQuery = vi.fn(async (reference: string) => {
+      if (reference === "internal:workspaceBilling.getPendingInvoiceForRefresh") {
+        return {
+          invoiceId: "invoice_pending",
+          providerInvoiceId: "mayar_invoice_pending",
+          subscriptionId: "subscription_pending",
+          workspaceId: "workspace_123456",
+        };
+      }
+
+      if (reference === "internal:workspaceBilling.getWorkspaceBillingSummaryFromMutation") {
+        return {
+          allowedActions: {
+            canCreateCheckout: false,
+            canRefreshPendingInvoice: true,
+            canViewInvoices: true,
+          },
+          currentSubscription: null,
+          pendingInvoice: {
+            amount: 150000,
+            currency: "IDR",
+            invoiceId: "invoice_pending",
+            issuedAt: 1_900_000_000_000,
+            paymentUrl: "https://mayar.example/invoice/pending",
+            pollAttempts: 1,
+            provider: "mayar",
+            providerInvoiceId: "mayar_invoice_pending",
+            providerStatusText: "unpaid",
+            status: "pending",
+          },
+          plan: "free",
+          restrictedState: {
+            activeDevices: 1,
+            activeMembers: 3,
+            hadPaidOrManualEntitlement: false,
+            isRestricted: false,
+            overFreeDeviceLimit: false,
+            overFreeMemberLimit: false,
+          },
+          workspaceId: "workspace_123456",
+        };
+      }
+
+      throw new Error(`Unexpected runQuery call: ${reference}`);
+    });
+
+    const result = await getHandler(refreshWorkspacePendingInvoice)(
+      {
+        runAction,
+        runMutation,
+        runQuery,
+      } as never,
+      {
+        workspaceId: "workspace_123456" as never,
+      },
+    );
+
+    expect(runQuery).toHaveBeenNthCalledWith(
+      1,
+      "internal:workspaceBilling.getPendingInvoiceForRefresh",
+      { workspaceId: "workspace_123456" },
+    );
+    expect(runQuery).toHaveBeenNthCalledWith(
+      2,
+      "internal:workspaceBilling.getWorkspaceBillingSummaryFromMutation",
+      {
+        role: "superadmin",
+        workspaceId: "workspace_123456",
+      },
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        pendingInvoice: expect.objectContaining({
+          invoiceId: "invoice_pending",
+          status: "pending",
+        }),
         workspaceId: "workspace_123456",
       }),
     );

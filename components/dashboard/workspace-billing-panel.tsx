@@ -30,6 +30,10 @@ import {
 } from '@/lib/workspace-billing-client';
 import { buildWorkspaceBillingInvoiceHref } from '@/lib/workspace-billing';
 import {
+  startWorkspaceBillingCheckout,
+  type WorkspaceBillingInlineNotice,
+} from '@/components/dashboard/workspace-billing-panel-state';
+import {
   formatWorkspaceBillingPeriod,
   getRestrictedWorkspaceOverlayCopy,
   refreshWorkspaceSubscription,
@@ -46,12 +50,8 @@ type WorkspaceBillingPanelProps = {
   surface?: 'page' | 'overlay';
 };
 
-type NoticeTone = 'info' | 'success' | 'warning' | 'error';
-
-type InlineNotice = {
-  tone: NoticeTone;
-  text: string;
-};
+type NoticeTone = WorkspaceBillingInlineNotice['tone'];
+type InlineNotice = WorkspaceBillingInlineNotice;
 
 function formatDateTime(value?: number) {
   if (!value) {
@@ -152,15 +152,16 @@ function InvoiceRowActions({ invoice }: { invoice: WorkspaceBillingInvoice }) {
   const invoiceDetailHref = buildWorkspaceBillingInvoiceHref(invoice.invoiceId);
   const invoicePrintHref = buildWorkspaceBillingInvoiceHref(invoice.invoiceId, 'print');
   const invoiceDownloadHref = buildWorkspaceBillingInvoiceHref(invoice.invoiceId, 'download');
+  const paymentUrl = invoice.paymentUrl;
 
   return (
     <TooltipProvider>
       <div className="flex items-center justify-end gap-1.5">
-        {(invoice.status === 'pending' || invoice.status === 'pending_initializing') && invoice.paymentUrl ? (
+        {(invoice.status === 'pending' || invoice.status === 'pending_initializing') && paymentUrl ? (
           <Button
             size="xs"
             variant="ghost"
-            onClick={() => window.location.assign(invoice.paymentUrl ?? '/settings/workspace')}
+            onClick={() => window.location.assign(paymentUrl)}
           >
             Lanjut bayar
           </Button>
@@ -366,17 +367,17 @@ export function WorkspaceBillingPanel({
     setNotice(null);
 
     try {
-      const checkout = await createWorkspaceCheckout(billingPhone.trim());
-      await loadBillingState({ silent: true });
-      if (checkout.paymentUrl) {
-        window.location.assign(checkout.paymentUrl);
-        return;
-      }
-
-      setNotice({
-        tone: 'warning',
-        text: 'Invoice berhasil dibuat, tapi tautan pembayaran belum tersedia.',
+      const result = await startWorkspaceBillingCheckout({
+        billingPhone: billingPhone.trim(),
+        createCheckout: createWorkspaceCheckout,
+        redirectToCheckout: (paymentUrl) => {
+          window.location.assign(paymentUrl);
+        },
+        refreshBillingState: () => loadBillingState({ silent: true }),
       });
+      if ('notice' in result) {
+        setNotice(result.notice);
+      }
     } catch (error) {
       const normalized = await normalizeWorkspaceBillingError(
         error,
@@ -409,6 +410,7 @@ export function WorkspaceBillingPanel({
         summary.currentSubscription.currentPeriodEndsAt,
       )
     : 'Belum ada periode aktif';
+  const pendingInvoicePaymentUrl = summary?.pendingInvoice?.paymentUrl;
 
   return (
     <Card
@@ -529,10 +531,10 @@ export function WorkspaceBillingPanel({
                   >
                     Refresh status
                   </Button>
-                  {summary.pendingInvoice?.paymentUrl ? (
+                  {pendingInvoicePaymentUrl ? (
                     <Button
                       variant="outline"
-                      onClick={() => window.location.assign(summary.pendingInvoice?.paymentUrl ?? '/settings/workspace')}
+                      onClick={() => window.location.assign(pendingInvoicePaymentUrl)}
                     >
                       Buka invoice
                     </Button>

@@ -7,6 +7,11 @@ import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import type { WorkspaceCheckoutPayload } from "@/types/dashboard";
 
+function isValidBillingPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
+}
+
 export async function POST(req: Request) {
   const workspaceContext = requireWorkspaceApiContext(req);
   if ("error" in workspaceContext) {
@@ -54,6 +59,16 @@ export async function POST(req: Request) {
   if (!normalizedBillingPhone) {
     return Response.json(
       { code: "VALIDATION_ERROR", message: "Field billingPhone wajib diisi." },
+      { status: 400 },
+    );
+  }
+
+  if (!isValidBillingPhone(normalizedBillingPhone)) {
+    return Response.json(
+      {
+        code: "VALIDATION_ERROR",
+        message: "Field billingPhone harus berisi nomor WhatsApp yang valid.",
+      },
       { status: 400 },
     );
   }

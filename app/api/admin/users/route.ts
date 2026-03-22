@@ -159,9 +159,7 @@ export async function PATCH(req: Request) {
     return responseFromParserError(error);
   }
 
-  const restrictionAction = payload.isActive === false && payload.role === undefined
-    ? 'member_recovery'
-    : 'dashboard_overview';
+  const restrictionAction = payload.isActive === false ? 'member_recovery' : 'dashboard_overview';
   const restrictionResponse = await enforceWorkspaceRestriction(
     convex,
     workspaceId,

@@ -69,4 +69,68 @@ describe("convex action auth helpers", () => {
       }),
     });
   });
+
+  it("fails unauthenticated before loading workspace membership", async () => {
+    const { requireWorkspaceRoleFromAction } = await import("../convex/helpers");
+    const runQuery = vi.fn(async (reference: string) => {
+      if (reference === "users:me") {
+        return null;
+      }
+
+      throw new Error(`Unexpected runQuery call: ${reference}`);
+    });
+
+    await expect(
+      requireWorkspaceRoleFromAction(
+        { runQuery } as never,
+        "workspace_123456" as never,
+        ["superadmin"],
+      ),
+    ).rejects.toMatchObject({
+      data: {
+        code: "UNAUTHENTICATED",
+        message: "Login required",
+      },
+    });
+
+    expect(runQuery).toHaveBeenCalledTimes(1);
+    expect(runQuery).toHaveBeenCalledWith("users:me", {});
+  });
+
+  it("fails inactive users before loading workspace membership", async () => {
+    const { requireWorkspaceRoleFromAction } = await import("../convex/helpers");
+    const runQuery = vi.fn(async (reference: string) => {
+      if (reference === "users:me") {
+        return {
+          _id: "user_superadmin",
+          _creationTime: 1_900_000_000_000,
+          clerkUserId: "clerk_user_123",
+          createdAt: 1_900_000_000_000,
+          email: "owner@absenin.id",
+          isActive: false,
+          name: "Owner Workspace",
+          role: "superadmin",
+          updatedAt: 1_900_000_000_000,
+        };
+      }
+
+      throw new Error(`Unexpected runQuery call: ${reference}`);
+    });
+
+    await expect(
+      requireWorkspaceRoleFromAction(
+        { runQuery } as never,
+        "workspace_123456" as never,
+        ["superadmin"],
+      ),
+    ).rejects.toMatchObject({
+      data: {
+        code: "INACTIVE_USER",
+        message: "User is inactive",
+      },
+    });
+
+    expect(runQuery).toHaveBeenCalledTimes(1);
+    expect(runQuery).toHaveBeenCalledWith("users:me", {});
+  });
 });

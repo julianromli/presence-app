@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { WorkspaceRestrictedExpiredStatePayload } from '@/types/dashboard';
 import { WorkspaceBillingPanel } from '@/components/dashboard/workspace-billing-panel';
+import { runWorkspaceRecoveryRequest } from '@/components/dashboard/workspace-restricted-gate-state';
 
 type WorkspaceRestrictedGateProps = {
   role?: string;
@@ -115,19 +116,17 @@ export function WorkspaceRestrictedGate({ role = 'karyawan' }: WorkspaceRestrict
       setNotice(null);
 
       try {
-        const response = await workspaceFetch(input, init);
-        if (!response.ok) {
-          const normalized = await normalizeWorkspaceBillingError(
-            response,
-            'Gagal memproses pemulihan workspace.',
-          );
-          setNotice({ tone: 'error', text: `[${normalized.code}] ${normalized.message}` });
-          return;
+        const result = await runWorkspaceRecoveryRequest({
+          request: () => workspaceFetch(input, init),
+          reloadRestrictionState: loadRestrictionState,
+          refreshWorkspaceSubscription,
+          normalizeError: normalizeWorkspaceBillingError,
+          fallbackMessage: 'Gagal memproses pemulihan workspace.',
+        });
+        if (result.ok) {
+          window.dispatchEvent(new CustomEvent('dashboard:refresh'));
         }
-
-        await Promise.all([loadRestrictionState(), refreshWorkspaceSubscription()]);
-        window.dispatchEvent(new CustomEvent('dashboard:refresh'));
-        setNotice({ tone: 'success', text: 'Status pembatasan workspace berhasil diperbarui.' });
+        setNotice(result.notice);
       } finally {
         setPendingKeys((prev) => {
           const next = { ...prev };

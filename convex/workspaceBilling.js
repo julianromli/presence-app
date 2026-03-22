@@ -470,6 +470,17 @@ async function buildBillingSummary(ctx, workspaceId, role) {
   };
 }
 
+export const getWorkspaceBillingSummaryFromMutation = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    role: v.union(v.literal("superadmin"), v.literal("admin"), v.literal("karyawan"), v.literal("device-qr")),
+  },
+  returns: workspaceBillingSummaryValidator,
+  handler: async (ctx, args) => {
+    return await buildBillingSummary(ctx, args.workspaceId, args.role);
+  },
+});
+
 async function emitSubscriptionEvent(ctx, event) {
   await ctx.db.insert("workspace_subscription_events", event);
 }
@@ -776,7 +787,10 @@ export const refreshWorkspacePendingInvoice = action({
       });
     }
 
-    return await buildBillingSummary(ctx, args.workspaceId, membership.role);
+    return await ctx.runQuery(internal.workspaceBilling.getWorkspaceBillingSummaryFromMutation, {
+      role: membership.role,
+      workspaceId: args.workspaceId,
+    });
   },
 });
 

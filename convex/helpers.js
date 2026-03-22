@@ -72,10 +72,7 @@ export async function requireWorkspaceRole(ctx, workspaceId, allowedRoles) {
 }
 
 export async function requireWorkspaceRoleFromAction(ctx, workspaceId, allowedRoles) {
-  const [user, membership] = await Promise.all([
-    ctx.runQuery(api.users.me, {}),
-    ctx.runQuery(api.workspaces.myMembershipByWorkspace, { workspaceId }),
-  ]);
+  const user = await ctx.runQuery(api.users.me, {});
 
   if (!user) {
     throw new ConvexError({ code: 'UNAUTHENTICATED', message: 'Login required' });
@@ -84,6 +81,8 @@ export async function requireWorkspaceRoleFromAction(ctx, workspaceId, allowedRo
   if (!user.isActive) {
     throw new ConvexError({ code: 'INACTIVE_USER', message: 'User is inactive' });
   }
+
+  const membership = await ctx.runQuery(api.workspaces.myMembershipByWorkspace, { workspaceId });
 
   if (!membership || !membership.isActive) {
     throw new ConvexError({ code: 'FORBIDDEN', message: 'Workspace membership required' });
