@@ -140,7 +140,7 @@ describe("settings premium plan gates", () => {
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
-  it("blocks attendance schedule updates for free workspaces", async () => {
+  it("allows attendance schedule updates for free workspaces", async () => {
     const { update } = await import("../convex/settings");
     const ctx = buildCtx("free");
 
@@ -149,16 +149,14 @@ describe("settings premium plan gates", () => {
         workspaceId: "workspace_123456" as never,
         attendanceSchedule: defaultAttendanceSchedule(),
       }),
-    ).rejects.toMatchObject({
-      data: {
-        code: "FEATURE_NOT_AVAILABLE",
-        message:
-          "Attendance schedule hanya tersedia untuk paket Pro atau Enterprise.",
-      },
-    });
+    ).resolves.toBeNull();
 
-    expect(ctx.db.patch).not.toHaveBeenCalled();
-    expect(ctx.db.insert).not.toHaveBeenCalled();
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      "settings_123",
+      expect.objectContaining({
+        attendanceSchedule: defaultAttendanceSchedule(),
+      }),
+    );
   });
 
   it("blocks geofence field updates when the saved settings still have geofence enabled", async () => {

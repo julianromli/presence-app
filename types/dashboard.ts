@@ -144,6 +144,146 @@ export type WorkspaceManagementPayload = {
   subscription: WorkspaceSubscriptionSummary;
 };
 
+export type WorkspaceBillingInvoiceStatus =
+  | 'pending_initializing'
+  | 'pending'
+  | 'paid'
+  | 'expired'
+  | 'canceled'
+  | 'failed';
+
+export type WorkspaceBillingProvider = 'mayar' | 'manual';
+export type WorkspaceSubscriptionKind = 'pro_one_time' | 'enterprise_manual';
+export type WorkspaceSubscriptionLifecycleStatus =
+  | 'pending'
+  | 'active'
+  | 'expired'
+  | 'canceled';
+
+export type WorkspaceBillingAllowedActions = {
+  canCreateCheckout: boolean;
+  canRefreshPendingInvoice: boolean;
+  canViewInvoices: boolean;
+};
+
+export type WorkspaceBillingSubscription = {
+  subscriptionId: string;
+  status: WorkspaceSubscriptionLifecycleStatus;
+  provider: WorkspaceBillingProvider;
+  kind: WorkspaceSubscriptionKind;
+  startedAt: number;
+  activatedAt?: number;
+  currentPeriodStartsAt?: number;
+  currentPeriodEndsAt?: number;
+  expiredAt?: number;
+  canceledAt?: number;
+  updatedAt: number;
+};
+
+export type WorkspaceBillingInvoice = {
+  invoiceId: string;
+  subscriptionId?: string;
+  provider: 'mayar';
+  providerInvoiceId?: string;
+  providerTransactionId?: string;
+  status: WorkspaceBillingInvoiceStatus;
+  amount: number;
+  currency: 'IDR';
+  paymentUrl?: string;
+  issuedAt: number;
+  expiresAt?: number;
+  paidAt?: number;
+  coveredPeriodStartsAt?: number;
+  coveredPeriodEndsAt?: number;
+  lastPolledAt?: number;
+  pollAttempts: number;
+  providerStatusText?: string;
+};
+
+export type WorkspaceBillingCustomer = {
+  workspaceId: string;
+  providerCustomerId: string;
+  name: string;
+  email: string;
+  phone: string;
+};
+
+export type WorkspaceBillingInvoiceDetailPayload = {
+  workspace: {
+    id: string;
+    name: string;
+    plan: WorkspacePlan;
+    timezone: string;
+  };
+  invoice: WorkspaceBillingInvoice;
+  customer: WorkspaceBillingCustomer | null;
+  subscription: WorkspaceBillingSubscription | null;
+};
+
+export type WorkspaceRestrictedMemberRow = {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: 'superadmin' | 'admin' | 'karyawan' | 'device-qr';
+  isActive: boolean;
+  isCurrentUser: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type WorkspaceRestrictedDeviceRow = {
+  deviceId: string;
+  label: string;
+  status: 'active' | 'revoked';
+  online: boolean;
+  lastSeenAt?: number;
+  claimedAt: number;
+};
+
+export type WorkspaceRestrictedSummary = {
+  isRestricted: boolean;
+  hadPaidOrManualEntitlement: boolean;
+  overFreeMemberLimit: boolean;
+  overFreeDeviceLimit: boolean;
+  activeMembers: number;
+  activeDevices: number;
+};
+
+export type WorkspaceBillingSummaryPayload = {
+  workspaceId: string;
+  plan: WorkspacePlan;
+  currentSubscription: WorkspaceBillingSubscription | null;
+  pendingInvoice: WorkspaceBillingInvoice | null;
+  restrictedState: WorkspaceRestrictedSummary;
+  allowedActions: WorkspaceBillingAllowedActions;
+};
+
+export type WorkspaceBillingInvoicesPayload = {
+  workspaceId: string;
+  invoices: WorkspaceBillingInvoice[];
+};
+
+export type WorkspaceCheckoutPayload = {
+  workspaceId: string;
+  reused: boolean;
+  paymentUrl?: string;
+  invoice: WorkspaceBillingInvoice;
+};
+
+export type WorkspaceRestrictedExpiredStatePayload = {
+  workspaceId: string;
+  isRestricted: boolean;
+  hadPaidOrManualEntitlement: boolean;
+  overFreeMemberLimit: boolean;
+  overFreeDeviceLimit: boolean;
+  activeMembers: number;
+  activeDevices: number;
+  canManageRecovery: boolean;
+  activeMemberRows: WorkspaceRestrictedMemberRow[];
+  activeDeviceRows: WorkspaceRestrictedDeviceRow[];
+};
+
 export type AttendanceScheduleDay =
   | 'monday'
   | 'tuesday'

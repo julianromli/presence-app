@@ -126,6 +126,9 @@ async function setupAdminSettingsRoute(options: CommonSetupOptions = {}) {
   vi.doMock("@/lib/convex-http", () => ({
     getAuthedConvexHttpClient,
   }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction: vi.fn(async () => null),
+  }));
   if (options.useActualApiError) {
     const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
       "../lib/api-error",
@@ -273,6 +276,56 @@ describe("security auth and rbac routes", () => {
     expect(mocks.query).toHaveBeenCalledWith("settings:get", {
       workspaceId: "workspace_123456",
     });
+  });
+
+  it("blocks admin settings writes when workspace is restricted", async () => {
+    vi.resetModules();
+
+    const mutation = vi.fn(async () => null);
+    const query = vi.fn(async () => null);
+    const getAuthedConvexHttpClient = vi.fn(() => ({ mutation, query }));
+
+    vi.doMock("@/lib/auth", () => ({
+      requireWorkspaceApiContext: vi.fn(() => ({ workspace: { workspaceId: "workspace_123456" } })),
+      requireWorkspaceRoleApiFromDb: vi.fn(async () => ({ session: { role: "superadmin" } })),
+      getConvexTokenOrNull: vi.fn(async () => "convex-token"),
+    }));
+    vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+    vi.doMock("@/lib/workspace-restriction-guard", () => ({
+      enforceWorkspaceRestriction: vi.fn(async () =>
+        Response.json(
+          {
+            code: "WORKSPACE_RESTRICTED_EXPIRED",
+            message:
+              "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+          },
+          { status: 409 },
+        ),
+      ),
+    }));
+    const actualApiError = await vi.importActual<typeof import("../lib/api-error")>(
+      "../lib/api-error",
+    );
+    vi.doMock("@/lib/api-error", () => ({
+      convexErrorResponse: actualApiError.convexErrorResponse,
+    }));
+
+    const routeModule = await import("../app/api/admin/settings/route");
+    const response = await routeModule.PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ timezone: "Asia/Jakarta" }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it("provides the default weekly attendance schedule", () => {

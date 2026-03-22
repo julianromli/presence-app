@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values';
+import { api } from './_generated/api';
 import { DEFAULT_TIMEZONE, isValidTimeZone, normalizeTimeZone } from '../lib/timezones';
 
 export const ATTENDANCE_SCHEDULE_DAYS = [
@@ -67,6 +68,30 @@ export async function requireWorkspaceRole(ctx, workspaceId, allowedRoles) {
   if (!allowedRoles.includes(membership.role)) {
     throw new ConvexError({ code: 'FORBIDDEN', message: 'Workspace role not allowed' });
   }
+  return { user, membership };
+}
+
+export async function requireWorkspaceRoleFromAction(ctx, workspaceId, allowedRoles) {
+  const user = await ctx.runQuery(api.users.me, {});
+
+  if (!user) {
+    throw new ConvexError({ code: 'UNAUTHENTICATED', message: 'Login required' });
+  }
+
+  if (!user.isActive) {
+    throw new ConvexError({ code: 'INACTIVE_USER', message: 'User is inactive' });
+  }
+
+  const membership = await ctx.runQuery(api.workspaces.myMembershipByWorkspace, { workspaceId });
+
+  if (!membership || !membership.isActive) {
+    throw new ConvexError({ code: 'FORBIDDEN', message: 'Workspace membership required' });
+  }
+
+  if (!allowedRoles.includes(membership.role)) {
+    throw new ConvexError({ code: 'FORBIDDEN', message: 'Workspace role not allowed' });
+  }
+
   return { user, membership };
 }
 

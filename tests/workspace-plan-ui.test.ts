@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatWorkspaceBillingPeriod,
+  getRestrictedWorkspaceOverlayCopy,
   buildDeviceLimitNoticeCopy,
   formatWorkspaceMemberUsageCopy,
   getGeofencePremiumBannerCopy,
@@ -23,7 +25,7 @@ function buildSubscription(
     features: {
       geofence: false,
       ipWhitelist: false,
-      attendanceSchedule: false,
+      attendanceSchedule: true,
       reportExport: false,
       inviteRotation: true,
       inviteExpiry: false,
@@ -96,7 +98,20 @@ describe("workspace plan UI helpers", () => {
   });
 
   it("marks attendance schedule save as disabled when unavailable", () => {
-    expect(isAttendanceScheduleSaveDisabled(buildSubscription())).toBe(true);
+    expect(
+      isAttendanceScheduleSaveDisabled(
+        buildSubscription({
+          features: {
+            geofence: false,
+            ipWhitelist: false,
+            attendanceSchedule: false,
+            reportExport: false,
+            inviteRotation: true,
+            inviteExpiry: false,
+          },
+        }),
+      ),
+    ).toBe(true);
     expect(
       isAttendanceScheduleSaveDisabled(
         buildSubscription({
@@ -112,5 +127,28 @@ describe("workspace plan UI helpers", () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  it("formats billing periods and pending restriction copy for the overlay", () => {
+    expect(formatWorkspaceBillingPeriod(1_900_000_000_000, 1_902_592_000_000)).toBe(
+      "18 Mar 2030 - 17 Apr 2030",
+    );
+    expect(formatWorkspaceBillingPeriod(1_900_000_000_000, 1_900_000_000_000)).toBe(
+      "18 Mar 2030 - 18 Mar 2030",
+    );
+    expect(
+      getRestrictedWorkspaceOverlayCopy({
+        activeDevices: 2,
+        activeMembers: 8,
+        canManageRecovery: true,
+        overFreeDeviceLimit: true,
+        overFreeMemberLimit: true,
+      }),
+    ).toEqual({
+      actionLabel: "Kurangi member/device atau aktifkan Pro lagi.",
+      deviceTargetLabel: "Target device: 1 aktif atau kurang",
+      memberTargetLabel: "Target member: 5 aktif atau kurang",
+      title: "Akses dashboard dibatasi sementara",
+    });
   });
 });

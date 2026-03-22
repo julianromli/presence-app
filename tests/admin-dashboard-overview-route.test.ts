@@ -11,6 +11,7 @@ type SetupOptions = {
   workspaceContext?: WorkspaceContextResult;
   mutationImpl?: ReturnType<typeof vi.fn>;
   queryImpl?: ReturnType<typeof vi.fn>;
+  restrictionResponse?: Response | null;
 };
 
 async function setupRoute(options: SetupOptions = {}) {
@@ -33,6 +34,7 @@ async function setupRoute(options: SetupOptions = {}) {
       today: { checkedIn: 8 },
     }));
   const getAuthedConvexHttpClient = vi.fn(() => ({ mutation, query }));
+  const enforceWorkspaceRestriction = vi.fn(async () => options.restrictionResponse ?? null);
 
   vi.doMock("@/lib/auth", () => ({
     requireWorkspaceRoleApiFromDb,
@@ -40,6 +42,9 @@ async function setupRoute(options: SetupOptions = {}) {
     getConvexTokenOrNull,
   }));
   vi.doMock("@/lib/convex-http", () => ({ getAuthedConvexHttpClient }));
+  vi.doMock("@/lib/workspace-restriction-guard", () => ({
+    enforceWorkspaceRestriction,
+  }));
   vi.doMock("@/lib/api-error", () => ({
     convexErrorResponse: vi.fn((_: unknown, fallbackMessage: string) =>
       Response.json({ code: "INTERNAL_ERROR", message: fallbackMessage }, { status: 500 }),
@@ -91,5 +96,28 @@ describe("admin dashboard overview route", () => {
     expect(mocks.query).toHaveBeenCalledWith("dashboard:getOverview", {
       workspaceId: "workspace_123456",
     });
+  });
+
+  it("blocks dashboard overview when workspace is restricted", async () => {
+    const restricted = Response.json(
+      {
+        code: "WORKSPACE_RESTRICTED_EXPIRED",
+        message:
+          "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+      },
+      { status: 409 },
+    );
+    const { GET, mocks } = await setupRoute({ restrictionResponse: restricted });
+
+    const response = await GET(new Request("http://localhost/api/admin/dashboard/overview"));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "WORKSPACE_RESTRICTED_EXPIRED",
+      message:
+        "Dashboard diblokir sampai workspace kembali patuh ke batas paket Free atau mengaktifkan paket berbayar lagi.",
+    });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 });

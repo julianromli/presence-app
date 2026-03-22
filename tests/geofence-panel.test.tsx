@@ -6,20 +6,23 @@ import {
   buildGeofencePanelState,
   validateGeofenceSettings,
 } from "@/components/dashboard/geofence-panel-state";
+import { GeofenceTimezoneField } from "../components/dashboard/geofence-panel";
 
 function findElement(
   node: React.ReactNode,
-  predicate: (element: React.ReactElement) => boolean,
-): React.ReactElement | null {
+  predicate: (element: React.ReactElement<Record<string, unknown>>) => boolean,
+): React.ReactElement<Record<string, unknown>> | null {
   if (!React.isValidElement(node)) {
     return null;
   }
 
-  if (predicate(node)) {
-    return node;
+  const element = node as React.ReactElement<Record<string, unknown>>;
+
+  if (predicate(element)) {
+    return element;
   }
 
-  const children = React.Children.toArray(node.props.children);
+  const children = React.Children.toArray(element.props.children as React.ReactNode);
   for (const child of children) {
     const match = findElement(child, predicate);
     if (match) {
@@ -31,10 +34,7 @@ function findElement(
 }
 
 describe("geofence panel", () => {
-  it("renders a dropdown trigger with the selected timezone", async () => {
-    const { GeofenceTimezoneField } = await import(
-      "../components/dashboard/geofence-panel"
-    );
+  it("renders a dropdown trigger with the selected timezone", () => {
     const html = renderToStaticMarkup(
       <GeofenceTimezoneField
         disabled={false}
@@ -47,10 +47,7 @@ describe("geofence panel", () => {
     expect(html).toContain("Asia/Jakarta");
   });
 
-  it("forwards selected timezone values through the change handler", async () => {
-    const { GeofenceTimezoneField } = await import(
-      "../components/dashboard/geofence-panel"
-    );
+  it("forwards selected timezone values through the change handler", () => {
     const onChange = vi.fn();
     const tree = GeofenceTimezoneField({
       disabled: false,
@@ -65,7 +62,8 @@ describe("geofence panel", () => {
     );
 
     expect(radioGroup).not.toBeNull();
-    radioGroup?.props.onValueChange("Asia/Singapore");
+    const onValueChange = radioGroup?.props.onValueChange as ((value: string) => void) | undefined;
+    onValueChange?.("Asia/Singapore");
 
     expect(onChange).toHaveBeenCalledWith("Asia/Singapore");
   });

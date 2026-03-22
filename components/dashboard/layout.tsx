@@ -1,5 +1,6 @@
 import { DashboardHeader } from '@/components/dashboard/header';
 import { MobileBottomNav } from '@/components/dashboard/mobile-bottom-nav';
+import { WorkspaceRestrictedGate } from '@/components/dashboard/workspace-restricted-gate';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { SidebarProvider } from '@/components/providers/sidebar-provider';
 import { WorkspaceHubProvider } from '@/components/dashboard/workspace-hub-provider';
@@ -28,6 +29,7 @@ export function DashboardLayout({ role = 'karyawan', name = 'Guest', email = 'gu
             </div>
             <MobileBottomNav role={role} name={name} email={email} />
           </div>
+          <WorkspaceRestrictedGate role={role} />
           <TallyPopupTrigger />
           <Script id="tally-widget" src="https://tally.so/widgets/embed.js" strategy="afterInteractive" />
         </>

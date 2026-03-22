@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
+import { enforceWorkspaceRestriction } from "@/lib/workspace-restriction-guard";
 import {
   isValidClockValue,
   resolveDateKeyClockToTimestamp,
@@ -80,6 +81,14 @@ export async function PATCH(req: Request) {
       { code: "INTERNAL_ERROR", message: "Convex URL missing" },
       { status: 500 },
     );
+
+  const restrictionResponse = await enforceWorkspaceRestriction(
+    convex,
+    workspaceId,
+    role.session.role,
+    "dashboard_overview",
+  );
+  if (restrictionResponse) return restrictionResponse;
 
   try {
     let checkInAt = body.checkInAt;

@@ -13,6 +13,7 @@ import {
 } from "@/lib/workspace-client";
 import type {
   WorkspacePlan,
+  WorkspaceRestrictedExpiredStatePayload,
   WorkspaceSubscriptionSummary,
 } from "@/types/dashboard";
 
@@ -185,6 +186,46 @@ export function getAttendanceScheduleUpgradeCopy(
   }
 
   return "Pro: upgrade untuk mengatur jadwal jam masuk workspace.";
+}
+
+export function formatWorkspaceBillingPeriod(
+  startsAt?: number,
+  endsAt?: number,
+) {
+  if (!startsAt || !endsAt) {
+    return "Belum ada periode aktif";
+  }
+
+  const formatter = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+  });
+
+  return `${formatter.format(startsAt)} - ${formatter.format(endsAt)}`;
+}
+
+type RestrictedWorkspaceOverlayCopyArgs = Pick<
+  WorkspaceRestrictedExpiredStatePayload,
+  | "activeDevices"
+  | "activeMembers"
+  | "canManageRecovery"
+  | "overFreeDeviceLimit"
+  | "overFreeMemberLimit"
+>;
+
+export function getRestrictedWorkspaceOverlayCopy({
+  canManageRecovery,
+}: RestrictedWorkspaceOverlayCopyArgs) {
+  return {
+    title: "Akses dashboard dibatasi sementara",
+    memberTargetLabel: "Target member: 5 aktif atau kurang",
+    deviceTargetLabel: "Target device: 1 aktif atau kurang",
+    actionLabel: canManageRecovery
+      ? "Kurangi member/device atau aktifkan Pro lagi."
+      : "Hubungi superadmin untuk menormalkan workspace ini.",
+  };
 }
 
 export async function refreshWorkspaceSubscription() {

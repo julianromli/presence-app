@@ -22,4 +22,16 @@ crons.cron(
   internal.notifications.runCheckoutReminders,
 );
 
+crons.cron(
+  "reconcile_pending_workspace_invoices",
+  "*/15 * * * *",
+  internal.workspaceBilling.reconcilePendingWorkspaceInvoices,
+);
+
+crons.cron(
+  "expire_active_workspace_periods",
+  "0 * * * *",
+  internal.workspaceBilling.expireActiveWorkspacePeriods,
+);
+
 export default crons;

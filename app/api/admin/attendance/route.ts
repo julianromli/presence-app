@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth";
 import { getAuthedConvexHttpClient } from "@/lib/convex-http";
 import { convexErrorResponse } from "@/lib/api-error";
+import { enforceWorkspaceRestriction } from "@/lib/workspace-restriction-guard";
 
 type AttendanceRow = {
   _id: string;
@@ -91,6 +92,14 @@ export async function GET(req: Request) {
       { code: "INTERNAL_ERROR", message: "Convex URL missing" },
       { status: 500 },
     );
+
+  const restrictionResponse = await enforceWorkspaceRestriction(
+    convex,
+    workspaceId,
+    role.session.role,
+    "dashboard_overview",
+  );
+  if (restrictionResponse) return restrictionResponse;
 
   try {
     const result = await convex.query<AttendancePageResponse>(

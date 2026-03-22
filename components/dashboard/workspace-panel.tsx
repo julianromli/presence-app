@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Input } from '@/components/ui/input';
+import { WorkspaceBillingPanel } from '@/components/dashboard/workspace-billing-panel';
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from '@/components/ui/menu';
 import {
   Table,
@@ -704,6 +705,8 @@ export function WorkspacePanel() {
           {notice.text}
         </div>
       ) : null}
+
+      <WorkspaceBillingPanel />
 
       <section className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">

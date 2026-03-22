@@ -9,6 +9,7 @@ import {
 import { convexErrorResponse } from '@/lib/api-error';
 import { normalizeUsersListQuery, parseUsersPatchBody } from '@/lib/admin-users';
 import { getAuthedConvexHttpClient } from '@/lib/convex-http';
+import { enforceWorkspaceRestriction } from '@/lib/workspace-restriction-guard';
 import type { AdminUsersPage } from '@/types/dashboard';
 
 function responseFromParserError(error: unknown) {
@@ -57,6 +58,16 @@ export async function GET(req: Request) {
   const convex = getAuthedConvexHttpClient(token);
   if (!convex) {
     return Response.json({ code: 'INTERNAL_ERROR', message: 'Convex URL missing' }, { status: 500 });
+  }
+
+  const restrictionResponse = await enforceWorkspaceRestriction(
+    convex,
+    workspaceId,
+    role.session.role,
+    'dashboard_overview',
+  );
+  if (restrictionResponse) {
+    return restrictionResponse;
   }
 
   let query;
@@ -146,6 +157,17 @@ export async function PATCH(req: Request) {
     payload = parseUsersPatchBody(body, roleCheck.session.role);
   } catch (error) {
     return responseFromParserError(error);
+  }
+
+  const restrictionAction = payload.isActive === false ? 'member_recovery' : 'dashboard_overview';
+  const restrictionResponse = await enforceWorkspaceRestriction(
+    convex,
+    workspaceId,
+    roleCheck.session.role,
+    restrictionAction,
+  );
+  if (restrictionResponse) {
+    return restrictionResponse;
   }
 
   try {
