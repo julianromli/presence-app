@@ -843,6 +843,94 @@ describe("workspace billing convex checkout flow", () => {
     expect(result.restrictedState.isRestricted).toBe(false);
   });
 
+  it("does not mark expired unpaid billing history as prior entitlement", async () => {
+    const { getWorkspaceBillingSummary } = await import("../convex/workspaceBilling");
+    getWorkspaceSubscriptionSummary.mockResolvedValueOnce({
+      usage: {
+        activeDevices: 2,
+        activeMembers: 8,
+      },
+    });
+    const workspace = {
+      _id: "workspace_123456",
+      slug: "workspace",
+      name: "Workspace",
+      plan: "free",
+      isActive: true,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const subscriptions = [
+      {
+        _id: "subscription_expired_unpaid",
+        workspaceId: "workspace_123456",
+        status: "expired",
+        provider: "mayar",
+        kind: "pro_one_time",
+        startedAt: 1_900_000_000_000,
+        expiredAt: 1_900_003_600_000,
+        updatedAt: 1_900_003_600_000,
+      },
+    ];
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "workspace_123456") {
+            return workspace;
+          }
+
+          return null;
+        }),
+        query: vi.fn((table: string) => ({
+          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
+            const filters: Record<string, unknown> = {};
+            const queryBuilder = {
+              eq(field: string, value: unknown) {
+                filters[field] = value;
+                return queryBuilder;
+              },
+            };
+            builder(queryBuilder);
+
+            if (table === "workspace_subscriptions") {
+              return {
+                collect: vi.fn(async () => {
+                  if (indexName === "by_workspace_status") {
+                    return subscriptions.filter(
+                      (row) =>
+                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                    );
+                  }
+
+                  return subscriptions.filter(
+                    (row) => row.workspaceId === filters.workspaceId,
+                  );
+                }),
+              };
+            }
+
+            if (table === "workspace_billing_invoices") {
+              return {
+                collect: vi.fn(async () => []),
+              };
+            }
+
+            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
+          }),
+        })),
+      },
+    };
+
+    const result = (await getHandler(getWorkspaceBillingSummary)(ctx as never, {
+      workspaceId: "workspace_123456" as never,
+    })) as {
+      restrictedState: { hadPaidOrManualEntitlement: boolean; isRestricted: boolean };
+    };
+
+    expect(result.restrictedState.hadPaidOrManualEntitlement).toBe(false);
+    expect(result.restrictedState.isRestricted).toBe(false);
+  });
+
   it("queries pending reconciliation rows through global status indexes", async () => {
     const { listPendingInvoicesForReconciliation } = await import("../convex/workspaceBilling");
     const queryCalls: Array<Record<string, unknown>> = [];

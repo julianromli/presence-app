@@ -354,8 +354,7 @@ function hasHistoricalPaidOrManualEntitlement(subscriptionRows) {
       row.provider === "manual" ||
       typeof row.activatedAt === "number" ||
       typeof row.currentPeriodStartsAt === "number" ||
-      typeof row.currentPeriodEndsAt === "number" ||
-      typeof row.expiredAt === "number",
+      typeof row.currentPeriodEndsAt === "number",
   );
 }
 
