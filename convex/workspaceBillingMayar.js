@@ -46,7 +46,11 @@ function requireMayarApiKey() {
 
 function getMayarBaseUrl() {
   const configured = process.env.MAYAR_API_BASE_URL?.trim();
-  return (configured && configured.length > 0 ? configured : "https://api.mayar.id").replace(/\/$/, "");
+  const baseUrl = (configured && configured.length > 0 ? configured : "https://api.mayar.id").replace(
+    /\/$/, "",
+  );
+
+  return baseUrl.endsWith("/hl/v1") ? baseUrl.slice(0, -"/hl/v1".length) : baseUrl;
 }
 
 function getMayarRedirectUrl() {

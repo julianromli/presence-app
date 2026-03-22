@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireWorkspaceRole = vi.fn();
+const requireWorkspaceRoleFromAction = vi.fn();
 const getWorkspaceSubscriptionSummary = vi.fn();
 
 function getHandler(fn: unknown) {
@@ -48,6 +49,7 @@ vi.mock("../convex/_generated/api", () => ({
 
 vi.mock("../convex/helpers", () => ({
   requireWorkspaceRole,
+  requireWorkspaceRoleFromAction,
 }));
 
 vi.mock("../convex/workspaceSubscription", () => ({
@@ -66,6 +68,14 @@ describe("workspace billing convex checkout flow", () => {
       },
     });
     requireWorkspaceRole.mockResolvedValue({
+      user: {
+        _id: "user_superadmin",
+        email: "owner@absenin.id",
+        name: "Owner Workspace",
+      },
+      membership: { role: "superadmin" },
+    });
+    requireWorkspaceRoleFromAction.mockResolvedValue({
       user: {
         _id: "user_superadmin",
         email: "owner@absenin.id",

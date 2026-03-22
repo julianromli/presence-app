@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { action, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
-import { requireWorkspaceRole } from "./helpers";
+import { requireWorkspaceRole, requireWorkspaceRoleFromAction } from "./helpers";
 import { resolveWorkspacePlan, workspacePlanValidator } from "./plans";
 import { getWorkspaceSubscriptionSummary } from "./workspaceSubscription";
 
@@ -557,7 +557,7 @@ export const createWorkspaceCheckout = action({
   },
   returns: workspaceCheckoutPayloadValidator,
   handler: async (ctx, args) => {
-    const { user } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+    const { user } = await requireWorkspaceRoleFromAction(ctx, args.workspaceId, ["superadmin"]);
 
     const reservation = await ctx.runMutation(internal.workspaceBilling.reserveWorkspaceCheckout, {
       billingPhone: args.billingPhone,
@@ -636,7 +636,7 @@ export const refreshWorkspacePendingInvoice = action({
   },
   returns: workspaceBillingSummaryValidator,
   handler: async (ctx, args) => {
-    const { membership } = await requireWorkspaceRole(ctx, args.workspaceId, ["superadmin"]);
+    const { membership } = await requireWorkspaceRoleFromAction(ctx, args.workspaceId, ["superadmin"]);
 
     const pendingInvoice = await ctx.runQuery(internal.workspaceBilling.getPendingInvoiceForRefresh, {
       workspaceId: args.workspaceId,
