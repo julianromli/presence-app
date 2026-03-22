@@ -315,10 +315,16 @@ function mapMayarInvoiceStatus({ expiresAt, now = Date.now(), providerStatus }) 
 
 async function listInvoicesByStatuses(ctx, workspaceId, statuses) {
   if (workspaceId === undefined) {
-    const rows = await ctx.db.query("workspace_billing_invoices").collect();
-    return rows
-      .filter((row) => statuses.includes(row.status))
-      .sort((left, right) => right.issuedAt - left.issuedAt);
+    const groups = await Promise.all(
+      statuses.map((status) =>
+        ctx.db
+          .query("workspace_billing_invoices")
+          .withIndex("by_status_issued_at", (q) => q.eq("status", status))
+          .collect(),
+      ),
+    );
+
+    return groups.flat().sort((left, right) => right.issuedAt - left.issuedAt);
   }
 
   const groups = await Promise.all(
@@ -340,6 +346,17 @@ async function listSubscriptionRowsByWorkspace(ctx, workspaceId) {
     .query("workspace_subscriptions")
     .withIndex("by_workspace_updated_at", (q) => q.eq("workspaceId", workspaceId))
     .collect();
+}
+
+function hasHistoricalPaidOrManualEntitlement(subscriptionRows) {
+  return subscriptionRows.some(
+    (row) =>
+      row.provider === "manual" ||
+      typeof row.activatedAt === "number" ||
+      typeof row.currentPeriodStartsAt === "number" ||
+      typeof row.currentPeriodEndsAt === "number" ||
+      typeof row.expiredAt === "number",
+  );
 }
 
 async function getLatestSubscriptionByStatus(ctx, workspaceId, status) {
@@ -387,7 +404,7 @@ async function buildBillingSummary(ctx, workspaceId, role) {
   const restrictedState = buildRestrictedState({
     activeDevices: subscriptionSummary.usage.activeDevices,
     activeMembers: subscriptionSummary.usage.activeMembers,
-    hadPaidOrManualEntitlement: subscriptionRows.length > 0,
+    hadPaidOrManualEntitlement: hasHistoricalPaidOrManualEntitlement(subscriptionRows),
     plan: resolveWorkspacePlan(workspace),
   });
 
@@ -517,7 +534,7 @@ export const getWorkspaceRestrictedExpiredState = query({
     const restrictedState = buildRestrictedState({
       activeDevices: subscriptionSummary.usage.activeDevices,
       activeMembers: subscriptionSummary.usage.activeMembers,
-      hadPaidOrManualEntitlement: subscriptionRows.length > 0,
+      hadPaidOrManualEntitlement: hasHistoricalPaidOrManualEntitlement(subscriptionRows),
       plan: resolveWorkspacePlan(workspace),
     });
     const rows = restrictedState.isRestricted
@@ -1242,16 +1259,25 @@ export const listPendingInvoicesForReconciliation = internalQuery({
   args: {},
   returns: v.array(pendingInvoiceReconciliationRowValidator),
   handler: async (ctx) => {
-    const rows = await listInvoicesByStatuses(ctx, undefined, ["pending_initializing", "pending"]);
     const now = Date.now();
+    const stalePendingInitializingRows = await ctx.db
+      .query("workspace_billing_invoices")
+      .withIndex("by_status_issued_at", (q) =>
+        q.eq("status", "pending_initializing").lte("issuedAt", now - 10 * 60 * 1000),
+      )
+      .collect();
+    const pendingRows = await ctx.db
+      .query("workspace_billing_invoices")
+      .withIndex("by_status_issued_at", (q) => q.eq("status", "pending"))
+      .collect();
+    const rows = [...stalePendingInitializingRows, ...pendingRows].sort(
+      (left, right) => right.issuedAt - left.issuedAt,
+    );
 
     return rows
       .filter((row) => {
-        if (row.status === "pending") {
-          return typeof row.providerInvoiceId === "string" && row.providerInvoiceId.length > 0;
-        }
-
-        return row.issuedAt + 10 * 60 * 1000 <= now;
+        return row.status !== "pending" ||
+          (typeof row.providerInvoiceId === "string" && row.providerInvoiceId.length > 0);
       })
       .map((row) => ({
         invoiceId: row._id,
@@ -1266,16 +1292,15 @@ export const listExpiredActiveWorkspacePeriods = internalQuery({
   args: {},
   returns: v.array(expiredActiveWorkspacePeriodRowValidator),
   handler: async (ctx) => {
+    const now = Date.now();
     const rows = await ctx.db
       .query("workspace_subscriptions")
-      .withIndex("by_status_period_end", (q) => q.eq("status", "active"))
+      .withIndex("by_status_period_end", (q) =>
+        q.eq("status", "active").lte("currentPeriodEndsAt", now),
+      )
       .collect();
-    const now = Date.now();
 
     return rows
-      .filter(
-        (row) => typeof row.currentPeriodEndsAt === "number" && row.currentPeriodEndsAt <= now,
-      )
       .sort((left, right) => left.currentPeriodEndsAt - right.currentPeriodEndsAt)
       .map((row) => ({
         currentPeriodEndsAt: row.currentPeriodEndsAt,

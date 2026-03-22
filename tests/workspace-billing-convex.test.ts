@@ -756,6 +756,181 @@ describe("workspace billing convex checkout flow", () => {
     expect(result.allowedActions.canRefreshPendingInvoice).toBe(false);
   });
 
+  it("does not mark over-limit free workspaces as restricted when billing never activated", async () => {
+    const { getWorkspaceBillingSummary } = await import("../convex/workspaceBilling");
+    getWorkspaceSubscriptionSummary.mockResolvedValueOnce({
+      usage: {
+        activeDevices: 2,
+        activeMembers: 8,
+      },
+    });
+    const workspace = {
+      _id: "workspace_123456",
+      slug: "workspace",
+      name: "Workspace",
+      plan: "free",
+      isActive: true,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const subscriptions = [
+      {
+        _id: "subscription_pending_only",
+        workspaceId: "workspace_123456",
+        status: "pending",
+        provider: "mayar",
+        kind: "pro_one_time",
+        startedAt: 1_900_000_000_000,
+        updatedAt: 1_900_000_000_000,
+      },
+    ];
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "workspace_123456") {
+            return workspace;
+          }
+
+          return null;
+        }),
+        query: vi.fn((table: string) => ({
+          withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
+            const filters: Record<string, unknown> = {};
+            const queryBuilder = {
+              eq(field: string, value: unknown) {
+                filters[field] = value;
+                return queryBuilder;
+              },
+            };
+            builder(queryBuilder);
+
+            if (table === "workspace_subscriptions") {
+              return {
+                collect: vi.fn(async () => {
+                  if (indexName === "by_workspace_status") {
+                    return subscriptions.filter(
+                      (row) =>
+                        row.workspaceId === filters.workspaceId && row.status === filters.status,
+                    );
+                  }
+
+                  return subscriptions.filter(
+                    (row) => row.workspaceId === filters.workspaceId,
+                  );
+                }),
+              };
+            }
+
+            if (table === "workspace_billing_invoices") {
+              return {
+                collect: vi.fn(async () => []),
+              };
+            }
+
+            throw new Error(`Unexpected table/index combination: ${table}/${indexName}`);
+          }),
+        })),
+      },
+    };
+
+    const result = (await getHandler(getWorkspaceBillingSummary)(ctx as never, {
+      workspaceId: "workspace_123456" as never,
+    })) as {
+      restrictedState: { hadPaidOrManualEntitlement: boolean; isRestricted: boolean };
+    };
+
+    expect(result.restrictedState.hadPaidOrManualEntitlement).toBe(false);
+    expect(result.restrictedState.isRestricted).toBe(false);
+  });
+
+  it("queries pending reconciliation rows through global status indexes", async () => {
+    const { listPendingInvoicesForReconciliation } = await import("../convex/workspaceBilling");
+    const queryCalls: Array<Record<string, unknown>> = [];
+    const staleCutoff = 1_900_000_000_000 - 10 * 60 * 1000;
+    const ctx = {
+      db: {
+        query: vi.fn((table: string) => {
+          if (table !== "workspace_billing_invoices") {
+            throw new Error(`Unexpected table: ${table}`);
+          }
+
+          return {
+            withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown; lte: (field: string, value: unknown) => unknown }) => unknown) => {
+              const filters: Record<string, unknown> = { indexName };
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+                lte(field: string, value: unknown) {
+                  filters[`${field}Lte`] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
+              queryCalls.push(filters);
+
+              return {
+                collect: vi.fn(async () => {
+                  if (filters.status === "pending_initializing") {
+                    expect(filters.issuedAtLte).toBe(staleCutoff);
+                    return [
+                      {
+                        _id: "invoice_initializing",
+                        subscriptionId: "subscription_initializing",
+                        workspaceId: "workspace_123456",
+                        status: "pending_initializing",
+                        issuedAt: staleCutoff,
+                      },
+                    ];
+                  }
+
+                  return [
+                    {
+                      _id: "invoice_pending",
+                      subscriptionId: "subscription_pending",
+                      workspaceId: "workspace_123456",
+                      providerInvoiceId: "mayar_invoice_pending",
+                      status: "pending",
+                      issuedAt: 1_900_000_000_000,
+                    },
+                  ];
+                }),
+              };
+            }),
+          };
+        }),
+      },
+    };
+
+    const result = await getHandler(listPendingInvoicesForReconciliation)(ctx as never, {});
+
+    expect(queryCalls).toEqual([
+      expect.objectContaining({
+        indexName: "by_status_issued_at",
+        status: "pending_initializing",
+      }),
+      expect.objectContaining({
+        indexName: "by_status_issued_at",
+        status: "pending",
+      }),
+    ]);
+    expect(result).toEqual([
+      {
+        invoiceId: "invoice_pending",
+        subscriptionId: "subscription_pending",
+        providerInvoiceId: "mayar_invoice_pending",
+        workspaceId: "workspace_123456",
+      },
+      {
+        invoiceId: "invoice_initializing",
+        subscriptionId: "subscription_initializing",
+        providerInvoiceId: undefined,
+        workspaceId: "workspace_123456",
+      },
+    ]);
+  });
+
   it("activates an internal enterprise entitlement without using Mayar", async () => {
     const { activateEnterpriseWorkspacePeriod } = await import("../convex/workspaceBilling");
     const workspace = {
@@ -988,7 +1163,7 @@ describe("workspace billing convex checkout flow", () => {
   });
 
   it("expires active workspace periods whose end date has passed", async () => {
-    const { expireActiveWorkspacePeriods } = await import("../convex/workspaceBilling");
+    const { expireActiveWorkspacePeriods, listExpiredActiveWorkspacePeriods } = await import("../convex/workspaceBilling");
     const runQuery = vi.fn(async (reference: string) => {
       if (reference === "internal:workspaceBilling.listExpiredActiveWorkspacePeriods") {
         return [
@@ -1028,5 +1203,60 @@ describe("workspace billing convex checkout flow", () => {
       workspaceId: "workspace_123456",
     });
     expect(result).toEqual({ processedCount: 1 });
+
+    const queryCalls: Array<Record<string, unknown>> = [];
+    const listCtx = {
+      db: {
+        query: vi.fn((table: string) => {
+          if (table !== "workspace_subscriptions") {
+            throw new Error(`Unexpected table: ${table}`);
+          }
+
+          return {
+            withIndex: vi.fn((indexName: string, builder: (query: { eq: (field: string, value: unknown) => unknown; lte: (field: string, value: unknown) => unknown }) => unknown) => {
+              const filters: Record<string, unknown> = { indexName };
+              const queryBuilder = {
+                eq(field: string, value: unknown) {
+                  filters[field] = value;
+                  return queryBuilder;
+                },
+                lte(field: string, value: unknown) {
+                  filters[`${field}Lte`] = value;
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
+              queryCalls.push(filters);
+
+              return {
+                collect: vi.fn(async () => [
+                  {
+                    _id: "subscription_expired",
+                    workspaceId: "workspace_123456",
+                    status: "active",
+                    currentPeriodEndsAt: 1_899_999_999_000,
+                  },
+                ]),
+              };
+            }),
+          };
+        }),
+      },
+    };
+
+    await expect(getHandler(listExpiredActiveWorkspacePeriods)(listCtx as never, {})).resolves.toEqual([
+      {
+        currentPeriodEndsAt: 1_899_999_999_000,
+        subscriptionId: "subscription_expired",
+        workspaceId: "workspace_123456",
+      },
+    ]);
+    expect(queryCalls).toEqual([
+      expect.objectContaining({
+        indexName: "by_status_period_end",
+        status: "active",
+        currentPeriodEndsAtLte: 1_900_000_000_000,
+      }),
+    ]);
   });
 });

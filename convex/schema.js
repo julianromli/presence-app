@@ -411,6 +411,7 @@ export default defineSchema({
     rawProviderSnapshot: v.optional(v.any()),
   })
     .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_status_issued_at", ["status", "issuedAt"])
     .index("by_workspace_issued_at", ["workspaceId", "issuedAt"])
     .index("by_provider_invoice_id", ["providerInvoiceId"]),
 
