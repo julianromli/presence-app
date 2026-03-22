@@ -1,6 +1,15 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { format } from "date-fns";
 import { CalendarIcon, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -39,11 +48,15 @@ import { parseApiErrorResponse } from "@/lib/client-error";
 import type { ApiErrorInfo } from "@/lib/client-error";
 import { getLocalDateKey } from "@/lib/date-key";
 import {
-  buildActiveAuditFilterBadges,
+  buildAttendanceEditAuditHint,
+  buildAttendanceFilterBadges,
   buildAttendanceSectionCountLabel,
   buildAttendanceSearchParams,
+  buildScanEventsFilterBadges,
   buildScanEventsSectionCountLabel,
   buildScanEventsSearchParams,
+  buildSectionToggleLabel,
+  formatScanResultFilterLabel,
   refreshAttendanceAuditSections,
 } from "@/lib/report-panel-behavior";
 import { formatClockInTimeZone, isValidClockValue } from "@/lib/timezone-clock";
@@ -201,30 +214,72 @@ function summaryCard(
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-hover hover:shadow-md",
+        "rounded-lg border px-4 py-3",
         toneClass,
       )}
     >
-      <p className="text-xs font-medium text-zinc-500">{label}</p>
-      <div className="mt-4 flex items-baseline gap-1 relative z-10">
-        <p className="text-3xl font-semibold tabular-nums text-zinc-800 tracking-tight">{value}</p>
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+        {label}
+      </p>
+      <div className="mt-2 flex items-baseline gap-1">
+        <p className="text-2xl font-semibold tabular-nums text-zinc-900 tracking-tight">{value}</p>
       </div>
     </div>
   );
 }
 
-function sectionTitle(title: string, description: string, countLabel?: string) {
+function sectionHeader({
+  title,
+  description,
+  countLabel,
+  open,
+  toggleLabel,
+  descriptionId,
+  actions,
+}: {
+  title: string;
+  description: string;
+  countLabel?: string;
+  open: boolean;
+  toggleLabel: string;
+  descriptionId: string;
+  actions?: ReactNode;
+}) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 px-6 py-5">
-      <div className="text-left flex flex-col items-start">
-        <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">{title}</h2>
-        <p className="mt-1 text-xs text-zinc-500">{description}</p>
+    <div className="flex flex-col gap-3 border-b border-zinc-100 px-4 py-4 md:flex-row md:items-start md:justify-between md:px-6">
+      <CollapsibleTrigger
+        aria-describedby={descriptionId}
+        aria-label={toggleLabel}
+        className="group flex min-w-0 flex-1 items-start justify-between gap-4 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:ring-offset-2"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-600">
+            <ChevronDown className={cn("h-4 w-4 transition-transform", !open && "-rotate-90")} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">{title}</h2>
+            <p className="mt-1 text-xs text-zinc-500" id={descriptionId}>
+              {description}
+            </p>
+          </div>
+        </div>
+        <div className="hidden shrink-0 items-center gap-3 md:flex">
+          {countLabel ? (
+            <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-zinc-600">
+              {countLabel}
+            </span>
+          ) : null}
+          <span className="text-xs font-medium text-zinc-500">{open ? "Sembunyikan" : "Tampilkan"}</span>
+        </div>
+      </CollapsibleTrigger>
+      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+        {countLabel ? (
+          <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-zinc-600 md:hidden">
+            {countLabel}
+          </span>
+        ) : null}
+        {actions}
       </div>
-      {countLabel ? (
-        <span className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-semibold tracking-wide text-zinc-600">
-          {countLabel}
-        </span>
-      ) : null}
     </div>
   );
 }
@@ -302,6 +357,21 @@ export function ReportPanel() {
   );
   const reportExportUnavailable =
     !workspaceSubscriptionState.ready || reportExportDisabled;
+  const filtersDescriptionId = useId();
+  const attendanceSectionDescriptionId = useId();
+  const scanEventsSectionDescriptionId = useId();
+  const weeklySectionDescriptionId = useId();
+  const attendanceEditorFieldIdPrefix = useId();
+  const attendanceFilterBadges = buildAttendanceFilterBadges({
+    activeDateKey,
+    employeeName,
+    editedFilter,
+    attendanceStatusFilter,
+  });
+  const scanFilterBadges = buildScanEventsFilterBadges({
+    activeDateKey,
+    scanResultFilter,
+  });
 
   const toggleSection = (key: SectionKey, open: boolean) => {
     setSectionOpen((prev) => ({ ...prev, [key]: open }));
@@ -683,10 +753,7 @@ export function ReportPanel() {
 
   const handleRefreshAttendance = async (action: "refresh-attendance" | "retry-attendance" = "refresh-attendance") => {
     await runToolbarAction(action, async () => {
-      await refreshAttendanceAuditSections({
-        loadAttendance: () => loadAttendance({ append: false, cursor: null }),
-        loadScanEvents: () => loadScanEvents(),
-      });
+      await loadAttendance({ append: false, cursor: null });
     });
   };
 
@@ -702,22 +769,25 @@ export function ReportPanel() {
     });
   };
 
+  const handleScanResultFilterChange = (value: string) => {
+    const nextValue = value as ScanResultFilter;
+    setScanResultFilter(nextValue);
+    void runToolbarAction("refresh-scan-events", async () => {
+      await loadScanEvents({ scanResultFilterOverride: nextValue });
+    });
+  };
+
   const resetFilters = async () => {
     setEmployeeName(headerQuery);
     setEditedFilter("all");
     setAttendanceStatusFilter("all");
-    setScanResultFilter("all");
     await runToolbarAction("refresh-attendance", async () => {
-      await refreshAttendanceAuditSections({
-        loadAttendance: () =>
-          loadAttendance({
-            append: false,
-            cursor: null,
-            searchQueryOverride: headerQuery,
-            editedFilterOverride: "all",
-            attendanceStatusFilterOverride: "all",
-          }),
-        loadScanEvents: () => loadScanEvents({ scanResultFilterOverride: "all" }),
+      await loadAttendance({
+        append: false,
+        cursor: null,
+        searchQueryOverride: headerQuery,
+        editedFilterOverride: "all",
+        attendanceStatusFilterOverride: "all",
       });
     });
   };
@@ -774,7 +844,10 @@ export function ReportPanel() {
         title="Simpan perubahan attendance ini?"
         description={
           confirmSaveRow
-            ? `Perubahan jam attendance untuk ${confirmSaveRow.employeeName} pada ${confirmSaveRow.dateKey} akan masuk ke audit log.`
+            ? buildAttendanceEditAuditHint({
+                employeeName: confirmSaveRow.employeeName,
+                dateKey: confirmSaveRow.dateKey,
+              })
             : ""
         }
         confirmLabel="Ya, Simpan"
@@ -790,11 +863,21 @@ export function ReportPanel() {
         }}
       />
 
-      <section className="rounded-xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-100/70 p-4 shadow-sm md:p-5">
-        <p className="text-sm font-semibold tracking-tight text-zinc-900">Kontrol kehadiran & audit data</p>
-        <p className="mt-1 text-sm text-zinc-600">
-          Monitor absensi harian, evaluasi scan event, dan koreksi data attendance dalam satu panel.
-        </p>
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold tracking-tight text-zinc-900">
+              Audit kehadiran harian
+            </p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Periksa absensi, telusuri scan event, dan rapikan koreksi data tanpa
+              kehilangan jejak audit.
+            </p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600">
+            Tanggal aktif: {activeDateKey}
+          </span>
+        </div>
         {notice ? (
           <div
             className={`mt-4 rounded-lg border px-3 py-2 text-sm ${noticeClass(notice.tone)}`}
@@ -804,26 +887,46 @@ export function ReportPanel() {
         ) : null}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4">
-        {summaryCard("Total data", summary.total)}
-        {summaryCard("Check-in", summary.checkedIn, "success")}
-        {summaryCard("Check-out", summary.checkedOut)}
-        {summaryCard("Edited", summary.edited)}
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">
+              Ringkasan absensi hari ini
+            </h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Fokus pada volume data, check-in, check-out, dan koreksi yang perlu
+              dipantau.
+            </p>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Ringkasan ini mengikuti tanggal absensi yang sedang aktif.
+          </p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {summaryCard("Total data", summary.total)}
+          {summaryCard("Check-in", summary.checkedIn, "success")}
+          {summaryCard("Check-out", summary.checkedOut)}
+          {summaryCard("Diedit", summary.edited)}
+        </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {summaryCard("Scan total", scanEventSummary.total)}
-        {summaryCard("Scan accepted", scanEventSummary.accepted, "success")}
-        {summaryCard("Scan rejected", scanEventSummary.rejected, "danger")}
-      </section>
-
-      <section className="sticky top-3 z-10 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur md:p-5">
+      <section className="sticky top-3 z-10 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">
+            Filter absensi harian
+          </h2>
+          <p className="text-sm text-zinc-600" id={filtersDescriptionId}>
+            Gunakan filter ini untuk memeriksa daftar attendance. Kontrol scan dan
+            report ada di section masing-masing.
+          </p>
+        </div>
         <form
+          aria-describedby={filtersDescriptionId}
           onSubmit={submitDate}
-          className="grid gap-3 md:grid-cols-2 md:items-end xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_180px_auto_auto_auto]"
+          className="mt-4 grid gap-3 md:grid-cols-2 md:items-end xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_auto_auto_auto]"
         >
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600">Tanggal (dateKey)</label>
+            <label className="text-xs font-medium text-zinc-600">Tanggal</label>
             <Popover>
               <PopoverTrigger
                 render={
@@ -860,7 +963,7 @@ export function ReportPanel() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600">Status edited</label>
+            <label className="text-xs font-medium text-zinc-600">Status edit</label>
             <Menu>
               <MenuTrigger
                 render={
@@ -873,8 +976,8 @@ export function ReportPanel() {
                 {editedFilter === "all"
                   ? "Semua"
                   : editedFilter === "true"
-                    ? "Edited"
-                    : "Belum edited"}
+                    ? "Sudah diedit"
+                    : "Belum diedit"}
                 <ChevronDown className="h-4 w-4 opacity-70" />
               </MenuTrigger>
               <MenuPopup align="start" className="w-[var(--anchor-width)]">
@@ -885,8 +988,8 @@ export function ReportPanel() {
                   }
                 >
                   <MenuRadioItem value="all">Semua</MenuRadioItem>
-                  <MenuRadioItem value="true">Edited</MenuRadioItem>
-                  <MenuRadioItem value="false">Belum edited</MenuRadioItem>
+                  <MenuRadioItem value="true">Sudah diedit</MenuRadioItem>
+                  <MenuRadioItem value="false">Belum diedit</MenuRadioItem>
                 </MenuRadioGroup>
               </MenuPopup>
             </Menu>
@@ -929,36 +1032,6 @@ export function ReportPanel() {
               </MenuPopup>
             </Menu>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600">Result scan</label>
-            <Menu>
-              <MenuTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    className="h-10 w-full justify-between border-zinc-200 bg-white px-3 text-sm font-normal"
-                  />
-                }
-              >
-                {scanResultFilter === "all"
-                  ? "Semua"
-                  : scanResultFilter}
-                <ChevronDown className="h-4 w-4 opacity-70" />
-              </MenuTrigger>
-              <MenuPopup align="start" className="w-[var(--anchor-width)]">
-                <MenuRadioGroup
-                  value={scanResultFilter}
-                  onValueChange={(value) =>
-                    setScanResultFilter(value as ScanResultFilter)
-                  }
-                >
-                  <MenuRadioItem value="all">Semua</MenuRadioItem>
-                  <MenuRadioItem value="accepted">accepted</MenuRadioItem>
-                  <MenuRadioItem value="rejected">rejected</MenuRadioItem>
-                </MenuRadioGroup>
-              </MenuPopup>
-            </Menu>
-          </div>
           <Button
             type="submit"
             disabled={isLoadingAttendance}
@@ -966,9 +1039,9 @@ export function ReportPanel() {
               toolbarPendingState,
               "submit-attendance",
             )}
-            loadingText="Memuat..."
+            loadingText="Menerapkan..."
           >
-            Muat Data
+            Terapkan filter
           </Button>
           <Button
             type="button"
@@ -980,25 +1053,19 @@ export function ReportPanel() {
               "refresh-attendance",
             )}
           >
-            Refresh
+            Sinkronkan attendance
           </Button>
           <Button
             type="button"
             variant="outline"
             onClick={() => void resetFilters()}
           >
-            Reset Filter
+            Reset filter
           </Button>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          {buildActiveAuditFilterBadges({
-            activeDateKey,
-            employeeName,
-            editedFilter,
-            attendanceStatusFilter,
-            scanResultFilter,
-          }).map((badge) => (
+          {attendanceFilterBadges.map((badge) => (
             <span
               key={badge}
               className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-zinc-700"
@@ -1006,46 +1073,6 @@ export function ReportPanel() {
               {badge}
             </span>
           ))}
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => void triggerWeeklyReport()}
-            isLoading={isReportToolbarActionPending(
-              toolbarPendingState,
-              "trigger-weekly",
-            )}
-          >
-            Generate Report Mingguan
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => void handleRefreshReports()}
-            disabled={reportsStatus === "loading"}
-            isLoading={isReportToolbarActionPending(
-              toolbarPendingState,
-              "refresh-reports",
-            )}
-          >
-            Refresh Report
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => void handleRefreshScanEvents()}
-            isLoading={isReportToolbarActionPending(
-              toolbarPendingState,
-              "refresh-scan-events",
-            )}
-          >
-            Refresh Scan Events
-          </Button>
         </div>
         {workspaceSubscriptionState.ready && reportExportUpgradeCopy ? (
           <p className="mt-3 text-sm font-medium text-amber-700">
@@ -1059,18 +1086,37 @@ export function ReportPanel() {
         onOpenChange={(open) => toggleSection("attendance", open)}
         className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
-        <CollapsibleTrigger className="w-full text-left">
-          {sectionTitle(
+        {sectionHeader({
+          title: "Data attendance",
+          description: hasAttendanceFilter
+            ? "Menampilkan hasil berdasarkan filter absensi yang sedang aktif."
+            : `Data absensi untuk ${activeDateKey}.`,
+          countLabel: buildAttendanceSectionCountLabel({
+            loadedCount: rows.length,
+            totalCount: summary.total,
+          }),
+          open: sectionOpen.attendance,
+          toggleLabel: buildSectionToggleLabel(
             "Data attendance",
-            hasAttendanceFilter
-              ? "Menampilkan hasil berdasarkan filter aktif."
-              : `Data absensi untuk ${activeDateKey}.`,
-            buildAttendanceSectionCountLabel({
-              loadedCount: rows.length,
-              totalCount: summary.total,
-            }),
-          )}
-        </CollapsibleTrigger>
+            sectionOpen.attendance,
+          ),
+          descriptionId: attendanceSectionDescriptionId,
+          actions: (
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => void handleRefreshAttendance()}
+              disabled={isLoadingAttendance}
+              isLoading={isReportToolbarActionPending(
+                toolbarPendingState,
+                "refresh-attendance",
+              )}
+            >
+              Sinkronkan attendance
+            </Button>
+          ),
+        })}
         <CollapsiblePanel>
           {isLoadingAttendance && rows.length > 0 ? (
             <div className="border-b px-4 py-2 text-xs text-zinc-500">
@@ -1084,7 +1130,7 @@ export function ReportPanel() {
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Jam Datang</TableHead>
                 <TableHead>Jam Pulang</TableHead>
-                <TableHead>Edited</TableHead>
+                <TableHead>Status edit</TableHead>
                 <TableHead>Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -1126,106 +1172,150 @@ export function ReportPanel() {
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((row) => (
-                  <TableRow key={row._id} className="align-top">
-                    <TableCell>{row.employeeName}</TableCell>
-                    <TableCell className="tabular-nums">{row.dateKey}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {editingRowId === row._id ? (
-                        <Input
-                          type="time"
-                          value={editDraft.checkInTime}
-                          onChange={(e) =>
-                            setEditDraft((prev) => ({
-                              ...prev,
-                              checkInTime: e.target.value,
-                            }))
-                          }
-                          className="h-8 w-32"
-                        />
-                      ) : row.checkInAt ? (
-                        new Date(row.checkInAt).toLocaleTimeString("id-ID", {
-                          timeZone: workspaceTimezone,
-                        })
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {editingRowId === row._id ? (
-                        <Input
-                          type="time"
-                          value={editDraft.checkOutTime}
-                          onChange={(e) =>
-                            setEditDraft((prev) => ({
-                              ...prev,
-                              checkOutTime: e.target.value,
-                            }))
-                          }
-                          className="h-8 w-32"
-                        />
-                      ) : row.checkOutAt ? (
-                        new Date(row.checkOutAt).toLocaleTimeString("id-ID", {
-                          timeZone: workspaceTimezone,
-                        })
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          "inline-flex rounded-full border px-2 py-1 text-xs",
-                          row.edited
-                            ? "border-amber-200 bg-amber-50 text-amber-900"
-                            : "border-zinc-200 bg-zinc-50 text-zinc-700",
-                        )}
-                      >
-                        {row.edited ? "Edited" : "Original"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {editingRowId === row._id ? (
-                        <div className="flex max-w-[420px] flex-wrap items-center gap-2">
-                          <Input
-                            value={editDraft.reason}
-                            onChange={(e) =>
-                              setEditDraft((prev) => ({
-                                ...prev,
-                                reason: e.target.value,
-                              }))
+                rows.map((row) => {
+                  const checkInFieldId = `${attendanceEditorFieldIdPrefix}-${row._id}-check-in`;
+                  const checkOutFieldId = `${attendanceEditorFieldIdPrefix}-${row._id}-check-out`;
+                  const reasonFieldId = `${attendanceEditorFieldIdPrefix}-${row._id}-reason`;
+
+                  return (
+                    <Fragment key={row._id}>
+                      <TableRow key={row._id} className="align-top">
+                        <TableCell>{row.employeeName}</TableCell>
+                        <TableCell className="tabular-nums">{row.dateKey}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {row.checkInAt
+                            ? new Date(row.checkInAt).toLocaleTimeString("id-ID", {
+                                timeZone: workspaceTimezone,
+                              })
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {row.checkOutAt
+                            ? new Date(row.checkOutAt).toLocaleTimeString("id-ID", {
+                                timeZone: workspaceTimezone,
+                              })
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full border px-2 py-1 text-xs",
+                              row.edited
+                                ? "border-amber-200 bg-amber-50 text-amber-900"
+                                : "border-zinc-200 bg-zinc-50 text-zinc-700",
+                            )}
+                          >
+                            {row.edited ? "Diedit" : "Asli"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant={editingRowId === row._id ? "secondary" : "outline"}
+                            onClick={() =>
+                              editingRowId === row._id
+                                ? cancelEditRow()
+                                : startEditRow(row)
                             }
-                            placeholder="Alasan edit"
-                            className="h-8 w-44"
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => requestSaveEditRow(row)}
-                            disabled={rowActionLoading}
                           >
-                            Simpan
+                            {editingRowId === row._id ? "Tutup editor" : "Edit"}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={cancelEditRow}
-                            disabled={rowActionLoading}
-                          >
-                            Batal
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEditRow(row)}
-                        >
-                          Edit
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                        </TableCell>
+                      </TableRow>
+                      {editingRowId === row._id ? (
+                        <TableRow key={`${row._id}-editor`} className="bg-zinc-50/70">
+                          <TableCell colSpan={6} className="px-4 py-4">
+                            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(220px,1.5fr)_auto] md:items-end">
+                              <div className="space-y-1">
+                                <label
+                                  className="text-xs font-medium text-zinc-600"
+                                  htmlFor={checkInFieldId}
+                                >
+                                  Jam datang
+                                </label>
+                                <Input
+                                  className="h-9 w-full min-w-0"
+                                  id={checkInFieldId}
+                                  type="time"
+                                  value={editDraft.checkInTime}
+                                  onChange={(e) =>
+                                    setEditDraft((prev) => ({
+                                      ...prev,
+                                      checkInTime: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label
+                                  className="text-xs font-medium text-zinc-600"
+                                  htmlFor={checkOutFieldId}
+                                >
+                                  Jam pulang
+                                </label>
+                                <Input
+                                  className="h-9 w-full min-w-0"
+                                  id={checkOutFieldId}
+                                  type="time"
+                                  value={editDraft.checkOutTime}
+                                  onChange={(e) =>
+                                    setEditDraft((prev) => ({
+                                      ...prev,
+                                      checkOutTime: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label
+                                  className="text-xs font-medium text-zinc-600"
+                                  htmlFor={reasonFieldId}
+                                >
+                                  Alasan koreksi
+                                </label>
+                                <Input
+                                  className="h-9 w-full min-w-0"
+                                  id={reasonFieldId}
+                                  value={editDraft.reason}
+                                  onChange={(e) =>
+                                    setEditDraft((prev) => ({
+                                      ...prev,
+                                      reason: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Jelaskan alasan perubahan"
+                                />
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                                <Button
+                                  size="sm"
+                                  onClick={() => requestSaveEditRow(row)}
+                                  disabled={rowActionLoading}
+                                >
+                                  Simpan perubahan
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={cancelEditRow}
+                                  disabled={rowActionLoading}
+                                >
+                                  Batal
+                                </Button>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-xs text-zinc-500">
+                              {buildAttendanceEditAuditHint({
+                                employeeName: row.employeeName,
+                                dateKey: row.dateKey,
+                              })}
+                            </p>
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -1254,19 +1344,99 @@ export function ReportPanel() {
         onOpenChange={(open) => toggleSection("scanEvents", open)}
         className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
-        <CollapsibleTrigger className="w-full text-left">
-          {sectionTitle(
+        {sectionHeader({
+          title: "Scan events",
+          description: `Lihat hasil scan dan alasan penolakan untuk ${activeDateKey}.`,
+          countLabel: buildScanEventsSectionCountLabel({
+            loadedCount: scanEvents.length,
+            totalCount: scanEventSummary.total,
+          }),
+          open: sectionOpen.scanEvents,
+          toggleLabel: buildSectionToggleLabel(
             "Scan events",
-            `Breakdown reason untuk ${activeDateKey}.`,
-            buildScanEventsSectionCountLabel({
-              loadedCount: scanEvents.length,
-              totalCount: scanEventSummary.total,
-            }),
-          )}
-        </CollapsibleTrigger>
+            sectionOpen.scanEvents,
+          ),
+          descriptionId: scanEventsSectionDescriptionId,
+          actions: (
+            <>
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="justify-between border-zinc-200 bg-white text-sm font-normal"
+                    />
+                  }
+                >
+                  Status scan: {formatScanResultFilterLabel(scanResultFilter)}
+                  <ChevronDown className="h-4 w-4 opacity-70" />
+                </MenuTrigger>
+                <MenuPopup align="end" className="w-[220px]">
+                  <MenuRadioGroup
+                    value={scanResultFilter}
+                    onValueChange={handleScanResultFilterChange}
+                  >
+                    <MenuRadioItem value="all">Semua hasil</MenuRadioItem>
+                    <MenuRadioItem value="accepted">Berhasil</MenuRadioItem>
+                    <MenuRadioItem value="rejected">Ditolak</MenuRadioItem>
+                  </MenuRadioGroup>
+                </MenuPopup>
+              </Menu>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => void handleRefreshScanEvents()}
+                isLoading={isReportToolbarActionPending(
+                  toolbarPendingState,
+                  "refresh-scan-events",
+                )}
+              >
+                Sinkronkan scan event
+              </Button>
+            </>
+          ),
+        })}
         <CollapsiblePanel>
           <div className="border-b border-zinc-200 p-4">
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="grid gap-3 md:grid-cols-[repeat(3,minmax(0,180px))_minmax(0,1fr)] md:items-start">
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+                  Total
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-900">
+                  {scanEventSummary.total}
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-700">
+                  Berhasil
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">
+                  {scanEventSummary.accepted}
+                </p>
+              </div>
+              <div className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-rose-700">
+                  Ditolak
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-rose-900">
+                  {scanEventSummary.rejected}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {scanFilterBadges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-zinc-700"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
               {scanEventSummary.byReason.slice(0, 8).map((item) => (
                 <span
                   key={item.reasonCode}
@@ -1276,7 +1446,7 @@ export function ReportPanel() {
                 </span>
               ))}
               {scanEventSummary.byReason.length === 0 ? (
-                <span className="text-zinc-500">Belum ada breakdown reason.</span>
+                <span className="text-zinc-500">Belum ada ringkasan alasan scan.</span>
               ) : null}
             </div>
           </div>
@@ -1285,9 +1455,9 @@ export function ReportPanel() {
               <TableRow>
                 <TableHead>Waktu</TableHead>
                 <TableHead>Karyawan</TableHead>
-                <TableHead>Result</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Message</TableHead>
+                <TableHead>Hasil</TableHead>
+                <TableHead>Alasan</TableHead>
+                <TableHead>Pesan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1322,7 +1492,7 @@ export function ReportPanel() {
               ) : scanEvents.length === 0 ? (
                 <TableRow>
                   <TableCell className="text-zinc-500" colSpan={5}>
-                    Belum ada scan events.
+                    Belum ada scan event.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1346,7 +1516,7 @@ export function ReportPanel() {
                             : "border-rose-200 bg-rose-50 text-rose-900",
                         )}
                       >
-                        {row.resultStatus}
+                        {row.resultStatus === "accepted" ? "Berhasil" : "Ditolak"}
                       </span>
                     </TableCell>
                     <TableCell>{row.reasonCode}</TableCell>
@@ -1364,23 +1534,56 @@ export function ReportPanel() {
         onOpenChange={(open) => toggleSection("weekly", open)}
         className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm"
       >
-        <CollapsibleTrigger className="w-full text-left">
-          {sectionTitle(
+        {sectionHeader({
+          title: "Riwayat report mingguan",
+          description: "Status generate, file output, dan error terbaru untuk audit mingguan.",
+          countLabel: `${reports.length} report`,
+          open: sectionOpen.weekly,
+          toggleLabel: buildSectionToggleLabel(
             "Riwayat report mingguan",
-            "Status generate, file output, dan error terbaru untuk audit mingguan.",
-            `${reports.length} report`,
-          )}
-        </CollapsibleTrigger>
+            sectionOpen.weekly,
+          ),
+          descriptionId: weeklySectionDescriptionId,
+          actions: (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => void triggerWeeklyReport()}
+                isLoading={isReportToolbarActionPending(
+                  toolbarPendingState,
+                  "trigger-weekly",
+                )}
+              >
+                Buat report mingguan
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => void handleRefreshReports()}
+                disabled={reportsStatus === "loading"}
+                isLoading={isReportToolbarActionPending(
+                  toolbarPendingState,
+                  "refresh-reports",
+                )}
+              >
+                Sinkronkan riwayat report
+              </Button>
+            </>
+          ),
+        })}
         <CollapsiblePanel>
           <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Week Key</TableHead>
-                <TableHead>Range</TableHead>
+                <TableHead>Minggu</TableHead>
+                <TableHead>Rentang</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>File</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Attempt</TableHead>
+                <TableHead>Sumber</TableHead>
+                <TableHead>Percobaan</TableHead>
                 <TableHead>Durasi</TableHead>
                 <TableHead>Waktu</TableHead>
                 <TableHead>Error</TableHead>

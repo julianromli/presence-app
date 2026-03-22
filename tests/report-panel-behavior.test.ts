@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildAttendanceEditAuditHint,
+  buildAttendanceFilterBadges,
   buildActiveAuditFilterBadges,
   buildAttendanceSectionCountLabel,
   buildAttendanceSearchParams,
+  buildScanEventsFilterBadges,
   buildScanEventsSectionCountLabel,
+  buildSectionToggleLabel,
   buildScanEventsSearchParams,
   refreshAttendanceAuditSections,
 } from "../lib/report-panel-behavior";
@@ -70,5 +74,46 @@ describe("report panel behavior helpers", () => {
       "Attendance: belum check-out",
       "Scan: rejected",
     ]);
+  });
+
+  it("splits attendance and scan filter badges so each section keeps its own mental model", () => {
+    expect(
+      buildAttendanceFilterBadges({
+        activeDateKey: "2026-03-18",
+        employeeName: "Ali",
+        editedFilter: "true",
+        attendanceStatusFilter: "incomplete",
+      }),
+    ).toEqual([
+      "Tanggal absensi: 2026-03-18",
+      "Nama karyawan: Ali",
+      "Status edit: sudah diedit",
+      "Status attendance: belum check-out",
+    ]);
+
+    expect(
+      buildScanEventsFilterBadges({
+        activeDateKey: "2026-03-18",
+        scanResultFilter: "rejected",
+      }),
+    ).toEqual([
+      "Tanggal scan: 2026-03-18",
+      "Hasil scan: ditolak",
+    ]);
+  });
+
+  it("builds explicit collapse labels and audit guidance copy for the attendance editor", () => {
+    expect(buildSectionToggleLabel("Data attendance", true)).toBe(
+      "Sembunyikan Data attendance",
+    );
+    expect(buildSectionToggleLabel("Data attendance", false)).toBe(
+      "Tampilkan Data attendance",
+    );
+    expect(
+      buildAttendanceEditAuditHint({
+        employeeName: "Ali",
+        dateKey: "2026-03-18",
+      }),
+    ).toBe("Perubahan untuk Ali pada 2026-03-18 akan dicatat ke audit log.");
   });
 });
