@@ -4,6 +4,7 @@ import type { NextConfig } from "next";
 import { shouldEnableSentry } from "./lib/runtime-flags";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   images: {
     remotePatterns: [
       {
