@@ -17,6 +17,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import {
@@ -43,9 +52,14 @@ import {
 } from "@/lib/workspace-billing-client";
 import { buildWorkspaceBillingInvoiceHref } from "@/lib/workspace-billing";
 import {
+  canOpenWorkspaceCheckoutDialog,
   cancelWorkspaceBillingCheckout,
+  getWorkspaceCheckoutActionLabel,
+  getWorkspaceCheckoutDialogStatusCopy,
+  isWorkspaceCheckoutConfirmEnabled,
   startWorkspaceBillingCheckout,
   type WorkspaceBillingInlineNotice,
+  WORKSPACE_PRO_PRICING_BENEFITS,
 } from "@/components/dashboard/workspace-billing-panel-state";
 import {
   formatWorkspaceBillingPeriod,
@@ -57,6 +71,7 @@ import type {
   WorkspaceBillingInvoice,
   WorkspaceBillingInvoicesPayload,
   WorkspaceBillingSummaryPayload,
+  WorkspaceBillingCheckoutOffer,
 } from "@/types/dashboard";
 
 type WorkspaceBillingPanelProps = {
@@ -160,6 +175,173 @@ function noticeClass(tone: NoticeTone) {
     default:
       return "border-zinc-200 bg-zinc-50 text-zinc-900";
   }
+}
+
+function buildOfferCoverageCopy(offer: WorkspaceBillingCheckoutOffer) {
+  return `${offer.periodDays} hari akses Pro untuk satu workspace`;
+}
+
+export function WorkspaceCheckoutPricingDialog({
+  billingPhone,
+  busyAction,
+  onConfirm,
+  onOpenChange,
+  open,
+  summary,
+}: {
+  billingPhone: string;
+  busyAction: "none" | "cancel" | "checkout" | "refresh";
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  summary: WorkspaceBillingSummaryPayload;
+}) {
+  const offer = summary.checkoutOffer;
+  const pendingInvoice = summary.pendingInvoice;
+  const isPendingInitializing = pendingInvoice?.status === "pending_initializing";
+  const actionLabel = getWorkspaceCheckoutActionLabel(summary);
+  const confirmEnabled =
+    billingPhone.trim().length > 0 &&
+    isWorkspaceCheckoutConfirmEnabled(summary) &&
+    !isPendingInitializing;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogPopup className="overflow-hidden border-zinc-900/10 bg-white p-0 shadow-2xl sm:max-w-2xl">
+        <DialogPanel className="gap-0">
+          <div className="relative overflow-hidden border-b border-zinc-200 bg-zinc-950 px-6 py-6 text-zinc-50 sm:px-7">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(244,244,245,0.18),_transparent_42%),linear-gradient(135deg,_rgba(245,158,11,0.18),_transparent_55%)]" />
+            <DialogHeader className="relative gap-3 text-left">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-300">
+                <span>Workspace Pro</span>
+                <span className="rounded-full border border-white/15 px-2 py-1 text-[11px] text-white/88">
+                  {buildOfferCoverageCopy(offer)}
+                </span>
+              </div>
+              <DialogTitle className="max-w-xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                {formatCurrencyIdr(
+                  pendingInvoice?.amount ?? offer.amount,
+                )}
+              </DialogTitle>
+              <DialogDescription className="max-w-lg text-sm leading-6 text-zinc-300">
+                Lihat harga, guardrail operasional, dan ringkasan checkout sebelum
+                membuka invoice Mayar.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="grid gap-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="space-y-5 px-6 py-6 sm:px-7">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    Harga checkout
+                  </p>
+                  <p className="mt-2 text-xl font-semibold text-zinc-950">
+                    {formatCurrencyIdr(pendingInvoice?.amount ?? offer.amount)}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    {buildOfferCoverageCopy(offer)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    WhatsApp billing
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-zinc-950">
+                    {billingPhone.trim() || "Belum diisi"}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Nomor ini dipakai untuk pembuatan atau pemulihan invoice.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Benefit Pro
+                </h3>
+                <div className="mt-3 grid gap-2">
+                  {WORKSPACE_PRO_PRICING_BENEFITS.map((benefit) => (
+                    <div
+                      key={benefit}
+                      className="flex items-start gap-3 rounded-2xl border border-zinc-200/80 px-4 py-3"
+                    >
+                      <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" />
+                      <p className="text-sm leading-6 text-zinc-700">{benefit}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-200 bg-zinc-50/80 px-6 py-6 sm:border-t-0 sm:border-l sm:px-7">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Status checkout
+                </p>
+                <p className="mt-2 text-lg font-semibold text-zinc-950">
+                  {pendingInvoice
+                    ? getInvoiceStatusLabel(pendingInvoice.status)
+                    : "Invoice baru"}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-zinc-600">
+                  {getWorkspaceCheckoutDialogStatusCopy(pendingInvoice)}
+                </p>
+                {pendingInvoice ? (
+                  <div className="mt-4 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-700">
+                    <p>
+                      Referensi:{" "}
+                      <span className="font-medium text-zinc-950">
+                        {pendingInvoice.invoiceId}
+                      </span>
+                    </p>
+                    <p>
+                      Batas bayar:{" "}
+                      <span className="font-medium text-zinc-950">
+                        {formatDateTime(pendingInvoice.expiresAt)}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
+                {!billingPhone.trim() ? (
+                  <p className="mt-4 text-sm font-medium text-amber-700">
+                    Isi nomor WhatsApp billing di panel sebelum melanjutkan.
+                  </p>
+                ) : null}
+                {isPendingInitializing ? (
+                  <p className="mt-4 text-sm font-medium text-amber-700">
+                    Invoice masih sinkronisasi, jadi checkout dikunci sementara.
+                  </p>
+                ) : null}
+              </div>
+
+              <DialogFooter className="mt-5 flex-col gap-2 sm:flex-col sm:justify-stretch">
+                <Button
+                  onClick={onConfirm}
+                  disabled={!confirmEnabled}
+                  isLoading={busyAction === "checkout"}
+                  loadingText={
+                    pendingInvoice ? "Membuka invoice..." : "Membuat invoice..."
+                  }
+                  className="w-full"
+                >
+                  {actionLabel}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="w-full"
+                >
+                  Tutup
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogPanel>
+      </DialogPopup>
+    </Dialog>
+  );
 }
 
 function InvoiceRowActions({ invoice }: { invoice: WorkspaceBillingInvoice }) {
@@ -289,6 +471,7 @@ export function WorkspaceBillingPanel({
   >("none");
   const [notice, setNotice] = useState<InlineNotice | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
   const autoRefreshRef = useRef(false);
 
   const invoiceLimit = surface === "overlay" ? 4 : 10;
@@ -423,6 +606,7 @@ export function WorkspaceBillingPanel({
 
     setBusyAction("checkout");
     setNotice(null);
+    setPricingDialogOpen(false);
 
     try {
       const result = await startWorkspaceBillingCheckout({
@@ -505,6 +689,9 @@ export function WorkspaceBillingPanel({
       )
     : "Belum ada periode aktif";
   const pendingInvoicePaymentUrl = summary?.pendingInvoice?.paymentUrl;
+  const checkoutActionLabel = summary
+    ? getWorkspaceCheckoutActionLabel(summary)
+    : "Aktifkan Pro";
 
   return (
     <Card
@@ -630,17 +817,19 @@ export function WorkspaceBillingPanel({
                 </label>
                 <div className="flex items-end">
                   <Button
-                    onClick={() => void handleCheckout()}
+                    onClick={() => setPricingDialogOpen(true)}
                     disabled={
-                      !summary.allowedActions.canCreateCheckout ||
+                      !canOpenWorkspaceCheckoutDialog(summary) ||
                       !billingPhone.trim()
                     }
                     isLoading={busyAction === "checkout"}
-                    loadingText="Membuat invoice..."
+                    loadingText={
+                      summary.pendingInvoice
+                        ? "Membuka invoice..."
+                        : "Membuat invoice..."
+                    }
                   >
-                    {summary.pendingInvoice
-                      ? "Lanjutkan checkout"
-                      : "Aktifkan Pro"}
+                    {checkoutActionLabel}
                   </Button>
                 </div>
                 <div className="flex items-end gap-2">
@@ -703,6 +892,15 @@ export function WorkspaceBillingPanel({
                 </div>
               ) : null}
             </div>
+
+            <WorkspaceCheckoutPricingDialog
+              billingPhone={billingPhone}
+              busyAction={busyAction}
+              onConfirm={() => void handleCheckout()}
+              onOpenChange={setPricingDialogOpen}
+              open={pricingDialogOpen}
+              summary={summary}
+            />
 
             <div className="rounded-xl border border-zinc-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">

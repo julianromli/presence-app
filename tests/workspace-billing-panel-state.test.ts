@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  canOpenWorkspaceCheckoutDialog,
   cancelWorkspaceBillingCheckout,
+  getWorkspaceCheckoutActionLabel,
+  getWorkspaceCheckoutDialogStatusCopy,
+  isWorkspaceCheckoutConfirmEnabled,
   startWorkspaceBillingCheckout,
+  WORKSPACE_PRO_PRICING_BENEFITS,
 } from "../components/dashboard/workspace-billing-panel-state";
 
 function createDeferred<T>() {
@@ -91,5 +96,59 @@ describe("workspace billing panel state", () => {
       },
     });
     expect(refreshBillingState).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the pricing dialog for a new checkout and labels the CTA correctly", () => {
+    const summary = {
+      allowedActions: {
+        canCancelPendingInvoice: false,
+        canCreateCheckout: true,
+        canRefreshPendingInvoice: false,
+        canViewInvoices: true,
+      },
+      pendingInvoice: null,
+    };
+
+    expect(canOpenWorkspaceCheckoutDialog(summary)).toBe(true);
+    expect(isWorkspaceCheckoutConfirmEnabled(summary)).toBe(true);
+    expect(getWorkspaceCheckoutActionLabel(summary)).toBe("Aktifkan Pro");
+  });
+
+  it("keeps the dialog available for pending invoices and switches the CTA copy", () => {
+    const summary = {
+      allowedActions: {
+        canCancelPendingInvoice: true,
+        canCreateCheckout: false,
+        canRefreshPendingInvoice: false,
+        canViewInvoices: true,
+      },
+      pendingInvoice: {
+        invoiceId: "invoice_pending",
+        paymentUrl: "https://mayar.example/invoice/123",
+        status: "pending",
+      },
+    };
+
+    expect(canOpenWorkspaceCheckoutDialog(summary)).toBe(true);
+    expect(isWorkspaceCheckoutConfirmEnabled(summary)).toBe(true);
+    expect(getWorkspaceCheckoutActionLabel(summary)).toBe("Lanjutkan pembayaran");
+  });
+
+  it("explains when a pending invoice is still initializing", () => {
+    expect(
+      getWorkspaceCheckoutDialogStatusCopy({
+        invoiceId: "invoice_pending",
+        status: "pending_initializing",
+      } as never),
+    ).toContain("masih disiapkan");
+  });
+
+  it("keeps the curated Pro benefit list compact and stable", () => {
+    expect(WORKSPACE_PRO_PRICING_BENEFITS).toEqual([
+      "Hingga 50 member aktif dalam satu workspace",
+      "Hingga 3 device QR aktif tanpa recovery manual",
+      "Geofence dan IP whitelist untuk guardrail operasional",
+      "Export report dan masa berlaku invite yang bisa diatur",
+    ]);
   });
 });

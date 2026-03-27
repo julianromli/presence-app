@@ -39,6 +39,12 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
             canRefreshPendingInvoice: true,
             canViewInvoices: true,
           },
+          checkoutOffer: {
+            amount: 150000,
+            currency: "IDR",
+            periodDays: 30,
+            plan: "pro",
+          },
           currentSubscription: null,
           pendingInvoice: null,
           plan: "free",
@@ -157,6 +163,12 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
             canRefreshPendingInvoice: false,
             canViewInvoices: true,
           },
+          checkoutOffer: {
+            amount: 150000,
+            currency: "IDR",
+            periodDays: 30,
+            plan: "pro",
+          },
           currentSubscription: {
             activatedAt: 1_900_000_100_000,
             currentPeriodEndsAt: 1_902_592_100_000,
@@ -191,6 +203,12 @@ async function setupBillingRoutes(options: SetupOptions = {}) {
             canCreateCheckout: true,
             canRefreshPendingInvoice: false,
             canViewInvoices: true,
+          },
+          checkoutOffer: {
+            amount: 150000,
+            currency: "IDR",
+            periodDays: 30,
+            plan: "pro",
           },
           currentSubscription: null,
           pendingInvoice: null,
@@ -291,6 +309,16 @@ describe("workspace billing routes", () => {
       "workspaceBilling:getWorkspaceBillingSummary",
       { workspaceId: "workspace_123456" },
     );
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        checkoutOffer: {
+          amount: 150000,
+          currency: "IDR",
+          periodDays: 30,
+          plan: "pro",
+        },
+      }),
+    );
   });
 
   it("returns summary with refresh disabled for pending_initializing invoices", async () => {
@@ -301,6 +329,12 @@ describe("workspace billing routes", () => {
           canCreateCheckout: false,
           canRefreshPendingInvoice: false,
           canViewInvoices: true,
+        },
+        checkoutOffer: {
+          amount: 150000,
+          currency: "IDR",
+          periodDays: 30,
+          plan: "pro",
         },
         currentSubscription: null,
         pendingInvoice: {

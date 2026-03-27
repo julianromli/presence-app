@@ -167,6 +167,13 @@ export type WorkspaceBillingAllowedActions = {
   canViewInvoices: boolean;
 };
 
+export type WorkspaceBillingCheckoutOffer = {
+  amount: number;
+  currency: "IDR";
+  periodDays: number;
+  plan: "pro";
+};
+
 export type WorkspaceBillingSubscription = {
   subscriptionId: string;
   status: WorkspaceSubscriptionLifecycleStatus;
@@ -256,6 +263,7 @@ export type WorkspaceBillingSummaryPayload = {
   plan: WorkspacePlan;
   currentSubscription: WorkspaceBillingSubscription | null;
   pendingInvoice: WorkspaceBillingInvoice | null;
+  checkoutOffer: WorkspaceBillingCheckoutOffer;
   restrictedState: WorkspaceRestrictedSummary;
   allowedActions: WorkspaceBillingAllowedActions;
 };

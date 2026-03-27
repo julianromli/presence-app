@@ -57,6 +57,13 @@ const workspaceBillingAllowedActionsValidator = v.object({
   canViewInvoices: v.boolean(),
 });
 
+const workspaceBillingCheckoutOfferValidator = v.object({
+  amount: v.number(),
+  currency: v.literal("IDR"),
+  periodDays: v.number(),
+  plan: v.literal("pro"),
+});
+
 const workspaceBillingSubscriptionViewValidator = v.object({
   subscriptionId: v.string(),
   status: workspaceSubscriptionStatusValidator,
@@ -134,6 +141,7 @@ const workspaceBillingSummaryValidator = v.object({
     workspaceBillingSubscriptionViewValidator,
   ),
   pendingInvoice: v.union(v.null(), workspaceBillingInvoiceViewValidator),
+  checkoutOffer: workspaceBillingCheckoutOfferValidator,
   restrictedState: workspaceRestrictedSummaryValidator,
   allowedActions: workspaceBillingAllowedActionsValidator,
 });
@@ -505,6 +513,12 @@ async function buildBillingSummary(ctx, workspaceId, role) {
     plan: resolveWorkspacePlan(workspace),
     currentSubscription: toSubscriptionView(activeSubscription),
     pendingInvoice: toInvoiceView(pendingInvoice),
+    checkoutOffer: {
+      amount: WORKSPACE_PRO_PRICE_IDR,
+      currency: "IDR",
+      periodDays: WORKSPACE_PRO_PERIOD_MS / (24 * 60 * 60 * 1000),
+      plan: "pro",
+    },
     restrictedState,
     allowedActions: {
       canCancelPendingInvoice:

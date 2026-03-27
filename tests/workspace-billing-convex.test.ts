@@ -1497,6 +1497,12 @@ describe("workspace billing convex checkout flow", () => {
     const result = (await getHandler(getWorkspaceBillingSummary)(ctx as never, {
       workspaceId: "workspace_123456" as never,
     })) as Record<string, unknown> & {
+      checkoutOffer: {
+        amount: number;
+        currency: string;
+        periodDays: number;
+        plan: string;
+      };
       pendingInvoice: Record<string, unknown> | null;
       allowedActions: {
         canCancelPendingInvoice: boolean;
@@ -1514,6 +1520,12 @@ describe("workspace billing convex checkout flow", () => {
     expect(result.allowedActions.canCancelPendingInvoice).toBe(true);
     expect(result.allowedActions.canCreateCheckout).toBe(false);
     expect(result.allowedActions.canRefreshPendingInvoice).toBe(false);
+    expect(result.checkoutOffer).toEqual({
+      amount: 150000,
+      currency: "IDR",
+      periodDays: 30,
+      plan: "pro",
+    });
   });
 
   it("does not mark over-limit free workspaces as restricted when billing never activated", async () => {
