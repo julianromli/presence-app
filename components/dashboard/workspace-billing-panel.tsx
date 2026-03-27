@@ -50,7 +50,10 @@ import {
   cancelWorkspacePendingInvoice as cancelWorkspacePendingInvoiceRequest,
   refreshWorkspacePendingInvoice,
 } from "@/lib/workspace-billing-client";
-import { buildWorkspaceBillingInvoiceHref } from "@/lib/workspace-billing";
+import {
+  buildWorkspaceBillingInvoiceHref,
+  WORKSPACE_PRO_PERIOD_DAYS,
+} from "@/lib/workspace-billing";
 import {
   canOpenWorkspaceCheckoutDialog,
   cancelWorkspaceBillingCheckout,
@@ -177,8 +180,19 @@ function noticeClass(tone: NoticeTone) {
   }
 }
 
-function buildOfferCoverageCopy(offer: WorkspaceBillingCheckoutOffer) {
-  return `${offer.periodDays} hari akses Pro untuk satu workspace`;
+function buildOfferCoverageCopy(periodDays?: number) {
+  return `${periodDays ?? WORKSPACE_PRO_PERIOD_DAYS} hari akses Pro untuk satu workspace`;
+}
+
+function resolveCheckoutOffer(
+  summary: WorkspaceBillingSummaryPayload,
+): Partial<WorkspaceBillingCheckoutOffer> & Pick<WorkspaceBillingCheckoutOffer, "currency" | "plan"> {
+  return {
+    amount: summary.checkoutOffer?.amount ?? summary.pendingInvoice?.amount,
+    currency: summary.checkoutOffer?.currency ?? "IDR",
+    periodDays: summary.checkoutOffer?.periodDays ?? WORKSPACE_PRO_PERIOD_DAYS,
+    plan: summary.checkoutOffer?.plan ?? "pro",
+  };
 }
 
 export function WorkspaceCheckoutPricingDialog({
@@ -196,8 +210,8 @@ export function WorkspaceCheckoutPricingDialog({
   open: boolean;
   summary: WorkspaceBillingSummaryPayload;
 }) {
-  const offer = summary.checkoutOffer;
   const pendingInvoice = summary.pendingInvoice;
+  const offer = resolveCheckoutOffer(summary);
   const isPendingInitializing = pendingInvoice?.status === "pending_initializing";
   const actionLabel = getWorkspaceCheckoutActionLabel(summary);
   const confirmEnabled =
@@ -215,7 +229,7 @@ export function WorkspaceCheckoutPricingDialog({
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-300">
                 <span>Workspace Pro</span>
                 <span className="rounded-full border border-white/15 px-2 py-1 text-[11px] text-white/88">
-                  {buildOfferCoverageCopy(offer)}
+                  {buildOfferCoverageCopy(offer.periodDays)}
                 </span>
               </div>
               <DialogTitle className="max-w-xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
@@ -241,7 +255,7 @@ export function WorkspaceCheckoutPricingDialog({
                     {formatCurrencyIdr(pendingInvoice?.amount ?? offer.amount)}
                   </p>
                   <p className="mt-1 text-sm text-zinc-600">
-                    {buildOfferCoverageCopy(offer)}
+                    {buildOfferCoverageCopy(offer.periodDays)}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">

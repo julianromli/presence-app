@@ -131,6 +131,7 @@ vi.mock("@/lib/workspace-billing-client", () => ({
 }));
 
 vi.mock("@/lib/workspace-billing", () => ({
+  WORKSPACE_PRO_PERIOD_DAYS: 30,
   buildWorkspaceBillingInvoiceHref: () => "/settings/workspace/invoices/invoice_123",
 }));
 
@@ -247,5 +248,54 @@ describe("workspace billing pricing dialog", () => {
     expect(html).toContain("Lanjutkan pembayaran");
     expect(html).toContain("invoice_pending");
     expect(html).toContain("Invoice aktif dan siap dibayar");
+  });
+
+  it("falls back gracefully when an older summary payload has no checkout offer", async () => {
+    const { WorkspaceCheckoutPricingDialog } = await import(
+      "../components/dashboard/workspace-billing-panel"
+    );
+
+    const html = renderToStaticMarkup(
+      <WorkspaceCheckoutPricingDialog
+        billingPhone="+62 81234567890"
+        busyAction="none"
+        onConfirm={() => undefined}
+        onOpenChange={() => undefined}
+        open={true}
+        summary={{
+          allowedActions: {
+            canCancelPendingInvoice: true,
+            canCreateCheckout: false,
+            canRefreshPendingInvoice: true,
+            canViewInvoices: true,
+          },
+          currentSubscription: null,
+          pendingInvoice: {
+            amount: 150000,
+            currency: "IDR",
+            expiresAt: 1_900_003_600_000,
+            invoiceId: "invoice_legacy",
+            issuedAt: 1_900_000_000_000,
+            paymentUrl: "https://mayar.example/invoice/legacy",
+            pollAttempts: 0,
+            provider: "mayar",
+            status: "pending",
+          },
+          plan: "free",
+          restrictedState: {
+            activeDevices: 1,
+            activeMembers: 3,
+            hadPaidOrManualEntitlement: true,
+            isRestricted: false,
+            overFreeDeviceLimit: false,
+            overFreeMemberLimit: false,
+          },
+          workspaceId: "workspace_123456",
+        } as never}
+      />,
+    );
+
+    expect(html).toContain("30 hari akses Pro untuk satu workspace");
+    expect(html).toContain("invoice_legacy");
   });
 });
