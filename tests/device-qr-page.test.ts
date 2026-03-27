@@ -1,21 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("device qr page", () => {
+const redirectMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
+}));
+
+describe("device qr pages", () => {
   beforeEach(() => {
     vi.resetModules();
+    redirectMock.mockReset();
   });
 
-  it("passes workspaceId search param into the device panel", async () => {
+  it("renders the qr panel on /qr", async () => {
     vi.doMock("../app/device-qr/device-qr-panel", () => ({
-      DeviceQrPanel: (props: { initialWorkspaceId?: string | null }) => props,
+      DeviceQrPanel: () => ({ type: "device-qr-panel" }),
     }));
 
-    const { default: DeviceQrPage } = await import("../app/device-qr/page");
-    const element = await DeviceQrPage({
-      params: Promise.resolve({}),
-      searchParams: Promise.resolve({ workspaceId: "workspace_123456" }),
-    });
+    const { default: QrPage } = await import("../app/qr/page");
+    const element = QrPage();
 
-    expect(element.props.initialWorkspaceId).toBe("workspace_123456");
+    expect(element.type).toBeTypeOf("function");
+    expect(element.type.name).toBe("DeviceQrPanel");
+  });
+
+  it("redirects legacy /device-qr to /qr", async () => {
+    const { default: DeviceQrPage } = await import("../app/device-qr/page");
+    DeviceQrPage();
+
+    expect(redirectMock).toHaveBeenCalledWith("/qr");
   });
 });

@@ -1,14 +1,8 @@
 import { convexErrorResponse } from "@/lib/api-error";
-import { requireWorkspaceApiContext } from "@/lib/auth";
 import { getPublicConvexHttpClient } from "@/lib/convex-http";
 import { getRequestRateLimitKey } from "@/lib/request-ip";
 
 export async function POST(req: Request) {
-  const workspaceContext = requireWorkspaceApiContext(req);
-  if ("error" in workspaceContext) {
-    return workspaceContext.error;
-  }
-
   let body: { code?: string };
   try {
     body = await req.json();
@@ -39,8 +33,11 @@ export async function POST(req: Request) {
     const result = await convex.mutation<{
       ok: boolean;
       expiresAt?: number;
+      workspace?: {
+        workspaceId: string;
+        name: string;
+      };
     }>("devices:validateRegistrationCodePreview", {
-      workspaceId: workspaceContext.workspace.workspaceId,
       code,
       rateLimitKey: getRequestRateLimitKey(req) ?? undefined,
     });
@@ -55,6 +52,7 @@ export async function POST(req: Request) {
     return Response.json({
       ok: true,
       expiresAt: result.expiresAt,
+      workspace: result.workspace,
     });
   } catch (error) {
     return convexErrorResponse(error, "Gagal memvalidasi registration code.");

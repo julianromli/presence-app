@@ -1,8 +1,4 @@
-import {
-  buildDeviceKey,
-  createDeviceAuthCookieHeader,
-} from "@/lib/device-auth";
-import { requireWorkspaceApiContext } from "@/lib/auth";
+import { buildDeviceKey, createDeviceAuthCookieHeader } from "@/lib/device-auth";
 import { convexErrorResponse } from "@/lib/api-error";
 import { getPublicConvexHttpClient } from "@/lib/convex-http";
 import { getRequestRateLimitKey, getTrustedClientIp } from "@/lib/request-ip";
@@ -12,15 +8,14 @@ type ClaimRegistrationResponse = {
   label: string;
   secret: string;
   claimedAt: number;
+  workspace: {
+    workspaceId: string;
+    name: string;
+  };
 };
 
 export async function POST(req: Request) {
-  const workspaceContext = requireWorkspaceApiContext(req);
-  if ("error" in workspaceContext) {
-    return workspaceContext.error;
-  }
-
-  let body: { code?: string; label?: string };
+  let body: { code?: string };
   try {
     body = await req.json();
   } catch {
@@ -31,10 +26,9 @@ export async function POST(req: Request) {
   }
 
   const code = body.code?.trim();
-  const label = body.label?.trim();
-  if (!code || !label) {
+  if (!code) {
     return Response.json(
-      { code: "VALIDATION_ERROR", message: "Kode dan nama device wajib diisi." },
+      { code: "VALIDATION_ERROR", message: "Kode registrasi wajib diisi." },
       { status: 400 },
     );
   }
@@ -54,9 +48,7 @@ export async function POST(req: Request) {
     const response = await convex.mutation<ClaimRegistrationResponse>(
       "devices:claimRegistrationCode",
       {
-        workspaceId: workspaceContext.workspace.workspaceId,
         code,
-        label,
         ipAddress,
         userAgent,
         rateLimitKey: getRequestRateLimitKey(req) ?? undefined,
@@ -67,6 +59,7 @@ export async function POST(req: Request) {
       deviceId: response.deviceId,
       label: response.label,
       claimedAt: response.claimedAt,
+      workspace: response.workspace,
     });
     result.headers.append(
       "Set-Cookie",

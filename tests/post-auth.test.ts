@@ -11,7 +11,7 @@ describe("post auth helpers", () => {
     expect(getRoleHomePath("karyawan")).toBe("/scan");
     expect(getRoleHomePath("admin")).toBe("/dashboard");
     expect(getRoleHomePath("superadmin")).toBe("/dashboard");
-    expect(getRoleHomePath("device-qr")).toBe("/device-qr");
+    expect(getRoleHomePath("device-qr")).toBe("/qr");
   });
 
   it("rejects unsafe next paths", () => {

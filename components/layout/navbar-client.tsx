@@ -29,7 +29,7 @@ const ITEMS: NavItem[] = [
   { label: "Integrasi", href: "/#integrasi" },
   { label: "FAQ", href: "/#faq" },
   { label: "Dashboard", href: "/dashboard", roles: ["admin", "superadmin"] },
-  { label: "QR Device", href: "/device-qr", roles: ["device-qr"] },
+  { label: "QR Device", href: "/qr", roles: ["device-qr"] },
 ];
 
 function isActivePath(pathname: string, href: string) {

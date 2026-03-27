@@ -1,10 +1,9 @@
 import type { DeviceSession } from "@/lib/device-auth";
 
-export type DeviceQrPanelStep = "enter-code" | "name-device" | "active-device";
+export type DeviceQrPanelStep = "enter-code" | "active-device";
 
 export type DeviceQrPanelState = {
   step: DeviceQrPanelStep;
-  pendingCode: string | null;
   session: DeviceSession | null;
 };
 
@@ -14,23 +13,13 @@ export function getInitialDeviceQrPanelState(
   if (!session) {
     return {
       step: "enter-code",
-      pendingCode: null,
       session: null,
     };
   }
 
   return {
     step: "active-device",
-    pendingCode: null,
     session,
-  };
-}
-
-export function advanceToDeviceNaming(code: string): DeviceQrPanelState {
-  return {
-    step: "name-device",
-    pendingCode: code,
-    session: null,
   };
 }
 
@@ -39,7 +28,6 @@ export function finalizeDeviceClaim(
 ): DeviceQrPanelState {
   return {
     step: "active-device",
-    pendingCode: null,
     session,
   };
 }
@@ -51,14 +39,12 @@ export function resolveDeviceAuthRestore(
   if (session && isAuthorized) {
     return {
       step: "active-device",
-      pendingCode: null,
       session,
     };
   }
 
   return {
     step: "enter-code",
-    pendingCode: null,
     session: null,
   };
 }

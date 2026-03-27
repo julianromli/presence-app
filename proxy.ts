@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   "/sitemap.xml",
   "/privacy(.*)",
   "/terms(.*)",
+  "/qr(.*)",
   "/device-qr(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",

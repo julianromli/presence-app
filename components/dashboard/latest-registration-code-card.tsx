@@ -49,7 +49,7 @@ export function LatestRegistrationCodeCard({
             Berlaku sampai {new Date(latestRegistrationCode.expiresAt).toLocaleString("id-ID")}
           </p>
           <p className="mt-1 text-xs text-emerald-800">
-            Plaintext code hanya muncul sesaat setelah generate. Gunakan setup URL di bawah untuk proses pairing.
+            Plaintext code hanya muncul sesaat setelah generate. Setelah itu pairing tetap dilakukan dari halaman singkat di bawah.
           </p>
         </>
       ) : (
@@ -65,11 +65,11 @@ export function LatestRegistrationCodeCard({
       {setupUrl ? (
         <div className="mt-3 rounded-lg border border-emerald-200/80 bg-white/80 px-3 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-            Setup URL
+            Halaman pairing
           </p>
           <p className="mt-1 break-all font-mono text-xs text-emerald-950">{setupUrl}</p>
           <p className="mt-1 text-xs text-emerald-800">
-            Buka URL ini di browser kiosk baru agar workspace scope langsung tersedia saat pairing.
+            Buka halaman ini di browser device, lalu input registration code terbaru untuk langsung mengaktifkan QR.
           </p>
         </div>
       ) : null}

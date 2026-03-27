@@ -35,6 +35,10 @@ export type WorkspaceApiContext = {
   workspaceId: string;
 };
 
+export type DeviceWorkspaceApiContext = WorkspaceApiContext & {
+  name: string;
+};
+
 export type DeviceApiSession = {
   deviceId: string;
   label: string;
@@ -48,7 +52,7 @@ type WorkspaceApiResult =
 type DeviceApiResult =
   | { error: Response }
   | {
-      workspace: WorkspaceApiContext;
+      workspace: DeviceWorkspaceApiContext;
       device: DeviceApiSession;
     };
 
@@ -487,11 +491,6 @@ export async function requireWorkspaceRoleApiFromDb(
 export async function requireWorkspaceDeviceApi(
   request: Request,
 ): Promise<DeviceApiResult> {
-  const workspaceContext = requireWorkspaceApiContext(request);
-  if ("error" in workspaceContext) {
-    return { error: workspaceContext.error };
-  }
-
   const deviceKey = getDeviceKeyFromRequest(request);
   if (!deviceKey) {
     return { error: deviceUnauthorizedResponse() };
@@ -509,19 +508,24 @@ export async function requireWorkspaceDeviceApi(
   }
 
   try {
-    const device = await convex.query<DeviceApiSession | null>("devices:authenticateDevice", {
-      workspaceId: workspaceContext.workspace.workspaceId,
+    const result = await convex.query<{
+      device: DeviceApiSession;
+      workspace: WorkspaceApiContext & { name: string };
+    } | null>("devices:authenticateDevice", {
       deviceId: deviceKey.deviceId,
       secret: deviceKey.secret,
     });
 
-    if (!device) {
+    if (!result) {
       return { error: deviceUnauthorizedResponse() };
     }
 
     return {
-      workspace: workspaceContext.workspace,
-      device,
+      workspace: {
+        workspaceId: result.workspace.workspaceId,
+        name: result.workspace.name,
+      },
+      device: result.device,
     };
   } catch {
     return {
