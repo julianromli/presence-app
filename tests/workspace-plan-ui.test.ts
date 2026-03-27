@@ -18,7 +18,6 @@ function buildSubscription(
   return {
     plan: "free",
     limits: {
-      maxOwnedWorkspaces: 1,
       maxMembersPerWorkspace: 5,
       maxDevicesPerWorkspace: 1,
     },

@@ -66,9 +66,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     createdByUserId: v.optional(v.id("users")),
-  })
-    .index("by_slug", ["slug"])
-    .index("by_created_by_user", ["createdByUserId"]),
+  }).index("by_slug", ["slug"]),
 
   workspace_members: defineTable({
     workspaceId: v.id("workspaces"),

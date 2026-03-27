@@ -23,7 +23,6 @@ async function setupCurrentWorkspaceRoute(options: SetupOptions = {}) {
     subscription: {
       plan: "free",
       limits: {
-        maxOwnedWorkspaces: 1,
         maxMembersPerWorkspace: 5,
         maxDevicesPerWorkspace: 1,
       },
@@ -89,7 +88,6 @@ describe("workspace current route", () => {
       subscription: {
         plan: "free",
         limits: {
-          maxOwnedWorkspaces: 1,
           maxMembersPerWorkspace: 5,
           maxDevicesPerWorkspace: 1,
         },

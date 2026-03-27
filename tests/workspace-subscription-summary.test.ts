@@ -80,7 +80,6 @@ describe("workspace subscription summary", () => {
     expect(result).toEqual({
       plan: "free",
       limits: {
-        maxOwnedWorkspaces: 1,
         maxMembersPerWorkspace: 5,
         maxDevicesPerWorkspace: 1,
       },

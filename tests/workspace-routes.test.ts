@@ -213,11 +213,11 @@ describe("workspace lifecycle routes", () => {
     });
   });
 
-  it("create route preserves the domain error code from convex", async () => {
+  it("create route preserves non-plan domain errors from convex", async () => {
     const domainError = {
       data: {
-        code: "PLAN_LIMIT_REACHED",
-        message: "Jumlah workspace aktif sudah mencapai batas paket.",
+        code: "VALIDATION_ERROR",
+        message: "Workspace name minimal 3 karakter.",
       },
     };
     const { POST } = await setupCreateRoute({
@@ -235,10 +235,10 @@ describe("workspace lifecycle routes", () => {
       }),
     );
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      code: "PLAN_LIMIT_REACHED",
-      message: "Jumlah workspace aktif sudah mencapai batas paket.",
+      code: "VALIDATION_ERROR",
+      message: "Workspace name minimal 3 karakter.",
     });
   });
 

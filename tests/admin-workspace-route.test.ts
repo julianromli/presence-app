@@ -47,7 +47,6 @@ async function setupWorkspaceRoute(options: SetupOptions = {}) {
     subscription: {
       plan: "free",
       limits: {
-        maxOwnedWorkspaces: 1,
         maxMembersPerWorkspace: 5,
         maxDevicesPerWorkspace: 1,
       },
@@ -128,7 +127,6 @@ describe("admin workspace route", () => {
     expect(payload.subscription).toEqual({
       plan: "free",
       limits: {
-        maxOwnedWorkspaces: 1,
         maxMembersPerWorkspace: 5,
         maxDevicesPerWorkspace: 1,
       },

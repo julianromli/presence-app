@@ -7,9 +7,7 @@ import {
   requireWorkspaceRole,
 } from "./helpers";
 import {
-  assertPlanLimitNotReached,
   assertWorkspaceFeatureEnabled,
-  compareWorkspacePlans,
   resolveWorkspacePlan,
   workspacePlanValidator,
 } from "./plans";
@@ -110,34 +108,6 @@ function resolveInviteExpiryFromPreset(preset, now = Date.now()) {
     default:
       return undefined;
   }
-}
-
-function getLegacyOwnershipTimestamp(membership) {
-  if (typeof membership.createdAt === "number") {
-    return membership.createdAt;
-  }
-
-  if (typeof membership._creationTime === "number") {
-    return membership._creationTime;
-  }
-
-  return Number.POSITIVE_INFINITY;
-}
-
-function compareLegacyOwnershipMemberships(left, right) {
-  const leftTimestamp = getLegacyOwnershipTimestamp(left);
-  const rightTimestamp = getLegacyOwnershipTimestamp(right);
-  if (leftTimestamp !== rightTimestamp) {
-    return leftTimestamp - rightTimestamp;
-  }
-
-  const leftUserId = String(left.userId);
-  const rightUserId = String(right.userId);
-  if (leftUserId !== rightUserId) {
-    return leftUserId.localeCompare(rightUserId);
-  }
-
-  return String(left._id).localeCompare(String(right._id));
 }
 
 function toWorkspaceView(workspace) {
@@ -247,80 +217,6 @@ function summarizeWorkspaceMembers(memberships, currentUserId) {
     activeCountExcludingCurrentUser: activeMemberships.filter(
       (membership) => membership.userId !== currentUserId,
     ).length,
-  };
-}
-
-async function resolveCreateWorkspaceEntitlements(ctx, userId) {
-  const ownedRows = await ctx.db
-    .query("workspaces")
-    .withIndex("by_created_by_user", (q) => q.eq("createdByUserId", userId))
-    .collect();
-  const memberships = await ctx.db
-    .query("workspace_members")
-    .withIndex("by_user_and_workspace", (q) => q.eq("userId", userId))
-    .collect();
-
-  const activeOwnedWorkspacesById = new Map();
-  for (const workspace of ownedRows) {
-    if (!workspace.isActive) {
-      continue;
-    }
-
-    activeOwnedWorkspacesById.set(String(workspace._id), workspace);
-  }
-
-  const legacyOwnerMemberships = memberships.filter(
-    (membership) => membership.isActive && membership.role === "superadmin",
-  );
-  for (const membership of legacyOwnerMemberships) {
-    if (activeOwnedWorkspacesById.has(String(membership.workspaceId))) {
-      continue;
-    }
-
-    const workspace = await ctx.db.get(membership.workspaceId);
-    if (!workspace || !workspace.isActive || workspace.createdByUserId !== undefined) {
-      continue;
-    }
-
-    const activeSuperadminMemberships = await ctx.db
-      .query("workspace_members")
-      .withIndex("by_workspace_role_active", (q) =>
-        q.eq("workspaceId", membership.workspaceId).eq("role", "superadmin").eq("isActive", true),
-      )
-      .collect();
-    const legacyOwnerMembership = activeSuperadminMemberships.reduce(
-      (currentOwner, candidate) =>
-        currentOwner === null ||
-        compareLegacyOwnershipMemberships(candidate, currentOwner) < 0
-          ? candidate
-          : currentOwner,
-      null,
-    );
-    if (!legacyOwnerMembership || String(legacyOwnerMembership.userId) !== String(userId)) {
-      continue;
-    }
-
-    activeOwnedWorkspacesById.set(String(workspace._id), workspace);
-  }
-
-  const activeOwnedWorkspaces = [...activeOwnedWorkspacesById.values()];
-  const plan = activeOwnedWorkspaces.reduce((bestPlan, workspace) => {
-    const workspacePlan = resolveWorkspacePlan(workspace);
-    return compareWorkspacePlans(workspacePlan, bestPlan) > 0 ? workspacePlan : bestPlan;
-  }, "free");
-
-  const entitlements = assertPlanLimitNotReached({
-    plan,
-    limitKey: "maxOwnedWorkspaces",
-    currentCount: activeOwnedWorkspaces.length,
-    code: "PLAN_LIMIT_REACHED",
-    message: "Jumlah workspace aktif sudah mencapai batas paket workspace Anda.",
-  });
-
-  return {
-    activeOwnedWorkspaces,
-    entitlements,
-    plan,
   };
 }
 
@@ -479,8 +375,6 @@ export const createWorkspace = mutation({
         message: "Workspace name minimal 3 karakter.",
       });
     }
-
-    await resolveCreateWorkspaceEntitlements(ctx, user._id);
 
     const baseSlug = slugifyWorkspaceName(name);
     const slug = await ensureUniqueWorkspaceSlug(ctx, baseSlug);
