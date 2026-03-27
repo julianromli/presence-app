@@ -20,10 +20,20 @@ const FREE_WORKSPACE_MEMBER_LIMIT = 5;
 const FREE_WORKSPACE_DEVICE_LIMIT = 1;
 const WORKSPACE_PRO_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 const STALE_PENDING_INITIALIZING_TIMEOUT_MS = 10 * 60 * 1000;
-const WORKSPACE_PRO_PRICE_IDR = Number.parseInt(
-  process.env.WORKSPACE_PRO_PRICE_IDR ?? "150000",
-  10,
-);
+const DEFAULT_WORKSPACE_PRO_PRICE_IDR = 150000;
+
+function getWorkspaceProPriceIdr() {
+  const configured = Number.parseInt(
+    process.env.WORKSPACE_PRO_PRICE_IDR?.trim() ?? "",
+    10,
+  );
+
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_WORKSPACE_PRO_PRICE_IDR;
+}
+
+const WORKSPACE_PRO_PRICE_IDR = getWorkspaceProPriceIdr();
 const STALE_PENDING_INITIALIZING_MESSAGE =
   "Sinkronisasi invoice Mayar terhenti sebelum referensi pembayaran tersedia.";
 
@@ -55,6 +65,13 @@ const workspaceBillingAllowedActionsValidator = v.object({
   canCreateCheckout: v.boolean(),
   canRefreshPendingInvoice: v.boolean(),
   canViewInvoices: v.boolean(),
+});
+
+const workspaceBillingCheckoutOfferValidator = v.object({
+  amount: v.number(),
+  currency: v.literal("IDR"),
+  periodDays: v.number(),
+  plan: v.literal("pro"),
 });
 
 const workspaceBillingSubscriptionViewValidator = v.object({
@@ -134,6 +151,7 @@ const workspaceBillingSummaryValidator = v.object({
     workspaceBillingSubscriptionViewValidator,
   ),
   pendingInvoice: v.union(v.null(), workspaceBillingInvoiceViewValidator),
+  checkoutOffer: workspaceBillingCheckoutOfferValidator,
   restrictedState: workspaceRestrictedSummaryValidator,
   allowedActions: workspaceBillingAllowedActionsValidator,
 });
@@ -505,6 +523,12 @@ async function buildBillingSummary(ctx, workspaceId, role) {
     plan: resolveWorkspacePlan(workspace),
     currentSubscription: toSubscriptionView(activeSubscription),
     pendingInvoice: toInvoiceView(pendingInvoice),
+    checkoutOffer: {
+      amount: WORKSPACE_PRO_PRICE_IDR,
+      currency: "IDR",
+      periodDays: WORKSPACE_PRO_PERIOD_MS / (24 * 60 * 60 * 1000),
+      plan: "pro",
+    },
     restrictedState,
     allowedActions: {
       canCancelPendingInvoice:
