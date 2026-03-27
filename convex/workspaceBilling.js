@@ -20,10 +20,20 @@ const FREE_WORKSPACE_MEMBER_LIMIT = 5;
 const FREE_WORKSPACE_DEVICE_LIMIT = 1;
 const WORKSPACE_PRO_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 const STALE_PENDING_INITIALIZING_TIMEOUT_MS = 10 * 60 * 1000;
-const WORKSPACE_PRO_PRICE_IDR = Number.parseInt(
-  process.env.WORKSPACE_PRO_PRICE_IDR ?? "150000",
-  10,
-);
+const DEFAULT_WORKSPACE_PRO_PRICE_IDR = 150000;
+
+function getWorkspaceProPriceIdr() {
+  const configured = Number.parseInt(
+    process.env.WORKSPACE_PRO_PRICE_IDR?.trim() ?? "",
+    10,
+  );
+
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_WORKSPACE_PRO_PRICE_IDR;
+}
+
+const WORKSPACE_PRO_PRICE_IDR = getWorkspaceProPriceIdr();
 const STALE_PENDING_INITIALIZING_MESSAGE =
   "Sinkronisasi invoice Mayar terhenti sebelum referensi pembayaran tersedia.";
 

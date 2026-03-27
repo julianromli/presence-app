@@ -131,6 +131,7 @@ vi.mock("@/lib/workspace-billing-client", () => ({
 }));
 
 vi.mock("@/lib/workspace-billing", () => ({
+  DEFAULT_WORKSPACE_PRO_PRICE_IDR: 150000,
   WORKSPACE_PRO_PERIOD_DAYS: 30,
   buildWorkspaceBillingInvoiceHref: () => "/settings/workspace/invoices/invoice_123",
 }));
@@ -296,6 +297,8 @@ describe("workspace billing pricing dialog", () => {
     );
 
     expect(html).toContain("30 hari akses Pro untuk satu workspace");
+    expect(html).toContain("Rp");
+    expect(html).toContain("150.000");
     expect(html).toContain("invoice_legacy");
   });
 });

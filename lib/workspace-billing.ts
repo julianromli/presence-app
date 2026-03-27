@@ -5,6 +5,7 @@ import type {
 
 export const FREE_WORKSPACE_MEMBER_LIMIT = 5;
 export const FREE_WORKSPACE_DEVICE_LIMIT = 1;
+export const DEFAULT_WORKSPACE_PRO_PRICE_IDR = 150000;
 export const WORKSPACE_PRO_PERIOD_DAYS = 30;
 
 export type WorkspaceRestrictionRole = 'superadmin' | 'admin' | 'karyawan' | 'device-qr';

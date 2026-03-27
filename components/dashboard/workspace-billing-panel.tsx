@@ -52,6 +52,7 @@ import {
 } from "@/lib/workspace-billing-client";
 import {
   buildWorkspaceBillingInvoiceHref,
+  DEFAULT_WORKSPACE_PRO_PRICE_IDR,
   WORKSPACE_PRO_PERIOD_DAYS,
 } from "@/lib/workspace-billing";
 import {
@@ -188,7 +189,10 @@ function resolveCheckoutOffer(
   summary: WorkspaceBillingSummaryPayload,
 ): Partial<WorkspaceBillingCheckoutOffer> & Pick<WorkspaceBillingCheckoutOffer, "currency" | "plan"> {
   return {
-    amount: summary.checkoutOffer?.amount ?? summary.pendingInvoice?.amount,
+    amount:
+      summary.checkoutOffer?.amount ??
+      summary.pendingInvoice?.amount ??
+      DEFAULT_WORKSPACE_PRO_PRICE_IDR,
     currency: summary.checkoutOffer?.currency ?? "IDR",
     periodDays: summary.checkoutOffer?.periodDays ?? WORKSPACE_PRO_PERIOD_DAYS,
     plan: summary.checkoutOffer?.plan ?? "pro",

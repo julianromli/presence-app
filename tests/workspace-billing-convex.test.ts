@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireWorkspaceRole = vi.fn();
 const requireWorkspaceRoleFromAction = vi.fn();
@@ -66,9 +66,12 @@ vi.mock("../convex/workspaceSubscription", () => ({
 }));
 
 describe("workspace billing convex checkout flow", () => {
+  const originalWorkspaceProPriceIdr = process.env.WORKSPACE_PRO_PRICE_IDR;
+
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.resetModules();
+    process.env.WORKSPACE_PRO_PRICE_IDR = originalWorkspaceProPriceIdr;
     vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
     getWorkspaceSubscriptionSummary.mockResolvedValue({
       usage: {
@@ -92,6 +95,10 @@ describe("workspace billing convex checkout flow", () => {
       },
       membership: { role: "superadmin" },
     });
+  });
+
+  afterAll(() => {
+    process.env.WORKSPACE_PRO_PRICE_IDR = originalWorkspaceProPriceIdr;
   });
 
   it("reuses an existing open checkout before calling Mayar", async () => {
@@ -1526,6 +1533,73 @@ describe("workspace billing convex checkout flow", () => {
       periodDays: 30,
       plan: "pro",
     });
+  });
+
+  it("falls back to the default Pro price when env input is empty or invalid", async () => {
+    process.env.WORKSPACE_PRO_PRICE_IDR = "abc";
+    const { getWorkspaceBillingSummary } =
+      await import("../convex/workspaceBilling");
+    const workspace = {
+      _id: "workspace_123456",
+      slug: "workspace",
+      name: "Workspace",
+      plan: "free",
+      isActive: true,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "workspace_123456") {
+            return workspace;
+          }
+
+          return null;
+        }),
+        query: vi.fn((table: string) => ({
+          withIndex: vi.fn(
+            (
+              _indexName: string,
+              builder: (query: {
+                eq: (field: string, value: unknown) => unknown;
+              }) => unknown,
+            ) => {
+              const queryBuilder = {
+                eq() {
+                  return queryBuilder;
+                },
+              };
+              builder(queryBuilder);
+
+              if (table === "workspace_subscriptions") {
+                return {
+                  collect: vi.fn(async () => []),
+                };
+              }
+
+              if (table === "workspace_billing_invoices") {
+                return {
+                  collect: vi.fn(async () => []),
+                };
+              }
+
+              throw new Error(`Unexpected table: ${table}`);
+            },
+          ),
+        })),
+      },
+    };
+
+    const result = (await getHandler(getWorkspaceBillingSummary)(ctx as never, {
+      workspaceId: "workspace_123456" as never,
+    })) as {
+      checkoutOffer: {
+        amount: number;
+      };
+    };
+
+    expect(result.checkoutOffer.amount).toBe(150000);
   });
 
   it("does not mark over-limit free workspaces as restricted when billing never activated", async () => {
