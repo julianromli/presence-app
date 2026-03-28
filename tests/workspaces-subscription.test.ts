@@ -27,23 +27,8 @@ type OwnedWorkspaceRow = {
   createdByUserId?: string;
 };
 
-type LegacyOwnershipMembershipRow = {
-  _id: string;
-  workspaceId: string;
-  userId: string;
-  role: "superadmin" | "admin" | "karyawan" | "device-qr";
-  isActive: boolean;
-  createdAt?: number;
-  _creationTime?: number;
-};
-
 function makeCreateWorkspaceCtx(
   ownedWorkspaces: OwnedWorkspaceRow[] = [],
-  options: {
-    legacyOwnerMemberships?: LegacyOwnershipMembershipRow[];
-    legacyWorkspaceMemberships?: LegacyOwnershipMembershipRow[];
-    legacyWorkspaces?: OwnedWorkspaceRow[];
-  } = {},
 ) {
   const insert = vi.fn(async (table: string) => {
     if (table === "workspaces") {
@@ -53,56 +38,16 @@ function makeCreateWorkspaceCtx(
     return `${table}_created`;
   });
 
-  const legacyOwnerMemberships = options.legacyOwnerMemberships ?? [];
-  const legacyWorkspaceMemberships =
-    options.legacyWorkspaceMemberships ?? legacyOwnerMemberships;
-  const allWorkspaces = [...ownedWorkspaces, ...(options.legacyWorkspaces ?? [])];
+  const allWorkspaces = [...ownedWorkspaces];
   const workspacesBySlugUnique = vi.fn(async () => null);
-  const workspacesByOwnerCollect = vi.fn(async () => ownedWorkspaces);
-  const membershipsByUserCollect = vi.fn(async () => legacyOwnerMemberships);
-  const membershipsByWorkspaceRoleActiveCollect = vi.fn(
-    async (workspaceId: string, role: string, isActive: boolean) =>
-      legacyWorkspaceMemberships.filter(
-        (membership) =>
-          membership.workspaceId === workspaceId &&
-          membership.role === role &&
-          membership.isActive === isActive,
-      ),
-  );
   const inviteCodeUnique = vi.fn(async () => null);
   const get = vi.fn(async (id: string) => allWorkspaces.find((workspace) => workspace._id === id) ?? null);
 
   const query = vi.fn((table: string) => ({
-    withIndex: vi.fn((indexName: string, applyIndex?: (query: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
+    withIndex: vi.fn((indexName: string) => {
       if (table === "workspaces" && indexName === "by_slug") {
         return {
           unique: workspacesBySlugUnique,
-        };
-      }
-
-      if (table === "workspaces" && indexName === "by_created_by_user") {
-        return {
-          collect: workspacesByOwnerCollect,
-        };
-      }
-
-      if (table === "workspace_members" && indexName === "by_user_and_workspace") {
-        return {
-          collect: membershipsByUserCollect,
-        };
-      }
-
-      if (table === "workspace_members" && indexName === "by_workspace_role_active") {
-        const filters: string[] = [];
-        applyIndex?.({
-          eq(_field, value) {
-            filters.push(String(value));
-            return this;
-          },
-        });
-        return {
-          collect: () =>
-            membershipsByWorkspaceRoleActiveCollect(filters[0], filters[1], filters[2] === "true"),
         };
       }
 
@@ -129,9 +74,6 @@ function makeCreateWorkspaceCtx(
       insert,
       query,
       inviteCodeUnique,
-      membershipsByUserCollect,
-      membershipsByWorkspaceRoleActiveCollect,
-      workspacesByOwnerCollect,
       workspacesBySlugUnique,
     },
   };
@@ -436,14 +378,14 @@ function makeUpdateAdminManagedFieldsCtx(options: UpdateAdminManagedFieldsOption
   };
 }
 
-describe("workspace subscription create limits", () => {
+describe("workspace creation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
     requireIdentityUser.mockResolvedValue({ _id: "user_actor" });
   });
 
-  it("evaluates the first owned workspace as free", async () => {
+  it("creates a free workspace for a valid actor", async () => {
     const { createWorkspace } = await import("../convex/workspaces.js");
     const { ctx, mocks } = makeCreateWorkspaceCtx();
 
@@ -470,7 +412,7 @@ describe("workspace subscription create limits", () => {
     expect(mocks.inviteCodeUnique).toHaveBeenCalledTimes(1);
   });
 
-  it("prevents a free owner from creating a second active owned workspace", async () => {
+  it("allows creating another workspace even when the actor already owns free workspaces", async () => {
     const { createWorkspace } = await import("../convex/workspaces.js");
     const { ctx, mocks } = makeCreateWorkspaceCtx([
       {
@@ -483,21 +425,23 @@ describe("workspace subscription create limits", () => {
       },
     ]);
 
-    await expect(
-      createWorkspace._handler(ctx as never, { name: "Second Workspace" }),
-    ).rejects.toMatchObject({
-      data: {
-        code: "PLAN_LIMIT_REACHED",
-        message: expect.stringMatching(/workspace/i),
-      },
+    const result = await createWorkspace._handler(ctx as never, {
+      name: "Second Workspace",
     });
 
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(result.workspaceId).toBe("workspace_created");
+    expect(mocks.insert).toHaveBeenCalledWith(
+      "workspaces",
+      expect.objectContaining({
+        name: "Second Workspace",
+        plan: "free",
+      }),
+    );
   });
 
-  it("allows more workspace creation after an owned workspace is upgraded to pro", async () => {
+  it("does not derive create permissions from the actor's existing workspace plans", async () => {
     const { createWorkspace } = await import("../convex/workspaces.js");
-    const { ctx, mocks } = makeCreateWorkspaceCtx([
+    const { ctx } = makeCreateWorkspaceCtx([
       {
         _id: "workspace_pro_1",
         slug: "presence-hq",
@@ -521,10 +465,9 @@ describe("workspace subscription create limits", () => {
     });
 
     expect(result.workspaceId).toBe("workspace_created");
-    expect(mocks.workspacesByOwnerCollect).toHaveBeenCalledTimes(1);
   });
 
-  it("treats enterprise as unlimited because the catalog limit is null", async () => {
+  it("allows workspace creation regardless of enterprise ownership count", async () => {
     const { createWorkspace } = await import("../convex/workspaces.js");
     const { ctx, mocks } = makeCreateWorkspaceCtx(
       Array.from({ length: 8 }, (_, index) => ({
@@ -547,98 +490,6 @@ describe("workspace subscription create limits", () => {
       expect.objectContaining({
         name: "Enterprise Expansion",
       }),
-    );
-  });
-
-  it("counts legacy superadmin ownership when createdByUserId is missing", async () => {
-    const { createWorkspace } = await import("../convex/workspaces.js");
-    const { ctx, mocks } = makeCreateWorkspaceCtx([], {
-      legacyOwnerMemberships: [
-        {
-          _id: "membership_legacy_owner",
-          workspaceId: "workspace_legacy_free",
-          userId: "user_actor",
-          role: "superadmin",
-          isActive: true,
-        },
-      ],
-      legacyWorkspaces: [
-        {
-          _id: "workspace_legacy_free",
-          slug: "legacy-hq",
-          name: "Legacy HQ",
-          plan: "free",
-          isActive: true,
-        },
-      ],
-    });
-
-    await expect(
-      createWorkspace._handler(ctx as never, { name: "Second Workspace" }),
-    ).rejects.toMatchObject({
-      data: {
-        code: "PLAN_LIMIT_REACHED",
-        message: expect.stringMatching(/workspace/i),
-      },
-    });
-
-    expect(mocks.membershipsByUserCollect).toHaveBeenCalledTimes(1);
-    expect(mocks.get).toHaveBeenCalledWith("workspace_legacy_free");
-    expect(mocks.insert).not.toHaveBeenCalled();
-  });
-
-  it("does not treat later legacy superadmin memberships as ownership", async () => {
-    const { createWorkspace } = await import("../convex/workspaces.js");
-    const { ctx, mocks } = makeCreateWorkspaceCtx([], {
-      legacyOwnerMemberships: [
-        {
-          _id: "membership_actor",
-          workspaceId: "workspace_legacy_shared",
-          userId: "user_actor",
-          role: "superadmin",
-          isActive: true,
-          createdAt: 20,
-        },
-      ],
-      legacyWorkspaceMemberships: [
-        {
-          _id: "membership_original_owner",
-          workspaceId: "workspace_legacy_shared",
-          userId: "user_owner",
-          role: "superadmin",
-          isActive: true,
-          createdAt: 10,
-        },
-        {
-          _id: "membership_actor",
-          workspaceId: "workspace_legacy_shared",
-          userId: "user_actor",
-          role: "superadmin",
-          isActive: true,
-          createdAt: 20,
-        },
-      ],
-      legacyWorkspaces: [
-        {
-          _id: "workspace_legacy_shared",
-          slug: "legacy-shared",
-          name: "Legacy Shared",
-          plan: "free",
-          isActive: true,
-        },
-      ],
-    });
-
-    const result = await createWorkspace._handler(ctx as never, {
-      name: "Fresh Workspace",
-    });
-
-    expect(result.workspaceId).toBe("workspace_created");
-    expect(mocks.membershipsByUserCollect).toHaveBeenCalledTimes(1);
-    expect(mocks.membershipsByWorkspaceRoleActiveCollect).toHaveBeenCalledWith(
-      "workspace_legacy_shared",
-      "superadmin",
-      true,
     );
   });
 });

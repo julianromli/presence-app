@@ -9,7 +9,6 @@ export const workspacePlanValidator = v.union(
 export const PLAN_CATALOG = {
   free: {
     limits: {
-      maxOwnedWorkspaces: 1,
       maxMembersPerWorkspace: 5,
       maxDevicesPerWorkspace: 1,
     },
@@ -24,9 +23,8 @@ export const PLAN_CATALOG = {
   },
   pro: {
     limits: {
-      maxOwnedWorkspaces: 5,
       maxMembersPerWorkspace: 50,
-      maxDevicesPerWorkspace: 3,
+      maxDevicesPerWorkspace: 5,
     },
     features: {
       geofence: true,
@@ -39,7 +37,6 @@ export const PLAN_CATALOG = {
   },
   enterprise: {
     limits: {
-      maxOwnedWorkspaces: null,
       maxMembersPerWorkspace: null,
       maxDevicesPerWorkspace: null,
     },
@@ -53,8 +50,6 @@ export const PLAN_CATALOG = {
     },
   },
 };
-
-const PLAN_ORDER = Object.freeze(Object.keys(PLAN_CATALOG));
 
 function listPlanNames() {
   return Object.keys(PLAN_CATALOG);
@@ -178,12 +173,6 @@ function assertKnownFeatureKey(entitlements, featureKey) {
     message: `WORKSPACE_PLAN_FEATURE_KEY_INVALID: Unknown workspace plan feature key "${String(featureKey)}".`,
     featureKey,
   });
-}
-
-export function compareWorkspacePlans(left, right) {
-  const leftPlan = resolveWorkspacePlan(left);
-  const rightPlan = resolveWorkspacePlan(right);
-  return PLAN_ORDER.indexOf(leftPlan) - PLAN_ORDER.indexOf(rightPlan);
 }
 
 export function resolveWorkspacePlan(workspaceLike) {

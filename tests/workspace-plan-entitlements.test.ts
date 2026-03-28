@@ -4,7 +4,6 @@ import {
   PLAN_CATALOG,
   assertPlanLimitNotReached,
   assertWorkspaceFeatureEnabled,
-  compareWorkspacePlans,
   isPlanLimitReached,
   resolveWorkspaceEntitlements,
   resolveWorkspacePlan,
@@ -14,7 +13,6 @@ describe("workspace plan entitlements", () => {
   it("exposes free limits and feature flags", () => {
     expect(PLAN_CATALOG.free).toEqual({
       limits: {
-        maxOwnedWorkspaces: 1,
         maxMembersPerWorkspace: 5,
         maxDevicesPerWorkspace: 1,
       },
@@ -32,9 +30,8 @@ describe("workspace plan entitlements", () => {
   it("exposes pro limits and feature flags", () => {
     expect(resolveWorkspaceEntitlements("pro")).toEqual({
       limits: {
-        maxOwnedWorkspaces: 5,
         maxMembersPerWorkspace: 50,
-        maxDevicesPerWorkspace: 3,
+        maxDevicesPerWorkspace: 5,
       },
       features: {
         geofence: true,
@@ -50,7 +47,6 @@ describe("workspace plan entitlements", () => {
   it("treats enterprise null limits as unlimited", () => {
     expect(resolveWorkspaceEntitlements("enterprise")).toEqual({
       limits: {
-        maxOwnedWorkspaces: null,
         maxMembersPerWorkspace: null,
         maxDevicesPerWorkspace: null,
       },
@@ -69,17 +65,6 @@ describe("workspace plan entitlements", () => {
   it("falls back to free when workspace plan is missing", () => {
     expect(resolveWorkspacePlan({})).toBe("free");
     expect(resolveWorkspacePlan({ plan: undefined })).toBe("free");
-  });
-
-  it("supports ranking plans for create-time entitlement resolution", () => {
-    const ownedWorkspacePlans = [{ plan: "free" }, { plan: "enterprise" }, { plan: "pro" }];
-    const highestPlan = ownedWorkspacePlans
-      .map((workspace) => resolveWorkspacePlan(workspace))
-      .sort((left, right) => compareWorkspacePlans(right, left))[0];
-
-    expect(compareWorkspacePlans("enterprise", "pro")).toBeGreaterThan(0);
-    expect(compareWorkspacePlans("pro", "free")).toBeGreaterThan(0);
-    expect(highestPlan).toBe("enterprise");
   });
 
   it("rejects invalid stored plan values", () => {

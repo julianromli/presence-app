@@ -91,7 +91,6 @@ export type WorkspacePlan = "free" | "pro" | "enterprise";
 
 export type WorkspaceEntitlements = {
   limits: {
-    maxOwnedWorkspaces: number | null;
     maxMembersPerWorkspace: number | null;
     maxDevicesPerWorkspace: number | null;
   };
