@@ -7,7 +7,7 @@ export function getRoleHomePath(role: AppRole) {
     case "karyawan":
       return "/scan";
     case "device-qr":
-      return "/device-qr";
+      return "/qr";
     case "admin":
     case "superadmin":
     default:

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  advanceToDeviceNaming,
   finalizeDeviceClaim,
   getInitialDeviceQrPanelState,
   resolveDeviceAuthRestore,
@@ -24,11 +23,20 @@ describe("device qr panel state", () => {
     });
   });
 
-  it("moves to name-device after a valid code preview", () => {
-    expect(advanceToDeviceNaming("GOOD-CODE")).toMatchObject({
-      step: "name-device",
-      pendingCode: "GOOD-CODE",
-      session: null,
+  it("moves straight to active-device after a successful claim", () => {
+    expect(
+      finalizeDeviceClaim({
+        deviceId: "device_123",
+        label: "QR Device BC1234",
+        claimedAt: 1_234_567_890,
+      }),
+    ).toMatchObject({
+      step: "active-device",
+      session: {
+        deviceId: "device_123",
+        label: "QR Device BC1234",
+        claimedAt: 1_234_567_890,
+      },
     });
   });
 

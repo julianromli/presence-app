@@ -192,18 +192,21 @@ export default defineSchema({
     claimedByDeviceId: v.optional(v.id("devices")),
     revokedAt: v.optional(v.number()),
   })
+    .index("by_code_hash", ["codeHash"])
     .index("by_workspace_code_hash", ["workspaceId", "codeHash"])
     .index("by_workspace_expires_at", ["workspaceId", "expiresAt"]),
 
   device_bootstrap_attempts: defineTable({
-    workspaceId: v.id("workspaces"),
+    workspaceId: v.optional(v.id("workspaces")),
     scope: v.union(v.literal("validate_code"), v.literal("claim_code")),
     keyHash: v.string(),
     firstAttemptAt: v.number(),
     lastAttemptAt: v.number(),
     attemptCount: v.number(),
     blockedUntil: v.optional(v.number()),
-  }).index("by_workspace_scope_key_hash", ["workspaceId", "scope", "keyHash"]),
+  })
+    .index("by_scope_key_hash", ["scope", "keyHash"])
+    .index("by_workspace_scope_key_hash", ["workspaceId", "scope", "keyHash"]),
 
   devices: defineTable({
     workspaceId: v.id("workspaces"),

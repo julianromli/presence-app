@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import QRCode from "qrcode";
 
 import { DeviceActivePanel } from "@/components/device-qr/device-active-panel";
 import { DeviceBootstrapForm } from "@/components/device-qr/device-bootstrap-form";
 import {
-  advanceToDeviceNaming,
   finalizeDeviceClaim,
   getInitialDeviceQrPanelState,
   resolveDeviceAuthRestore,
@@ -16,35 +15,30 @@ import {
   getSecondsUntilRefresh,
   shouldResetStoredDeviceSession,
 } from "@/components/device-qr/device-runtime-state";
-import {
-  buildDeviceRequestHeaders,
-  type DeviceSession,
-} from "@/lib/device-auth";
-import {
-  getActiveWorkspaceIdFromBrowser,
-  setActiveWorkspaceIdInBrowser,
-  workspaceFetch,
-} from "@/lib/workspace-client";
-
-type ValidateCodeResponse = {
-  ok: boolean;
-  message?: string;
+import { type DeviceSession } from "@/lib/device-auth";
+type DeviceWorkspacePreview = {
+  workspaceId: string;
+  name: string;
 };
 
 type ClaimDeviceResponse = {
   deviceId: string;
   label: string;
   claimedAt: number;
+  workspace: DeviceWorkspacePreview;
 };
 
-type DeviceAuthResponse = {
-  ok: true;
-  device: {
-    deviceId: string;
-    label: string;
-    claimedAt: number;
-  };
-};
+type DeviceAuthResponse =
+  | { ok: false }
+  | {
+      ok: true;
+      device: {
+        deviceId: string;
+        label: string;
+        claimedAt: number;
+      };
+      workspace: DeviceWorkspacePreview;
+    };
 
 type DeviceQrTokenResponse = {
   token: string;
@@ -53,11 +47,6 @@ type DeviceQrTokenResponse = {
   ttlMs: number;
   rotationIntervalMs: number;
   serverTime: number;
-};
-
-type DeviceWorkspacePreview = {
-  workspaceId: string;
-  name: string;
 };
 
 const DEVICE_HEARTBEAT_INTERVAL_MS = 20_000;
@@ -71,106 +60,57 @@ async function parseErrorPayload(response: Response) {
   }
 }
 
-type DeviceQrPanelProps = {
-  initialWorkspaceId?: string | null;
-};
+async function deviceFetch(input: RequestInfo | URL, init?: RequestInit) {
+  return await fetch(input, {
+    ...init,
+    cache: init?.cache ?? "no-store",
+  });
+}
 
-export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps) {
+function clearActivePanelRuntime(
+  setQrCodeDataUrl: (value: string | null) => void,
+  setTokenExpiresAt: (value: number | null) => void,
+  setTokenIssuedAt: (value: number | null) => void,
+  setRuntimeErrorMessage: (value: string | null) => void,
+  setErrorMessage: (value: string | null) => void,
+  setWorkspace: (value: DeviceWorkspacePreview | null) => void,
+  nextErrorMessage: string | null,
+) {
+  setQrCodeDataUrl(null);
+  setTokenExpiresAt(null);
+  setTokenIssuedAt(null);
+  setRuntimeErrorMessage(null);
+  setErrorMessage(nextErrorMessage);
+  setWorkspace(null);
+}
+
+export function DeviceQrPanel() {
   const [panelState, setPanelState] = useState(() =>
     getInitialDeviceQrPanelState(null),
   );
   const [code, setCode] = useState("");
-  const [label, setLabel] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [isResettingPairing, setIsResettingPairing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [runtimeErrorMessage, setRuntimeErrorMessage] = useState<string | null>(null);
   const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
   const [tokenIssuedAt, setTokenIssuedAt] = useState<number | null>(null);
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState<number | null>(null);
-  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState<string | null>(() =>
-    initialWorkspaceId ?? getActiveWorkspaceIdFromBrowser(),
-  );
-  const [resolvedWorkspaceName, setResolvedWorkspaceName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!initialWorkspaceId) {
-      return;
-    }
-
-    setResolvedWorkspaceId(initialWorkspaceId);
-    setActiveWorkspaceIdInBrowser(initialWorkspaceId);
-  }, [initialWorkspaceId]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadWorkspaceName = async () => {
-      if (!resolvedWorkspaceId) {
-        setResolvedWorkspaceName(null);
-        return;
-      }
-
-      try {
-        const response = await workspaceFetch("/api/device/workspace", {
-          cache: "no-store",
-          headers: {
-            ...buildDeviceRequestHeaders({
-              workspaceId: resolvedWorkspaceId,
-            }),
-          },
-        });
-
-        if (!response.ok) {
-          if (active) {
-            setResolvedWorkspaceName(null);
-          }
-          return;
-        }
-
-        const payload = (await response.json()) as DeviceWorkspacePreview;
-        if (active) {
-          setResolvedWorkspaceName(payload.name);
-        }
-      } catch {
-        if (active) {
-          setResolvedWorkspaceName(null);
-        }
-      }
-    };
-
-    void loadWorkspaceName();
-
-    return () => {
-      active = false;
-    };
-  }, [resolvedWorkspaceId]);
+  const [workspace, setWorkspace] = useState<DeviceWorkspacePreview | null>(null);
 
   useEffect(() => {
     let active = true;
 
     const restore = async () => {
-      if (!resolvedWorkspaceId) {
-        setPanelState(getInitialDeviceQrPanelState(null));
-        setIsRestoring(false);
-        return;
-      }
-
       if (!active) {
         return;
       }
 
       try {
-        const response = await workspaceFetch("/api/device/auth", {
-          cache: "no-store",
-          headers: {
-            ...buildDeviceRequestHeaders({
-              workspaceId: resolvedWorkspaceId,
-            }),
-          },
-        });
+        const response = await deviceFetch("/api/device/auth");
 
         if (!response.ok) {
           const payload = await parseErrorPayload(response);
@@ -182,6 +122,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
             return;
           }
           setPanelState(resolveDeviceAuthRestore(null, false));
+          setWorkspace(null);
           setErrorMessage(
             shouldReset
               ? "Sesi device tidak valid lagi. Masukkan code baru untuk pairing ulang."
@@ -191,6 +132,17 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         }
 
         const payload = (await response.json()) as DeviceAuthResponse;
+        if (!payload.ok) {
+          if (!active) {
+            return;
+          }
+          setPanelState(resolveDeviceAuthRestore(null, false));
+          setWorkspace(null);
+          setErrorMessage(null);
+          setRuntimeErrorMessage(null);
+          return;
+        }
+
         const restoredSession: DeviceSession = {
           deviceId: payload.device.deviceId,
           label: payload.device.label,
@@ -200,6 +152,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           return;
         }
         setPanelState(resolveDeviceAuthRestore(restoredSession, true));
+        setWorkspace(payload.workspace);
         setErrorMessage(null);
         setRuntimeErrorMessage(null);
       } catch {
@@ -207,6 +160,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           return;
         }
         setPanelState(resolveDeviceAuthRestore(null, false));
+        setWorkspace(null);
         setErrorMessage("Gagal memulihkan sesi device. Runtime akan mencoba lagi.");
       } finally {
         if (active) {
@@ -220,7 +174,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     return () => {
       active = false;
     };
-  }, [resolvedWorkspaceId]);
+  }, []);
 
   useEffect(() => {
     if (!tokenExpiresAt) {
@@ -252,12 +206,18 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     let heartbeatIntervalId: number | null = null;
 
     const resetToBootstrap = (message: string) => {
-      setQrCodeDataUrl(null);
-      setTokenExpiresAt(null);
-      setTokenIssuedAt(null);
-      setRuntimeErrorMessage(null);
-      setErrorMessage(message);
-      setPanelState(getInitialDeviceQrPanelState(null));
+      clearActivePanelRuntime(
+        setQrCodeDataUrl,
+        setTokenExpiresAt,
+        setTokenIssuedAt,
+        setRuntimeErrorMessage,
+        setErrorMessage,
+        setWorkspace,
+        message,
+      );
+      startTransition(() => {
+        setPanelState(getInitialDeviceQrPanelState(null));
+      });
     };
 
     const scheduleNextRefresh = (delayMs: number) => {
@@ -276,14 +236,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
 
     const sendHeartbeat = async () => {
       try {
-        const response = await workspaceFetch("/api/device/ping", {
-          cache: "no-store",
-          headers: {
-            ...buildDeviceRequestHeaders({
-              workspaceId: resolvedWorkspaceId,
-            }),
-          },
-        });
+        const response = await deviceFetch("/api/device/ping");
 
         if (!response.ok) {
           const payload = await parseErrorPayload(response);
@@ -313,14 +266,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
       setIsRefreshingToken(true);
 
       try {
-        const response = await workspaceFetch("/api/device/qr-token", {
-          cache: "no-store",
-          headers: {
-            ...buildDeviceRequestHeaders({
-              workspaceId: resolvedWorkspaceId,
-            }),
-          },
-        });
+        const response = await deviceFetch("/api/device/qr-token");
 
         if (!response.ok) {
           const payload = await parseErrorPayload(response);
@@ -385,86 +331,26 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         window.clearInterval(heartbeatIntervalId);
       }
     };
-  }, [isRestoring, panelState, resolvedWorkspaceId]);
+  }, [isRestoring, panelState]);
 
-  async function handleValidateCode() {
+  async function handleClaimDevice() {
     const trimmedCode = code.trim();
     if (!trimmedCode) {
       setErrorMessage("Registration code wajib diisi.");
       return;
     }
 
-    if (!resolvedWorkspaceId) {
-      setErrorMessage("Workspace belum ditentukan. Gunakan setup URL dari dashboard superadmin.");
-      return;
-    }
-
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      const response = await workspaceFetch("/api/device/bootstrap/validate-code", {
+      const response = await deviceFetch("/api/device/bootstrap/claim", {
         method: "POST",
         headers: {
-          ...buildDeviceRequestHeaders({
-            workspaceId: resolvedWorkspaceId,
-            contentType: "application/json",
-          }),
+          "content-type": "application/json",
         },
         body: JSON.stringify({ code: trimmedCode }),
       });
-      const payload = (await response.json()) as ValidateCodeResponse;
-
-      if (!response.ok || !payload.ok) {
-        setErrorMessage(payload.message ?? "Kode tidak valid atau sudah tidak aktif.");
-        return;
-      }
-
-      setCode(trimmedCode);
-      setPanelState(advanceToDeviceNaming(trimmedCode));
-    } catch {
-      setErrorMessage("Gagal memvalidasi registration code.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleClaimDevice() {
-    const trimmedLabel = label.trim();
-    if (!panelState.pendingCode) {
-      setPanelState(getInitialDeviceQrPanelState(null));
-      setErrorMessage("Registration code tidak ditemukan. Ulangi proses dari awal.");
-      return;
-    }
-
-    if (!trimmedLabel) {
-      setErrorMessage("Nama device wajib diisi.");
-      return;
-    }
-
-    if (!resolvedWorkspaceId) {
-      setErrorMessage("Workspace belum ditentukan. Gunakan setup URL dari dashboard superadmin.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      const response = await workspaceFetch("/api/device/bootstrap/claim", {
-        method: "POST",
-        headers: {
-          ...buildDeviceRequestHeaders({
-            workspaceId: resolvedWorkspaceId,
-            contentType: "application/json",
-          }),
-        },
-        body: JSON.stringify({
-          code: panelState.pendingCode,
-          label: trimmedLabel,
-        }),
-      });
-
       const payload = (await response.json()) as
         | ClaimDeviceResponse
         | { code?: string; message?: string };
@@ -483,8 +369,7 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         label: payload.label,
         claimedAt: payload.claimedAt,
       };
-      setActiveWorkspaceIdInBrowser(resolvedWorkspaceId);
-      setLabel("");
+      setWorkspace(payload.workspace);
       setErrorMessage(null);
       setRuntimeErrorMessage(null);
       setPanelState(finalizeDeviceClaim(session));
@@ -495,14 +380,31 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
     }
   }
 
-  function handleBackToCodeEntry() {
-    setErrorMessage(null);
-    setLabel("");
-    setQrCodeDataUrl(null);
-    setRuntimeErrorMessage(null);
-    setTokenExpiresAt(null);
-    setTokenIssuedAt(null);
-    setPanelState(getInitialDeviceQrPanelState(null));
+  async function handleResetPairing() {
+    setIsResettingPairing(true);
+
+    try {
+      await deviceFetch("/api/device/auth", {
+        method: "DELETE",
+      });
+      clearActivePanelRuntime(
+        setQrCodeDataUrl,
+        setTokenExpiresAt,
+        setTokenIssuedAt,
+        setRuntimeErrorMessage,
+        setErrorMessage,
+        setWorkspace,
+        null,
+      );
+      setCode("");
+      startTransition(() => {
+        setPanelState(getInitialDeviceQrPanelState(null));
+      });
+    } catch {
+      setRuntimeErrorMessage("Gagal menghapus pairing device. Coba lagi.");
+    } finally {
+      setIsResettingPairing(false);
+    }
   }
 
   return (
@@ -511,6 +413,8 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
         <DeviceActivePanel
           isRefreshingToken={isRefreshingToken}
           isRestoring={isRestoring}
+          isResettingPairing={isResettingPairing}
+          onResetPairing={() => void handleResetPairing()}
           qrCodeDataUrl={qrCodeDataUrl}
           runtimeErrorMessage={getVisibleDevicePanelError({
             step: panelState.step,
@@ -520,24 +424,15 @@ export function DeviceQrPanel({ initialWorkspaceId = null }: DeviceQrPanelProps)
           secondsUntilRefresh={secondsUntilRefresh}
           session={panelState.session}
           tokenIssuedAt={tokenIssuedAt}
-          workspaceId={resolvedWorkspaceName ?? resolvedWorkspaceId}
+          workspaceLabel={workspace?.name ?? workspace?.workspaceId ?? null}
         />
       ) : (
         <DeviceBootstrapForm
           code={code}
           errorMessage={errorMessage}
           isSubmitting={isSubmitting}
-          label={label}
-          onBack={handleBackToCodeEntry}
           onCodeChange={setCode}
-          onLabelChange={setLabel}
-          onSubmit={
-            panelState.step === "name-device"
-              ? handleClaimDevice
-              : handleValidateCode
-          }
-          step={panelState.step === "name-device" ? "name-device" : "enter-code"}
-          workspaceId={resolvedWorkspaceName ?? resolvedWorkspaceId}
+          onSubmit={handleClaimDevice}
         />
       )}
     </div>

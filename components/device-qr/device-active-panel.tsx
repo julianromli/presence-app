@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DeviceSession } from "@/lib/device-auth";
 
@@ -10,23 +11,27 @@ import { buildDeviceActivePanelModel } from "./device-runtime-state";
 type DeviceActivePanelProps = {
   isRefreshingToken: boolean;
   isRestoring: boolean;
+  isResettingPairing: boolean;
+  onResetPairing: () => void;
   qrCodeDataUrl: string | null;
   runtimeErrorMessage: string | null;
   secondsUntilRefresh: number | null;
   session: DeviceSession;
   tokenIssuedAt: number | null;
-  workspaceId: string | null;
+  workspaceLabel: string | null;
 };
 
 export function DeviceActivePanel({
   isRefreshingToken,
   isRestoring,
+  isResettingPairing,
+  onResetPairing,
   qrCodeDataUrl,
   runtimeErrorMessage,
   secondsUntilRefresh,
   session,
   tokenIssuedAt,
-  workspaceId,
+  workspaceLabel,
 }: DeviceActivePanelProps) {
   const model = buildDeviceActivePanelModel({
     isRestoring,
@@ -43,7 +48,7 @@ export function DeviceActivePanel({
     : isAttentionState
       ? "Perlu perhatian sebelum dipakai"
       : "Menyiapkan device";
-  const workspaceLabel = workspaceId ?? "Belum terdeteksi";
+  const resolvedWorkspaceLabel = workspaceLabel ?? "Belum terdeteksi";
   const instructionLabel = isLiveState
     ? "Biarkan browser tetap aktif di halaman ini agar QR terus bisa dipindai."
     : "Tunggu sampai QR tampil. Jika pairing diminta ulang, gunakan code baru.";
@@ -84,7 +89,7 @@ export function DeviceActivePanel({
               Workspace tujuan
             </p>
             <div className="mt-1 overflow-x-auto pb-1">
-              <p className="min-w-max font-mono text-sm text-zinc-900">{workspaceLabel}</p>
+              <p className="min-w-max font-mono text-sm text-zinc-900">{resolvedWorkspaceLabel}</p>
             </div>
           </div>
           <div className="rounded-2xl bg-zinc-50 px-4 py-3">
@@ -99,6 +104,16 @@ export function DeviceActivePanel({
             </p>
             <p className="mt-1 text-sm font-medium text-zinc-900">{model.statusLabel}</p>
           </div>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            isLoading={isResettingPairing}
+            loadingText="Menghapus pairing..."
+            onClick={onResetPairing}
+          >
+            Pair ulang device
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="grid gap-6 pt-0 lg:grid-cols-[minmax(0,1fr)_18rem]">

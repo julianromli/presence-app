@@ -24,6 +24,6 @@ describe('marketing navbar', () => {
   it('shows the device link for device-qr roles', () => {
     expect(
       getVisibleMarketingNavItems(true, 'device-qr').map((item) => item.href),
-    ).toContain('/device-qr');
+    ).toContain('/qr');
   });
 });

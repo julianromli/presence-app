@@ -19,7 +19,7 @@ export function getVisibleDevicePanelError({
   errorMessage,
   runtimeErrorMessage,
 }: {
-  step: "enter-code" | "name-device" | "active-device";
+  step: "enter-code" | "active-device";
   errorMessage: string | null;
   runtimeErrorMessage: string | null;
 }) {

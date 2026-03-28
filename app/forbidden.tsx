@@ -17,7 +17,7 @@ export default function ForbiddenPage() {
           <Button render={<Link href="/scan" />} variant="outline">
             Halaman Scan
           </Button>
-          <Button render={<Link href="/device-qr" />} variant="outline">
+          <Button render={<Link href="/qr" />} variant="outline">
             Halaman QR Device
           </Button>
           <Button render={<Link href="/" />}>

@@ -167,11 +167,14 @@ function makeClaimRegistrationCodeCtx(options: {
   const statusQuery = createStatusIndexQuery(devices, workspace._id);
   const query = vi.fn((table: string) => ({
     withIndex: vi.fn((indexName: string, apply?: (q: { eq: (field: string, value: string) => unknown }) => unknown) => {
-      if (table === "device_bootstrap_attempts" && indexName === "by_workspace_scope_key_hash") {
+      if (
+        table === "device_bootstrap_attempts" &&
+        (indexName === "by_scope_key_hash" || indexName === "by_workspace_scope_key_hash")
+      ) {
         return { unique: vi.fn(async () => bootstrapAttempt) };
       }
 
-      if (table === "device_registration_codes" && indexName === "by_workspace_code_hash") {
+      if (table === "device_registration_codes" && indexName === "by_code_hash") {
         return { unique: vi.fn(async () => codeRow) };
       }
 

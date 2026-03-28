@@ -94,9 +94,9 @@ describe("device management panel", () => {
     });
   });
 
-  it("builds a workspace-scoped setup url for fresh kiosk bootstrap", () => {
+  it("builds the short pairing url for fresh kiosk bootstrap", () => {
     expect(buildDeviceSetupUrl("workspace_123456", "https://app.example.com")).toBe(
-      "https://app.example.com/device-qr?workspaceId=workspace_123456",
+      "https://app.example.com/qr",
     );
   });
 
@@ -155,7 +155,7 @@ describe("device management panel", () => {
     expect(buildWorkspaceChangeReset).toBeTypeOf("function");
 
     expect(buildWorkspaceChangeReset?.("workspace_next", "https://app.example.com")).toMatchObject({
-      setupUrl: "https://app.example.com/device-qr?workspaceId=workspace_next",
+      setupUrl: "https://app.example.com/qr",
       generatedCode: null,
       notice: null,
       registrationCodesStatus: "loading",

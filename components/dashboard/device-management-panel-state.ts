@@ -88,12 +88,8 @@ export function buildGeneratedCodeNotice(
   };
 }
 
-export function buildDeviceSetupUrl(workspaceId: string | null, origin?: string | null) {
-  if (!workspaceId) {
-    return null;
-  }
-
-  const path = `/device-qr?workspaceId=${encodeURIComponent(workspaceId)}`;
+export function buildDeviceSetupUrl(_workspaceId: string | null, origin?: string | null) {
+  const path = "/qr";
   if (!origin) {
     return path;
   }

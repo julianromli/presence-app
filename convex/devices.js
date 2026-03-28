@@ -51,6 +51,12 @@ const registrationCodePreviewValidator = v.object({
   ok: v.boolean(),
   status: v.optional(registrationCodeStatusValidator),
   expiresAt: v.optional(v.number()),
+  workspace: v.optional(
+    v.object({
+      workspaceId: v.id("workspaces"),
+      name: v.string(),
+    }),
+  ),
 });
 
 const registrationCodeListItemValidator = v.object({
@@ -68,12 +74,22 @@ const claimResultValidator = v.object({
   label: v.string(),
   secret: v.string(),
   claimedAt: v.number(),
+  workspace: v.object({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+  }),
 });
 
 const authenticatedDeviceValidator = v.object({
-  deviceId: v.id("devices"),
-  label: v.string(),
-  claimedAt: v.number(),
+  device: v.object({
+    deviceId: v.id("devices"),
+    label: v.string(),
+    claimedAt: v.number(),
+  }),
+  workspace: v.object({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+  }),
 });
 
 const deviceListItemValidator = v.object({
@@ -174,21 +190,28 @@ export function pickExpiredRegistrationCodeIds(rows, now = Date.now()) {
     .map((row) => row._id);
 }
 
-async function getRegistrationCodeByHash(ctx, workspaceId, normalizedCode) {
+async function getRegistrationCodeByHash(ctx, _workspaceId, normalizedCode) {
   const codeHash = await hashDeviceCredential(normalizedCode);
   return await ctx.db
     .query("device_registration_codes")
-    .withIndex("by_workspace_code_hash", (q) =>
-      q.eq("workspaceId", workspaceId).eq("codeHash", codeHash),
-    )
+    .withIndex("by_code_hash", (q) => q.eq("codeHash", codeHash))
     .unique();
 }
 
-async function getBootstrapAttemptByKeyHash(ctx, workspaceId, scope, keyHash) {
+async function getBootstrapAttemptByKeyHash(ctx, scope, keyHash, workspaceId) {
+  if (workspaceId) {
+    return await ctx.db
+      .query("device_bootstrap_attempts")
+      .withIndex("by_workspace_scope_key_hash", (q) =>
+        q.eq("workspaceId", workspaceId).eq("scope", scope).eq("keyHash", keyHash),
+      )
+      .unique();
+  }
+
   return await ctx.db
     .query("device_bootstrap_attempts")
-    .withIndex("by_workspace_scope_key_hash", (q) =>
-      q.eq("workspaceId", workspaceId).eq("scope", scope).eq("keyHash", keyHash),
+    .withIndex("by_scope_key_hash", (q) =>
+      q.eq("scope", scope).eq("keyHash", keyHash),
     )
     .unique();
 }
@@ -205,14 +228,14 @@ function getRateLimitMessage(scope, blockedUntil, now = Date.now()) {
 
 async function resolveBootstrapAttemptContext(
   ctx,
-  { workspaceId, scope, rateLimitKey, now = Date.now() },
+  { scope, rateLimitKey, workspaceId, now = Date.now() },
 ) {
   if (!rateLimitKey) {
     return null;
   }
 
   const keyHash = await hashDeviceCredential(rateLimitKey);
-  const row = await getBootstrapAttemptByKeyHash(ctx, workspaceId, scope, keyHash);
+  const row = await getBootstrapAttemptByKeyHash(ctx, scope, keyHash, workspaceId);
   if (row?.blockedUntil && row.blockedUntil > now) {
     throw new ConvexError({
       code: "SPAM_DETECTED",
@@ -244,9 +267,9 @@ async function recordBootstrapAttemptFailure(
     attemptContext.row ??
     (await getBootstrapAttemptByKeyHash(
       ctx,
-      workspaceId,
       scope,
       attemptContext.keyHash,
+      workspaceId,
     ));
   const shouldResetWindow =
     !currentRow ||
@@ -297,6 +320,11 @@ async function getActiveWorkspaceOrThrow(ctx, workspaceId) {
   }
 
   return workspace;
+}
+
+function buildAutoDeviceLabel(codeId) {
+  const suffix = String(codeId).slice(-6).toUpperCase();
+  return `QR Device ${suffix}`;
 }
 
 export const createRegistrationCode = mutation({
@@ -382,19 +410,17 @@ export const listRegistrationCodes = query({
 
 export const validateRegistrationCodePreview = mutation({
   args: {
-    workspaceId: v.id("workspaces"),
+    workspaceId: v.optional(v.id("workspaces")),
     code: v.string(),
     rateLimitKey: v.optional(v.string()),
   },
   returns: registrationCodePreviewValidator,
   handler: async (ctx, args) => {
+    const normalizedCode = normalizeRegistrationCode(args.code);
     const attemptContext = await resolveBootstrapAttemptContext(ctx, {
-      workspaceId: args.workspaceId,
       scope: "validate_code",
       rateLimitKey: args.rateLimitKey,
     });
-    await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
-    const normalizedCode = normalizeRegistrationCode(args.code);
     if (!normalizedCode) {
       await recordBootstrapAttemptFailure(ctx, {
         workspaceId: args.workspaceId,
@@ -414,36 +440,52 @@ export const validateRegistrationCodePreview = mutation({
       return { ok: false };
     }
 
+    const workspaceAttemptContext = await resolveBootstrapAttemptContext(ctx, {
+      scope: "validate_code",
+      rateLimitKey: args.rateLimitKey,
+      workspaceId: row.workspaceId,
+    });
+    const workspace = await getActiveWorkspaceOrThrow(ctx, row.workspaceId);
     const status = deriveRegistrationCodeStatus(row, Date.now());
     if (status !== "pending") {
       await recordBootstrapAttemptFailure(ctx, {
-        workspaceId: args.workspaceId,
+        workspaceId: row.workspaceId,
         scope: "validate_code",
-        attemptContext,
+        attemptContext: workspaceAttemptContext,
       });
-      return { ok: false, status };
+      return {
+        ok: false,
+        status,
+        workspace: {
+          workspaceId: workspace._id,
+          name: workspace.name,
+        },
+      };
     }
 
-    await clearBootstrapAttemptContext(ctx, attemptContext);
+    await clearBootstrapAttemptContext(ctx, workspaceAttemptContext ?? attemptContext);
 
     return {
       ok: true,
       status,
       expiresAt: row.expiresAt,
+      workspace: {
+        workspaceId: workspace._id,
+        name: workspace.name,
+      },
     };
   },
 });
 
 export const authenticateDevice = query({
   args: {
-    workspaceId: v.id("workspaces"),
     deviceId: v.id("devices"),
     secret: v.string(),
   },
   returns: v.union(v.null(), authenticatedDeviceValidator),
   handler: async (ctx, args) => {
     const device = await ctx.db.get(args.deviceId);
-    if (!device || device.workspaceId !== args.workspaceId || device.status !== "active") {
+    if (!device || device.status !== "active") {
       return null;
     }
 
@@ -452,10 +494,21 @@ export const authenticateDevice = query({
       return null;
     }
 
+    const workspace = await ctx.db.get(device.workspaceId);
+    if (!workspace || !workspace.isActive) {
+      return null;
+    }
+
     return {
-      deviceId: device._id,
-      label: device.label,
-      claimedAt: device.claimedAt,
+      device: {
+        deviceId: device._id,
+        label: device.label,
+        claimedAt: device.claimedAt,
+      },
+      workspace: {
+        workspaceId: workspace._id,
+        name: workspace.name,
+      },
     };
   },
 });
@@ -504,22 +557,23 @@ export const listDevices = query({
 
 export const claimRegistrationCode = mutation({
   args: {
-    workspaceId: v.id("workspaces"),
+    workspaceId: v.optional(v.id("workspaces")),
     code: v.string(),
-    label: v.string(),
+    label: v.optional(v.string()),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
     rateLimitKey: v.optional(v.string()),
   },
   returns: claimResultValidator,
   handler: async (ctx, args) => {
-    const attemptContext = await resolveBootstrapAttemptContext(ctx, {
-      workspaceId: args.workspaceId,
-      scope: "claim_code",
-      rateLimitKey: args.rateLimitKey,
-    });
+    let attemptContext = null;
+    let resolvedWorkspaceId = args.workspaceId;
 
     try {
+      attemptContext = await resolveBootstrapAttemptContext(ctx, {
+        scope: "claim_code",
+        rateLimitKey: args.rateLimitKey,
+      });
       const normalizedCode = normalizeRegistrationCode(args.code);
       if (!normalizedCode) {
         throw new ConvexError({
@@ -528,16 +582,13 @@ export const claimRegistrationCode = mutation({
         });
       }
 
-      const label = normalizeDeviceLabel(args.label);
-      if (label.length < 3) {
-        throw new ConvexError({
-          code: "VALIDATION_ERROR",
-          message: "Nama device minimal 3 karakter.",
-        });
-      }
-
-      const workspace = await getActiveWorkspaceOrThrow(ctx, args.workspaceId);
       const codeRow = await getRegistrationCodeByHash(ctx, args.workspaceId, normalizedCode);
+      resolvedWorkspaceId = codeRow?.workspaceId ?? args.workspaceId;
+      attemptContext = await resolveBootstrapAttemptContext(ctx, {
+        scope: "claim_code",
+        rateLimitKey: args.rateLimitKey,
+        workspaceId: resolvedWorkspaceId,
+      });
       if (!codeRow) {
         throw new ConvexError({
           code: "REGISTRATION_CODE_INVALID",
@@ -545,14 +596,25 @@ export const claimRegistrationCode = mutation({
         });
       }
 
+      const workspace = await getActiveWorkspaceOrThrow(ctx, codeRow.workspaceId);
+
       const claimedAt = Date.now();
       assertRegistrationCodeClaimable(codeRow, claimedAt);
       await assertWorkspaceActiveDeviceLimitNotReached(ctx, workspace);
 
+      const providedLabel = args.label ? normalizeDeviceLabel(args.label) : "";
+      if (providedLabel && providedLabel.length < 3) {
+        throw new ConvexError({
+          code: "VALIDATION_ERROR",
+          message: "Nama device minimal 3 karakter.",
+        });
+      }
+      const label = providedLabel || buildAutoDeviceLabel(codeRow._id);
+
       const secret = generateDeviceSecret();
       const deviceSecretHash = await hashDeviceCredential(secret);
       const deviceId = await ctx.db.insert("devices", {
-        workspaceId: args.workspaceId,
+        workspaceId: workspace._id,
         label,
         deviceSecretHash,
         status: "active",
@@ -573,7 +635,7 @@ export const claimRegistrationCode = mutation({
       });
 
       await insertAuditLog(ctx, {
-        workspaceId: args.workspaceId,
+        workspaceId: workspace._id,
         action: "device_registration_code.claimed",
         targetType: "device_registration_codes",
         targetId: String(codeRow._id),
@@ -593,11 +655,15 @@ export const claimRegistrationCode = mutation({
         label,
         secret,
         claimedAt,
+        workspace: {
+          workspaceId: workspace._id,
+          name: workspace.name,
+        },
       };
     } catch (error) {
       if (shouldCountBootstrapFailure(error)) {
         await recordBootstrapAttemptFailure(ctx, {
-          workspaceId: args.workspaceId,
+          workspaceId: resolvedWorkspaceId,
           scope: "claim_code",
           attemptContext,
         });
